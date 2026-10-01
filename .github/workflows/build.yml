@@ -1,0 +1,66 @@
+name: build
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PROJECT: src/SubtitleStudio/SubtitleStudio.csproj
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read version and check changelog
+        id: ver
+        shell: pwsh
+        run: |
+          [xml]$xml = Get-Content -LiteralPath $env:PROJECT -Raw
+          $node = $xml.SelectSingleNode('/Project/PropertyGroup/FullVersion')
+          if ($null -eq $node) { Write-Error 'FullVersion not found in csproj'; exit 1 }
+          $version = $node.InnerText.Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') { Write-Error "FullVersion '$version' is not a four-part version"; exit 1 }
+          $escaped = [regex]::Escape($version)
+          if (-not (Select-String -LiteralPath 'CHANGELOG.md' -Pattern "^## \[$escaped\]" -Quiet)) {
+            Write-Error "CHANGELOG.md has no '## [$version]' entry. Add one for this build."
+            exit 1
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Building Subtitle Studio v$version"
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT }} -r win-x64
+
+      - name: Publish (single-file, self-contained, win-x64)
+        run: dotnet publish ${{ env.PROJECT }} -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+
+      - name: Verify EXE
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path publish -Filter 'SubtitleStudio*.exe' | Select-Object -First 1
+          if ($null -eq $exe) { Write-Error 'No EXE produced in publish/'; exit 1 }
+          $expectedName = 'SubtitleStudio v${{ steps.ver.outputs.version }}.exe'
+          if ($exe.Name -ne $expectedName) { Write-Error "EXE is named '$($exe.Name)', expected '$expectedName'"; exit 1 }
+          $fileVersion = $exe.VersionInfo.FileVersion
+          Write-Host "$($exe.Name)  $([math]::Round($exe.Length / 1MB, 1)) MB  FileVersion $fileVersion"
+          if ($fileVersion -ne '${{ steps.ver.outputs.version }}') { Write-Error "FileVersion $fileVersion does not match FullVersion"; exit 1 }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SubtitleStudio-${{ steps.ver.outputs.version }}-win-x64
+          path: publish/SubtitleStudio*.exe
+          if-no-files-found: error

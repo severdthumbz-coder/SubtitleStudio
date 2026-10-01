@@ -1,0 +1,335 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.BurnedInTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls"
+             xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+             Loaded="OnLoaded"
+             Unloaded="OnUnloaded">
+    <!-- Burned-in subs. Logic: MainViewModel.BurnedIn.cs + Services/BurnedIn, Services/Gpu, Services/Video. -->
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" MinWidth="420" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Burned-in subtitles" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
+            <ctl:HintMarker Margin="8,2,0,0"
+                            Text="Burned-in (hard) subtitles are part of the picture, not a separate track. This tab finds them, reads them into a normal subtitle you can edit, translate and save, and can remove them from the picture into a new video." />
+        </StackPanel>
+
+        <!-- ================= Left: controls ================= -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Video" Style="{StaticResource Text.H2}" />
+                        <ComboBox ItemsSource="{Binding VideoFiles}" DisplayMemberPath="Name" SelectedItem="{Binding BurnedInVideo, Mode=TwoWay}"
+                                  Margin="0,10,0,0" ToolTip="Videos from Source / Files" />
+                        <TextBlock Text="Add videos in Source / Files to see them here." Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
+                                   Visibility="{Binding VideoFiles.Count, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="1. Detect" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,12"
+                                   Text="Reads 36 frames spread over the video and looks for subtitle-like text. Takes a few seconds." />
+                        <Button Style="{StaticResource AccentButton}" Tag="&#xE721;" Content="Detect" HorizontalAlignment="Left"
+                                Command="{Binding DetectBurnedInCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="2. Subtitle area" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0" Text="Only this strip of the picture is read. Detect sets it automatically; drag the sliders to adjust it. Keep it tight around the text for speed and accuracy." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding BandText}" Style="{StaticResource Text.Muted}" Margin="0,4,0,8" />
+                        <TextBlock Text="Top" Style="{StaticResource Text.Label}" />
+                        <Slider Minimum="0" Maximum="100" Value="{Binding BandTopPercent, Mode=TwoWay}" Margin="0,2,0,6" />
+                        <TextBlock Text="Bottom" Style="{StaticResource Text.Label}" />
+                        <Slider Minimum="0" Maximum="100" Value="{Binding BandBottomPercent, Mode=TwoWay}" Margin="0,2,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <CheckBox Content="Clean up the background (white or yellow text)" IsChecked="{Binding BurnedInCleanup, Mode=TwoWay}" />
+                            <ctl:HintMarker Margin="8,0,0,0" Text="Keeps only light text with a dark edge (the outline or shadow subtitles have) and removes the picture behind it, so the text reader sees clean black text on white. Detect turns this on for white or yellow subtitles. Turn it off for coloured subtitles. The strip under the frame shows exactly what will be read." />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="3. Extract to subtitle" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,10"
+                                   Text="Reads the whole video and turns the text into timed cues. The result opens in the Subtitles tab for review." />
+                        <ComboBox ItemsSource="{Binding ExtractSpeeds}" DisplayMemberPath="Label"
+                                  SelectedItem="{Binding SelectedExtractSpeed, Mode=TwoWay}" Margin="0,0,0,8" />
+                        <CheckBox IsChecked="{Binding LeaveOutAds}" Margin="0,0,0,10"
+                                  ToolTip="Some videos have website ads burned in with the subtitles (a line with a web address such as HollyMovieHD.Com or GOHD.CC). Readings with a web address in them are left out of the subtitle. They are still removed from the picture by step 4.">
+                            <TextBlock Text="Leave out website ads (lines with a web address)" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <Button Tag="&#xE8A5;" Content="Extract" HorizontalAlignment="Left" Command="{Binding ExtractBurnedInCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Hardware and text recognition" Style="{StaticResource Text.H2}" />
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="&#xE7F8;" Style="{StaticResource Text.Icon}" FontSize="14"
+                                       Foreground="{DynamicResource Brush.Accent}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding GpuSummary}" Style="{StaticResource Text.Body}" />
+                        </DockPanel>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="&#xE8D2;" Style="{StaticResource Text.Icon}" FontSize="14"
+                                       Foreground="{DynamicResource Brush.Accent}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding OcrStatusText}" Style="{StaticResource Text.Body}" />
+                        </DockPanel>
+                        <StackPanel Margin="0,10,0,0" Visibility="{Binding OcrAvailable, Converter={StaticResource Vis}}">
+                            <TextBlock Text="Language of the burned-in text" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding OcrLanguages}" SelectedItem="{Binding SelectedOcrLanguage, Mode=TwoWay}" Width="180" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Text.Caption}" Margin="0,10,0,0"
+                                   Text="Frames are decoded on the graphics card when possible, and AI fill (step 4) runs on it with DirectML." />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="4. Remove from the picture" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0" Text="Writes a new video without the subtitle text. Only the subtitle area set in step 2 is touched, and only in frames where text is found. The original file is never changed; audio, subtitle tracks and chapters are copied unchanged. Try Preview 10 s first: it renders from the frame shown in Check a frame and plays next to the original." />
+                        </StackPanel>
+                        <ComboBox ItemsSource="{Binding RemovalMethods}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedRemovalMethod, Mode=TwoWay}" Margin="0,10,0,4" />
+                        <TextBlock Text="{Binding SelectedRemovalMethod.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <Border Style="{StaticResource Card}" Padding="10" Margin="0,0,0,10" Visibility="{Binding IsAiSelected, Converter={StaticResource Vis}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding AiStatusText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Style="{StaticResource AccentButton}" Tag="&#xE896;" Content="Download model (90 MB)" Command="{Binding DownloadAiModelCommand}" Margin="0,0,8,0"
+                                            Visibility="{Binding AiNeedsModel, Converter={StaticResource Vis}}"
+                                            ToolTip="Downloads LaMa (Apache-2.0) from the OpenCV model zoo on GitHub and checks it; stored in the models folder next to the app" />
+                                    <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Use a model file..." Command="{Binding ImportAiModelCommand}"
+                                            Visibility="{Binding AiNeedsModel, Converter={StaticResource Vis}}"
+                                            ToolTip="Already have inpainting_lama_2025jan.onnx? Pick it; it is checked and copied into the models folder" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <WrapPanel>
+                            <Button Tag="&#xE768;" Content="Preview 10 s" Command="{Binding PreviewRemovalCommand}" Margin="0,0,8,6"
+                                    ToolTip="Render 10 seconds from the frame shown in Check a frame, and play it next to the original" />
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE714;" Content="Create video" Command="{Binding CreateCleanVideoCommand}" Margin="0,0,8,6"
+                                    ToolTip="Render the whole video to a new file" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Show in folder" Command="{Binding RevealRemovalOutputCommand}" Margin="0,0,0,6"
+                                    Visibility="{Binding HasRemovalOutput, Converter={StaticResource Vis}}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding EncoderText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ================= Right: frame + results ================= -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" MinHeight="240" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Progress -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12" Padding="16,12">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelBurnedInCommand}"
+                                Visibility="{Binding BurnedInBusy, Converter={StaticResource Vis}}" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding BurnedInStatus}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                   ToolTip="{Binding BurnedInStatus}" />
+                    </DockPanel>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding BurnedInProgress, Mode=OneWay}" Margin="0,10,0,0"
+                                 Visibility="{Binding BurnedInBusy, Converter={StaticResource Vis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Sample frame with the subtitle area highlighted -->
+            <Border Grid.Row="1" Background="#FF000000" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                    Visibility="{Binding ShowFrame, Converter={StaticResource Vis}}">
+                <Grid>
+                    <Viewbox Stretch="Uniform" Visibility="{Binding HasPreviewFrame, Converter={StaticResource Vis}}">
+                        <Canvas Width="{Binding FrameWidth}" Height="{Binding FrameHeight}">
+                            <Image Source="{Binding PreviewFrame, Converter={StaticResource FrameImage}}"
+                                   Width="{Binding FrameWidth}" Height="{Binding FrameHeight}" />
+                            <Rectangle Canvas.Left="0" Canvas.Top="{Binding BandTopPx}" Width="{Binding FrameWidth}" Height="{Binding BandHeightPx}"
+                                       Stroke="#FF4F8CFF" StrokeThickness="4" StrokeDashArray="4 2" Fill="#334F8CFF" />
+                        </Canvas>
+                    </Viewbox>
+                    <Button Style="{StaticResource GhostButton}" Tag="&#xE89F;" Content="Before / after" Command="{Binding ShowCompareCommand}"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="8,3" Background="#B0000000" Foreground="#FFFFFFFF"
+                            Visibility="{Binding HasComparison, Converter={StaticResource Vis}}" ToolTip="Play the original and the result side by side" />
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460" Margin="24"
+                                Visibility="{Binding HasPreviewFrame, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+                        <TextBlock Text="&#xE91B;" Style="{StaticResource Text.Icon}" FontSize="30" Foreground="#80FFFFFF" HorizontalAlignment="Center" />
+                        <TextBlock Text="A frame from the video appears here after Detect, with the subtitle area highlighted."
+                                   Foreground="#C0FFFFFF" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+
+            <!-- Before / after: original (with sound) and result (muted) side by side, in step -->
+            <!-- Visibility is bound on this outer grid: the inner one takes Compare as its DataContext,
+                 where ShowCompare doesn't exist (a failed binding would leave it always visible). -->
+            <Grid Grid.Row="1" Visibility="{Binding ShowCompare, Converter={StaticResource Vis}}">
+            <Grid DataContext="{Binding Compare}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="6" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding BeforeName, StringFormat=Before: {0}}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
+                <TextBlock Grid.Column="2" Text="{Binding AfterName, StringFormat=After: {0}}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
+                <Border Grid.Row="1" Background="#FF000000" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                    <vlc:VideoView x:Name="BeforeView" />
+                </Border>
+                <Border Grid.Row="1" Grid.Column="2" Background="#FF000000" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                    <vlc:VideoView x:Name="AfterView" />
+                </Border>
+                <DockPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,8,0,0">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE892;" Command="{Binding BackCommand}" ToolTip="2 s back" />
+                    <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Tag="{Binding PlayPauseGlyph}" Command="{Binding PlayPauseCommand}" Margin="4,0" ToolTip="Play / pause both" />
+                    <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE893;" Command="{Binding ForwardCommand}" ToolTip="2 s forward" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE8B9;" Content="Frame" Margin="10,0,0,0"
+                            Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            ToolTip="Back to the still frame and Check a frame" />
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding PositionText}" FontFamily="{StaticResource Font.Mono}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Slider Minimum="{Binding RangeStartSeconds}" Maximum="{Binding RangeEndSeconds}" Value="{Binding PositionSeconds, Mode=TwoWay}"
+                            VerticalAlignment="Center" Margin="10,0,0,0" />
+                </DockPanel>
+            </Grid>
+            </Grid>
+
+            <!-- Frame checker: any moment, the subtitle area as the text reader gets it, and what it reads -->
+            <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12,10"
+                    Visibility="{Binding HasDetection, Converter={StaticResource Vis}}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Check a frame" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                            <ctl:HintMarker Margin="8,0,12,0" Text="Step or drag to a moment with a subtitle. The strip shows the subtitle area exactly as extraction prepares every frame, and below it what the text reader reads there. Clean, complete black letters read well. If letters are missing or there are many stray marks, adjust the area, switch the background clean-up or check the OCR language. Click a line under 'Text found in the samples' to jump to it." />
+                        </StackPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE74E;" Content="Save images" Command="{Binding SaveFrameImagesCommand}"
+                                Margin="8,0,0,0" ToolTip="Save this frame, the subtitle area and what the reader sees as PNG images, with the readings in a text file (folder subt_frames next to the app). Useful to share when reading goes wrong." />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding FrameTimeText}" FontFamily="{StaticResource Font.Mono}" VerticalAlignment="Center"
+                                   Margin="10,0,0,0" MinWidth="64" TextAlignment="Right" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE893;" Content="1 s" Command="{Binding NextFrameCommand}"
+                                ToolTip="One second later" Margin="4,0,0,0" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE892;" Content="1 s" Command="{Binding PreviousFrameCommand}"
+                                ToolTip="One second earlier" Margin="0,0,4,0" />
+                        <Slider Minimum="0" Maximum="{Binding VideoSeconds}" Value="{Binding FrameSeconds, Mode=TwoWay}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <!-- No black backdrop: the strip sits on the card (black bars beside it looked like missing pictures). -->
+                    <Border Background="Transparent" HorizontalAlignment="Stretch" MinHeight="24">
+                        <Image Source="{Binding OcrPreview, Converter={StaticResource FrameImage}}" MaxHeight="110" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Reads as subtitle" Style="{StaticResource Text.Caption}" Margin="0,1,12,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding TestReadText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Text="All text found" Style="{StaticResource Text.Caption}" Margin="0,5,12,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TestReadAll}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </Grid>
+                    <ProgressBar IsIndeterminate="True" Height="2" Margin="0,6,0,0" Visibility="{Binding FrameBusy, Converter={StaticResource Vis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Detection result -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,12,0,0" MaxHeight="300"
+                    Visibility="{Binding HasDetection, Converter={StaticResource Vis}}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top">
+                        <TextBlock DockPanel.Dock="Left" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                    <Setter Property="Text" Value="&#xE946;" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.Info}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DetectionLikely}" Value="True">
+                                            <Setter Property="Text" Value="&#xE73E;" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <StackPanel>
+                            <TextBlock Text="{Binding DetectionHeadline}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding DetectionDetails}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Caption}" Margin="0,8,0,0"
+                               Visibility="{Binding IgnoredStaticTexts.Count, Converter={StaticResource Vis}}">
+                        <Run Text="Ignored text that never changes (logos, watermarks):" />
+                        <Run Text="{Binding IgnoredStaticTexts.Count, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock DockPanel.Dock="Top" Text="Text found in the samples" Style="{StaticResource Text.Label}" Margin="0,10,0,4"
+                               Visibility="{Binding DetectionExamples.Count, Converter={StaticResource Vis}}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding DetectionExamples}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Padding="4,2" Margin="0,0,0,2" ToolTip="Show this frame" Cursor="Hand"
+                                            Foreground="{DynamicResource Brush.Text}"
+                                            Command="{Binding DataContext.ShowExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Time, StringFormat=hh\\:mm\\:ss}" FontFamily="{StaticResource Font.Mono}"
+                                                       Foreground="{DynamicResource Brush.TextMuted}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

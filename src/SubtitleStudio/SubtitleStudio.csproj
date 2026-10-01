@@ -1,0 +1,114 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VERSIONING: FullVersion is the ONLY value bumped per build.
+    Version / AssemblyVersion / FileVersion / InformationalVersion all derive from it.
+  -->
+  <PropertyGroup>
+    <FullVersion>1.0.0.33</FullVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Windows 10 SDK projection: needed for the built-in Windows OCR (Windows.Media.Ocr). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SubtitleStudio</RootNamespace>
+    <AssemblyName>SubtitleStudio</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+
+    <Product>Subtitle Studio</Product>
+    <AssemblyTitle>Subtitle Studio</AssemblyTitle>
+    <Description>Portable subtitle editor, transcriber, translator and dubbing tool.</Description>
+    <Copyright>Copyright (c) 2026</Copyright>
+
+    <Version>$(FullVersion)</Version>
+    <AssemblyVersion>$(FullVersion)</AssemblyVersion>
+    <FileVersion>$(FullVersion)</FileVersion>
+    <InformationalVersion>$(FullVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- Portable single-file, self-contained x64 EXE. No installer, no runtime prerequisite. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <DebugType>embedded</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!--
+      LibVLC ships as a libvlc\win-x64 folder of native files. Bundling all content keeps the
+      one-EXE portable layout: on first launch the bundle self-extracts to a per-version cache
+      under %TEMP%\.net\SubtitleStudio (later launches reuse it). Settings still live next to the EXE.
+    -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <VlcWindowsX64Enabled>true</VlcWindowsX64Enabled>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      LibVLCSharp 3.10+ only: 3.9.x and older ship a net6.0-windows10 build that NuGet picks for our
+      windows10 target (needed for Windows OCR). That build drags in Microsoft.WindowsAppSDK (WinUI 3)
+      and SharpDX, whose build scripts inject legacy UWP runtime identifiers and break publishing
+      (NETSDK1083 / NETSDK1082 win10-arm). 3.10 targets plain net10.0 instead.
+    -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.1" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.10.1" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.20" />
+    <!-- AI fill: ONNX Runtime with DirectML (graphics card on AMD / NVIDIA / Intel), built into the EXE. -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.22.0" />
+    <!--
+      AI Transcribe: whisper.cpp through Whisper.net, built into the EXE. Two native builds: Vulkan
+      (graphics cards from AMD, NVIDIA and Intel) and processor-only as the fallback. Whisper.net loads
+      them from runtimes\vulkan\win-x64 and runtimes\win-x64 (bundled like LibVLC's folder).
+    -->
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+  </ItemGroup>
+
+  <!--
+    The Whisper.net runtime packages copy their native libraries for every platform (Linux, macOS,
+    32-bit and ARM Windows). This app is win-x64 only: keep just runtimes\win-x64 and
+    runtimes\vulkan\win-x64, so the single-file EXE doesn't carry the rest.
+  -->
+  <Target Name="KeepOnlyWinX64WhisperRuntimes" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_ForeignWhisperRuntime Include="@(None)"
+                              Condition="$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').Contains('/win-x64/'))" />
+      <None Remove="@(_ForeignWhisperRuntime)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Published EXE is named like Video Metadata Editor's: "SubtitleStudio v1.0.0.5.exe".
+    Renamed after publish (a single-file EXE doesn't care about its own name) so the assembly name,
+    pack URIs and resource names stay "SubtitleStudio".
+  -->
+  <Target Name="VersionedExeName" AfterTargets="Publish" Condition="'$(PublishSingleFile)' == 'true'">
+    <PropertyGroup>
+      <_PublishRoot>$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_PublishRoot>
+      <_PlainExe>$(_PublishRoot)$(AssemblyName).exe</_PlainExe>
+      <_VersionedExe>$(_PublishRoot)$(AssemblyName) v$(FullVersion).exe</_VersionedExe>
+    </PropertyGroup>
+    <Delete Files="$(_VersionedExe)" Condition="Exists('$(_VersionedExe)')" />
+    <Move SourceFiles="$(_PlainExe)" DestinationFiles="$(_VersionedExe)" Condition="Exists('$(_PlainExe)')" />
+    <Message Importance="high" Text="Published: $(_VersionedExe)" />
+  </Target>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+    <!-- The repo changelog is the single source for the in-app revision history. -->
+    <EmbeddedResource Include="..\..\CHANGELOG.md" Link="CHANGELOG.md" LogicalName="SubtitleStudio.CHANGELOG.md" />
+    <!-- Silero VAD (MIT, see Assets\Models\ggml-silero-v6.2.0.LICENSE.txt): finds the speech for AI Transcribe. -->
+    <EmbeddedResource Include="Assets\Models\ggml-silero-v6.2.0.bin" LogicalName="SubtitleStudio.ggml-silero-v6.2.0.bin" />
+  </ItemGroup>
+
+</Project>

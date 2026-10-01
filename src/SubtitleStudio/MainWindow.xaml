@@ -1,0 +1,159 @@
+<Window x:Class="SubtitleStudio.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:inf="clr-namespace:SubtitleStudio.Infrastructure"
+        xmlns:tabs="clr-namespace:SubtitleStudio.Views.Tabs"
+        Title="{Binding WindowTitle}"
+        Icon="/Assets/app.ico"
+        Width="1400" Height="880"
+        MinWidth="1000" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Window}"
+        Foreground="{DynamicResource Brush.Text}"
+        FontFamily="{StaticResource Font.UI}"
+        FontSize="13"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveSubtitleCommand}" />
+        <KeyBinding Key="S" Modifiers="Control+Shift" Command="{Binding SaveSubtitleAsCommand}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenSubtitleCommand}" />
+        <KeyBinding Key="H" Modifiers="Control" Command="{Binding ToggleOverlayCommand}" />
+    </Window.InputBindings>
+
+    <!--
+        SHELL ONLY: toolbar + tabs + status bar. Each tab is its own UserControl under Views/Tabs
+        backed by its own MainViewModel.<Area>.cs partial and Services/. Do not add feature UI here.
+        Files dropped anywhere on the window are imported (FileDrop behaviour).
+    -->
+    <Grid inf:FileDrop.Command="{Binding DropFilesCommand}" Background="{DynamicResource Brush.Window}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ Toolbar: horizontally scrollable strip, never runs under the window controls ============ -->
+        <Border Grid.Row="0" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Orientation="Horizontal" Margin="12,7">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="2,0,10,0">
+                        <Image Source="/Assets/app.ico" Width="28" Height="28" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <StackPanel VerticalAlignment="Center" Margin="9,0,0,0">
+                            <TextBlock Text="Subtitle Studio" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding DisplayVersion}" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="0,-1,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Rectangle Style="{StaticResource ToolbarSeparator}" />
+
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE8E5;" Content="Add files"
+                            Command="{Binding AddFilesCommand}" ToolTip="Add video, audio or subtitle files" />
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE838;" Content="Add folder"
+                            Command="{Binding AddFolderCommand}" ToolTip="Add every supported file in a folder (see 'Include subfolders')" />
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE894;" Content="Clear list"
+                            Command="{Binding ClearFilesCommand}" ToolTip="Remove all files from the list (nothing is deleted from disk)" />
+
+                    <Rectangle Style="{StaticResource ToolbarSeparator}" />
+
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE706;" Content="{Binding ThemeToggleText}"
+                            Command="{Binding ToggleThemeCommand}" ToolTip="Switch between dark and light theme" />
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE713;" Content="Settings"
+                            Command="{Binding ShowSettingsCommand}" />
+                    <Button Style="{StaticResource ToolbarButton}" Tag="&#xE897;" Content="Help"
+                            Command="{Binding ShowHelpCommand}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ============ Tabs ============ -->
+        <TabControl Grid.Row="1"
+                    Style="{StaticResource MainTabControl}"
+                    ItemContainerStyle="{StaticResource MainTabItem}"
+                    SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+            <TabItem Header="Source / Files" Tag="&#xE8B7;">
+                <tabs:FilesTab />
+            </TabItem>
+            <TabItem Header="Subtitles" Tag="&#xE7F0;">
+                <tabs:SubtitlesTab />
+            </TabItem>
+            <TabItem Header="Burned-in subs" Tag="&#xE91B;">
+                <tabs:BurnedInTab />
+            </TabItem>
+            <TabItem Header="AI Transcribe" Tag="&#xE720;">
+                <tabs:TranscribeTab />
+            </TabItem>
+            <TabItem Header="Translate" Tag="&#xE8C1;">
+                <tabs:TranslateTab />
+            </TabItem>
+            <TabItem Header="Dubbing" Tag="&#xE767;">
+                <tabs:DubbingTab />
+            </TabItem>
+            <TabItem Header="Settings" Tag="&#xE713;">
+                <tabs:SettingsTab />
+            </TabItem>
+            <TabItem Header="Log" Tag="&#xE9D9;">
+                <tabs:LogTab />
+            </TabItem>
+            <TabItem Header="Help" Tag="&#xE897;">
+                <tabs:HelpTab />
+            </TabItem>
+        </TabControl>
+
+        <!-- ============ Status bar ============ -->
+        <Border Grid.Row="2" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
+                BorderThickness="0,1,0,0" Padding="14,6">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding DisplayVersion}"
+                           Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
+                            ToolTip="{Binding FfmpegStatusText}">
+                    <TextBlock FontSize="12" Margin="0,0,6,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                <Setter Property="Text" Value="&#xE7BA;" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.Warning}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FfmpegReady}" Value="True">
+                                        <Setter Property="Text" Value="&#xE73E;" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding FfmpegShortText}" Foreground="{DynamicResource Brush.TextSecondary}" />
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding FilesCountText}" Foreground="{DynamicResource Brush.TextSecondary}"
+                           VerticalAlignment="Center" Margin="16,0,0,0" />
+
+                <DockPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusGlyph" DockPanel.Dock="Left" FontSize="13" Margin="0,0,8,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                <Setter Property="Text" Value="&#xE946;" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.Info}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusKind}" Value="Success">
+                                        <Setter Property="Text" Value="&#xE73E;" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusKind}" Value="Warning">
+                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Warning}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusKind}" Value="Error">
+                                        <Setter Property="Text" Value="&#xEA39;" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                               ToolTip="{Binding StatusText}" />
+                </DockPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

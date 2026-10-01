@@ -1,0 +1,239 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.FilesTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
+    <!-- Source / Files. Logic: MainViewModel.Files.cs + FileImportService / SidecarDetector / MediaProbeService. -->
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="460" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="340" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.ColumnSpan="3" Margin="0,0,0,12" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox IsChecked="{Binding IncludeSubfolders}" VerticalAlignment="Center" Margin="0,0,6,0"
+                          Content="Include subfolders" />
+                <ctl:HintMarker Margin="0,0,16,0"
+                                Text="When adding a folder (button, drag and drop or hand-off), also scan every folder inside it." />
+                <Button Tag="&#xE74D;" Content="Remove selected"
+                        Command="{Binding RemoveItemsCommand}"
+                        CommandParameter="{Binding SelectedItems, ElementName=FilesGrid}"
+                        ToolTip="Remove the selected rows from the list (Delete key). Files on disk are not touched." />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Source files" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
+                <ctl:HintMarker Margin="8,2,0,0"
+                                Text="Drop videos, audio or subtitle files anywhere in the window, or use Add files / Add folder. Videos sent from Video Metadata Editor appear here automatically, even if Subtitle Studio is already open." />
+                <TextBlock Text="{Binding FilesSummary}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="14,2,0,0" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- File list + empty-state drop zone -->
+        <Grid Grid.Row="1" Grid.Column="0">
+            <DataGrid x:Name="FilesGrid"
+                      ItemsSource="{Binding Files}"
+                      SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                      PreviewKeyDown="FilesGrid_PreviewKeyDown"
+                      MouseDoubleClick="FilesGrid_MouseDoubleClick"
+                      Visibility="{Binding Files.Count, Converter={StaticResource Vis}}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="2.2*" MinWidth="180" SortMemberPath="Name" CanUserSort="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <DockPanel ToolTip="{Binding FullPath}">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding KindGlyph}" Margin="0,0,9,0" FontSize="14">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.KindVideo}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Audio">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.KindAudio}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Subtitle">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.KindSubtitle}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Type" Binding="{Binding KindText}" Width="80" />
+                    <DataGridTextColumn Header="Format" Binding="{Binding Extension}" Width="72" />
+                    <DataGridTextColumn Header="Duration" Binding="{Binding DurationText}" Width="84" SortMemberPath="DurationSortKey" />
+
+                    <DataGridTemplateColumn Header="Subtitles found" Width="1.6*" MinWidth="140" SortMemberPath="SidecarsText" CanUserSort="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding SidecarsText}" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.KindSubtitle}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSidecars}" Value="False">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Folder" Binding="{Binding Folder}" Width="1.6*" MinWidth="120">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+                                <Setter Property="ToolTip" Value="{Binding Folder}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Empty state: large drop target with the same actions as the toolbar. -->
+            <Grid Visibility="{Binding Files.Count, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+                <Rectangle RadiusX="12" RadiusY="12" StrokeThickness="1.5" StrokeDashArray="6 4"
+                           Stroke="{DynamicResource Brush.BorderStrong}" Fill="{DynamicResource Brush.Surface}" />
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Margin="24">
+                    <Border Width="64" Height="64" CornerRadius="16" HorizontalAlignment="Center" Background="{DynamicResource Brush.AccentSoft}">
+                        <TextBlock Text="&#xE8B5;" Style="{StaticResource Text.Icon}" FontSize="28"
+                                   Foreground="{DynamicResource Brush.Accent}" HorizontalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Drop videos or subtitle files here" Style="{StaticResource Text.H2}" FontSize="17"
+                               HorizontalAlignment="Center" TextAlignment="Center" Margin="0,16,0,6" />
+                    <TextBlock Style="{StaticResource Text.Muted}" TextAlignment="Center"
+                               Text="MP4, MKV, AVI, MOV, WebM and more, audio files, and SRT / VTT / ASS / SSA / SUB subtitles. Folders are scanned too." />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+                        <Button Style="{StaticResource AccentButton}" Tag="&#xE8E5;" Content="Add files" Command="{Binding AddFilesCommand}" />
+                        <Button Tag="&#xE838;" Content="Add folder" Command="{Binding AddFolderCommand}" Margin="10,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+                        <TextBlock Text="&#xE71B;" Style="{StaticResource Text.Icon}" FontSize="12"
+                                   Foreground="{DynamicResource Brush.TextMuted}" Margin="0,0,6,0" />
+                        <TextBlock Style="{StaticResource Text.Caption}"
+                                   Text="Videos sent from Video Metadata Editor are added here automatically." />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Details panel -->
+        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}" Padding="0">
+            <Grid>
+                <TextBlock Text="Select a file to see its details and the subtitle files found next to it."
+                           Style="{StaticResource Text.Muted}" TextAlignment="Center" Margin="28"
+                           VerticalAlignment="Center"
+                           Visibility="{Binding SelectedFile, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              DataContext="{Binding SelectedFile}"
+                              Visibility="{Binding Converter={StaticResource Vis}}">
+                    <StackPanel Margin="18,16">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Left" Text="{Binding KindGlyph}" Style="{StaticResource Text.Icon}" FontSize="20"
+                                       Foreground="{DynamicResource Brush.Accent}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.H2}" />
+                        </DockPanel>
+
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="78" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource Text.Label}" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding KindText}" />
+                            <TextBlock Grid.Row="1" Text="Format" Style="{StaticResource Text.Label}" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Extension}" />
+                            <TextBlock Grid.Row="2" Text="Size" Style="{StaticResource Text.Label}" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SizeText}" />
+                            <TextBlock Grid.Row="3" Text="Duration" Style="{StaticResource Text.Label}" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DurationText}" />
+                            <TextBlock Grid.Row="4" Text="Folder" Style="{StaticResource Text.Label}" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Folder, Mode=OneWay}" Style="{StaticResource SelectableText}"
+                                     Foreground="{DynamicResource Brush.TextSecondary}" />
+                        </Grid>
+
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE70F;" Content="Open in editor" Margin="0,0,8,8"
+                                    Visibility="{Binding Kind, Converter={StaticResource EqVis}, ConverterParameter=Subtitle}"
+                                    Command="{Binding DataContext.OpenInEditorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" ToolTip="Open this subtitle in the Subtitles tab (or double-click the row)" />
+                            <Button Tag="&#xE710;" Content="New subtitle" Margin="0,0,8,8"
+                                    Visibility="{Binding IsVideo, Converter={StaticResource Vis}}"
+                                    Command="{Binding DataContext.NewForVideoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" ToolTip="Start an empty subtitle paired with this video" />
+                            <Button Tag="&#xE838;" Content="Show in Explorer" Margin="0,0,8,8"
+                                    Command="{Binding DataContext.RevealFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                        </WrapPanel>
+
+                        <!-- Sidecars (videos only) -->
+                        <StackPanel Visibility="{Binding IsVideo, Converter={StaticResource Vis}}">
+                            <Separator Margin="0,16,0,12" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Subtitle files next to this video" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                                <ctl:HintMarker Margin="6,0,0,0"
+                                                Text="Detected by name so they pair in Plex / Jellyfin: VideoName.lang[.forced][.hi].ext, e.g. Film (2024).en.forced.srt" />
+                            </StackPanel>
+                            <TextBlock Text="None found." Style="{StaticResource Text.Muted}" Margin="0,8,0,0"
+                                       Visibility="{Binding HasSidecars, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                            <ItemsControl ItemsSource="{Binding Sidecars}" Margin="0,8,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource Brush.SurfaceAlt}" CornerRadius="{StaticResource Radius.Control}"
+                                                Padding="10,8" Margin="0,0,0,6" ToolTip="{Binding FilePath}">
+                                            <StackPanel>
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE70F;" Content="Edit"
+                                                            Padding="8,2" MinHeight="26" Margin="8,-2,-4,0" VerticalAlignment="Top"
+                                                            Command="{Binding DataContext.OpenInEditorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}" ToolTip="Open in the Subtitles tab" />
+                                                    <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" />
+                                                </DockPanel>
+                                                <ItemsControl ItemsSource="{Binding Tags}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Style="{StaticResource Pill}">
+                                                                <TextBlock Text="{Binding}" FontSize="10.5" FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.KindSubtitle}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

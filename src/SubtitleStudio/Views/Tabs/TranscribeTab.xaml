@@ -1,0 +1,145 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.TranscribeTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
+    <!-- AI Transcribe. Logic: MainViewModel.Transcribe.cs + Services/Transcription (whisper.cpp in the app). -->
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" MinWidth="380" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="AI Transcribe" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
+            <ctl:HintMarker Margin="8,2,0,0"
+                            Text="Turns the speech in a video or audio file into timed subtitles with Whisper (whisper.cpp), running inside the app: nothing is uploaded and no other program is needed except FFmpeg. The result opens in the Subtitles tab to review and save." />
+        </StackPanel>
+
+        <!-- ================= Left: steps ================= -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="File" Style="{StaticResource Text.H2}" />
+                        <ComboBox ItemsSource="{Binding TranscribableFiles}" DisplayMemberPath="Name" SelectedItem="{Binding TranscribeFile, Mode=TwoWay}"
+                                  Margin="0,10,0,0" ToolTip="Videos and audio files from Source / Files" />
+                        <TextBlock Text="Add videos or audio files in Source / Files to see them here." Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
+                                   Visibility="{Binding TranscribableFiles.Count, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                        <StackPanel Margin="0,10,0,0" Visibility="{Binding HasSeveralAudioTracks, Converter={StaticResource Vis}}">
+                            <TextBlock Text="Audio track" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding TranscribeTracks}" SelectedItem="{Binding TranscribeTrack, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="1. What to write" Style="{StaticResource Text.H2}" />
+                        <TextBlock Text="Language spoken" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding TranscribeLanguages}" SelectedItem="{Binding SelectedTranscribeLanguage, Mode=TwoWay}"
+                                  ToolTip="Automatic detection listens to the start of the speech. Choosing the language is a little more reliable." />
+                        <RadioButton GroupName="TranscribeTask" IsChecked="{Binding WriteSpokenLanguage, Mode=TwoWay}" Margin="0,12,0,4">
+                            <TextBlock Text="Write it out in the language spoken" TextWrapping="Wrap" />
+                        </RadioButton>
+                        <RadioButton GroupName="TranscribeTask" IsChecked="{Binding TranslateToEnglish, Mode=TwoWay}"
+                                     ToolTip="Whisper translates as it listens. Use Large v3 or Medium for this; Large v3 Turbo translates poorly.">
+                            <TextBlock Text="Translate it into English subtitles" TextWrapping="Wrap" />
+                        </RadioButton>
+                        <TextBlock Text="How much" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding TranscribeParts}" SelectedItem="{Binding SelectedTranscribePart, Mode=TwoWay}"
+                                  ToolTip="Try the first 2 minutes to check the model, language and speed before a whole episode" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="2. Whisper model" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="The speech recognition model, a file of 150 MB to 3 GB kept in models\whisper next to the app. Downloaded once from whisper.cpp's page on Hugging Face and checked against the size and SHA-256 published there. An interrupted download continues where it stopped." />
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding HasWhisperModel, Converter={StaticResource Vis}}" Margin="0,10,0,0">
+                            <ComboBox ItemsSource="{Binding WhisperModels}" SelectedItem="{Binding SelectedWhisperModel, Mode=TwoWay}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding WhisperModelNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Foreground="{DynamicResource Brush.Warning}"
+                                   Visibility="{Binding HasWhisperModelNote, Converter={StaticResource Vis}}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,10,0,6"
+                                   Text="No model yet. Large v3 Turbo is the one to start with; for English subtitles of Korean (or other) speech, Large v3."
+                                   Visibility="{Binding NeedsWhisperModel, Converter={StaticResource Vis}}" />
+                        <TextBlock Text="Download a model" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding WhisperCatalogEntries}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedCatalogEntry, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding SelectedCatalogEntry.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE896;" Content="{Binding DownloadModelLabel}" Command="{Binding DownloadWhisperModelCommand}" Margin="0,0,8,6"
+                                    ToolTip="Downloads from huggingface.co/ggerganov/whisper.cpp and checks it" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Use a model file..." Command="{Binding ImportWhisperModelCommand}" Margin="0,0,8,6"
+                                    ToolTip="Already downloaded a ggml-*.bin model? Pick it; it is checked and copied into the models folder" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Models folder" Command="{Binding OpenWhisperModelsFolderCommand}" Margin="0,0,0,6" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="3. Where it runs" Style="{StaticResource Text.H2}" />
+                        <ComboBox ItemsSource="{Binding WhisperDeviceOptions}" SelectedItem="{Binding SelectedWhisperDevice, Mode=TwoWay}" Margin="0,10,0,6"
+                                  ToolTip="Automatic uses the graphics card (not a GPU built into the processor) through Vulkan. A change takes effect after restarting the app." />
+                        <TextBlock Text="{Binding WhisperDeviceText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="4. Transcribe" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
+                                   Text="Reads the audio, finds the speech (a built-in speech detector skips music and silence) and writes it as timed cues. The result opens in the Subtitles tab, unsaved." />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE720;" Content="Transcribe" Command="{Binding TranscribeCommand}" Margin="0,0,8,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding TranscribeBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ================= Right: progress and what is heard ================= -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelTranscribeCommand}"
+                                Visibility="{Binding TranscribeBusy, Converter={StaticResource Vis}}" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding TranscribeStatus}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   ToolTip="{Binding TranscribeStatus}" />
+                    </DockPanel>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding TranscribeProgress, Mode=OneWay}" Margin="0,10,0,0"
+                                 Visibility="{Binding TranscribeBusy, Converter={StaticResource Vis}}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Row="1" Style="{StaticResource Card}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Heard so far" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
+                    <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,10,0,0"
+                               Text="Tips: try the first 2 minutes first. A built-in speech detector sends Whisper only the speech: music, effects and silence are skipped, which is where Whisper invents lines. Lines it is known to invent anyway (&quot;see you in the next video&quot;, caption credits), lines it rates as not speech, and lines repeated over and over are left out; the Log says how many." />
+                    <ItemsControl ItemsSource="{Binding TranscribeLiveLines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

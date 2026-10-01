@@ -1,0 +1,10 @@
+bin/
+obj/
+publish/
+dist/
+.vs/
+*.user
+*.suo
+subt_settings.json
+subt_settings.json.*
+subt_errors.log

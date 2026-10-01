@@ -1,0 +1,277 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.HelpTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Help. Revision history is parsed from the embedded CHANGELOG.md (MainViewModel.Help.cs). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="940" Margin="24,20,24,32">
+
+            <!-- Header -->
+            <DockPanel Margin="0,0,0,18">
+                <Image DockPanel.Dock="Left" Source="/Assets/app.ico" Width="48" Height="48" Margin="0,0,16,0"
+                       RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Top" />
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.H1}" FontSize="24">
+                        <Run Text="Subtitle Studio" />
+                        <Run Text="{Binding DisplayVersion, Mode=OneWay}" FontSize="14" FontWeight="Normal"
+                             Foreground="{DynamicResource Brush.TextMuted}" />
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0"
+                               Text="Portable subtitle editor, AI transcriber, translator and dubbing tool. Companion to Video Metadata Editor." />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Features -->
+            <TextBlock Text="Features" Style="{StaticResource Text.H2}" Margin="0,0,0,10" />
+            <UniformGrid Columns="3" Margin="-6,0,-6,0">
+                <UniformGrid.Resources>
+                    <Style x:Key="FeatureCard" TargetType="Border" BasedOn="{StaticResource Card}">
+                        <Setter Property="Margin" Value="6" />
+                        <Setter Property="Padding" Value="14,12" />
+                    </Style>
+                </UniformGrid.Resources>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Source / Files" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Import by drag and drop, file/folder pickers or hand-off. Detects sidecar subtitles and reads durations." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7F0;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Subtitles" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Edit, check and save SRT / VTT / ASS / SSA / SUB with a live video preview, shift / frame-rate / two-point sync and audio-based offset and snap." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Partial" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Info}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE91B;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Burned-in subs" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Detect subtitles that are part of the picture and read them into an editable subtitle (OCR). Removal comes next." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Planned" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE720;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="AI Transcribe" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Speech to timed subtitles with Whisper (whisper.cpp), running inside the app on the graphics card or the processor. Can also translate the speech into English subtitles." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Planned" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C1;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Translate" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Cue-by-cue AI translation that keeps timings and tags, with review before saving." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Planned" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE767;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Dubbing" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="AI voices per cue, time-fitted and muxed into a copy of the video." />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FeatureCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Settings" FontWeight="SemiBold" /></StackPanel>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                                   Text="Encrypted API keys, engine paths, output defaults, behaviour and theme. Auto-saved." />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Formats -->
+            <TextBlock Text="Supported formats" Style="{StaticResource Text.H2}" Margin="0,22,0,10" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Video" Style="{StaticResource Text.Label}" Margin="0,0,0,10" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource Text.Body}" Margin="0,0,0,10"
+                               Text="MP4, MKV, AVI, MOV, WMV, M4V, WebM, TS, M2TS, MTS, MPG/MPEG, FLV, 3GP, VOB, OGV" />
+                    <TextBlock Grid.Row="1" Text="Audio" Style="{StaticResource Text.Label}" Margin="0,0,0,10" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Text.Body}" Margin="0,0,0,10"
+                               Text="MP3, WAV, M4A, AAC, FLAC, OGG, Opus, WMA, AC3, E-AC3" />
+                    <TextBlock Grid.Row="2" Text="Subtitles (import)" Style="{StaticResource Text.Label}" Margin="0,0,0,10" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Text.Body}" Margin="0,0,0,10"
+                               Text="SRT, VTT (WebVTT), ASS, SSA, SUB. IDX/SUP image subtitles are detected and listed, not edited." />
+                    <TextBlock Grid.Row="3" Text="Subtitles (save)" Style="{StaticResource Text.Label}" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Text.Body}"
+                               Text="SRT, VTT, ASS/SSA, SUB, named VideoName.lang[.forced][.hi].ext (e.g. Film (2024).en.forced.srt)." />
+                </Grid>
+            </Border>
+
+            <!-- Workflow -->
+            <TextBlock Text="Typical workflow" Style="{StaticResource Text.H2}" Margin="0,22,0,10" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel.Resources>
+                        <Style x:Key="StepNumber" TargetType="Border">
+                            <Setter Property="Width" Value="24" />
+                            <Setter Property="Height" Value="24" />
+                            <Setter Property="CornerRadius" Value="12" />
+                            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                            <Setter Property="Margin" Value="0,0,12,0" />
+                            <Setter Property="VerticalAlignment" Value="Top" />
+                        </Style>
+                    </StackPanel.Resources>
+                    <DockPanel Margin="0,0,0,10">
+                        <Border Style="{StaticResource StepNumber}"><TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" /></Border>
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,2,0,0" Text="Bring in a video: drop it on the window, use Add files, or send it from Video Metadata Editor." />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Border Style="{StaticResource StepNumber}"><TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" /></Border>
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,2,0,0" Text="Open an existing subtitle, or create one with AI Transcribe." />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Border Style="{StaticResource StepNumber}"><TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" /></Border>
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,2,0,0" Text="Fix text and timing in the Subtitles editor (shift, stretch, snap)." />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Border Style="{StaticResource StepNumber}"><TextBlock Text="4" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" /></Border>
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,2,0,0" Text="Optionally translate it, then review before saving." />
+                    </DockPanel>
+                    <DockPanel>
+                        <Border Style="{StaticResource StepNumber}"><TextBlock Text="5" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" /></Border>
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,2,0,0" Text="Save as a sidecar next to the video, or generate a dubbed copy." />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Hand-off -->
+            <TextBlock Text="Hand-off from Video Metadata Editor" Style="{StaticResource Text.H2}" Margin="0,22,0,10" />
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.Body}"
+                               Text="Point VME's external subtitle app setting at SubtitleStudio.exe. VME launches it with the selected video's full path as the argument, and the video appears in Source / Files:" />
+                    <Border Margin="0,10" Padding="12,9" Background="{DynamicResource Brush.InputBackground}"
+                            CornerRadius="{StaticResource Radius.Control}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                        <TextBox Text="{Binding HandoffExample, Mode=OneWay}" Style="{StaticResource SelectableText}" FontFamily="{StaticResource Font.Mono}" />
+                    </Border>
+                    <TextBlock Style="{StaticResource Text.Muted}"
+                               Text="Several paths and folders are accepted. If Subtitle Studio is already open, the file is passed to the running window (no second copy starts) and the window comes to the front, unless that is switched off in Settings > Behaviour." />
+                </StackPanel>
+            </Border>
+
+            <!-- Legend -->
+            <TextBlock Text="Legend" Style="{StaticResource Text.H2}" Margin="0,22,0,10" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.Resources>
+                        <Style x:Key="LegendGlyph" TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                            <Setter Property="FontSize" Value="15" />
+                            <Setter Property="Margin" Value="0,0,0,12" />
+                            <Setter Property="HorizontalAlignment" Value="Center" />
+                        </Style>
+                        <Style x:Key="LegendText" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+                            <Setter Property="Margin" Value="0,0,0,12" />
+                        </Style>
+                    </Grid.Resources>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="&#xE714;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.KindVideo}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Video file" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="1" Text="&#xE8D6;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.KindAudio}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="Audio file" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="2" Text="&#xE7F0;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.KindSubtitle}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="Subtitle file / subtitles found next to a video" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="3" Text="&#xE946;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Info}" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="Hint: hover for an explanation (can be hidden in Settings)" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="4" Text="&#xE72E;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Success}" Margin="0" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="API key saved and encrypted" Style="{StaticResource LegendText}" Margin="0" />
+
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="&#xE73E;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Success}" />
+                    <TextBlock Grid.Row="0" Grid.Column="3" Text="Done / ready" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="&#xE7BA;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Warning}" />
+                    <TextBlock Grid.Row="1" Grid.Column="3" Text="Warning: works, but something needs attention" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Text="&#xEA39;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Danger}" />
+                    <TextBlock Grid.Row="2" Grid.Column="3" Text="Error: the action did not complete" Style="{StaticResource LegendText}" />
+                    <Border Grid.Row="3" Grid.Column="2" Width="18" Height="3" CornerRadius="1.5" Background="{DynamicResource Brush.Accent}"
+                            VerticalAlignment="Top" Margin="0,8,0,0" />
+                    <TextBlock Grid.Row="3" Grid.Column="3" Text="Accent underline: the tab you are on" Style="{StaticResource LegendText}" />
+                    <TextBlock Grid.Row="4" Grid.Column="2" Text="&#xE823;" Style="{StaticResource LegendGlyph}" Foreground="{DynamicResource Brush.Warning}" Margin="0" />
+                    <TextBlock Grid.Row="4" Grid.Column="3" Text="Planned for a later build" Style="{StaticResource LegendText}" Margin="0" />
+                </Grid>
+            </Border>
+
+            <!-- Revision history -->
+            <TextBlock Text="Revision history" Style="{StaticResource Text.H2}" Margin="0,22,0,10" />
+            <ItemsControl ItemsSource="{Binding RevisionHistory}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding Lines}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="16" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock x:Name="Bullet" Text="&#x2022;" Foreground="{DynamicResource Brush.TextMuted}" />
+                                                <TextBlock x:Name="LineText" Grid.Column="1" Text="{Binding Text}" Style="{StaticResource Text.Body}" />
+                                            </Grid>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsHeading}" Value="True">
+                                                    <Setter TargetName="Bullet" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="LineText" Property="Grid.Column" Value="0" />
+                                                    <Setter TargetName="LineText" Property="Grid.ColumnSpan" Value="2" />
+                                                    <Setter TargetName="LineText" Property="FontWeight" Value="SemiBold" />
+                                                    <Setter TargetName="LineText" Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+                                                    <Setter TargetName="LineText" Property="Margin" Value="0,4,0,0" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

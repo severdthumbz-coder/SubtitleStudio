@@ -1,0 +1,17 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.TranslateTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
+    <!-- Placeholder in build 1. Logic will live in MainViewModel.Translate.cs + its service(s), not here. -->
+    <ctl:ComingSoonPanel Glyph="&#xE8C1;"
+                         Title="Translate"
+                         Summary="Translate a subtitle track into another language, cue by cue."
+                         Note="Uses the translation provider key from Settings > API keys.">
+        <ctl:ComingSoonPanel.Planned>
+            <sys:String>Timings and formatting tags (italics, positioning) are preserved exactly.</sys:String>
+            <sys:String>Whole-file batches with progress; quota and rate-limit errors are reported plainly.</sys:String>
+            <sys:String>Side-by-side review of original and translation before anything is saved.</sys:String>
+        </ctl:ComingSoonPanel.Planned>
+    </ctl:ComingSoonPanel>
+</UserControl>

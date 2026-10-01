@@ -1,0 +1,19 @@
+<UserControl x:Class="SubtitleStudio.Views.Controls.HintMarker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             VerticalAlignment="Center"
+             Cursor="Help"
+             Focusable="False">
+    <!-- Contextual (i) hint. Visibility follows Settings > Behaviour > "Show hints" via HintService. -->
+    <Border Background="Transparent" Padding="2">
+        <TextBlock Text="&#xE946;"
+                   FontFamily="{StaticResource Font.Icons}"
+                   FontSize="13"
+                   Foreground="{DynamicResource Brush.Info}"
+                   VerticalAlignment="Center"
+                   ToolTipService.InitialShowDelay="150"
+                   ToolTipService.ShowDuration="30000"
+                   ToolTip="{Binding Text, ElementName=Root}" />
+    </Border>
+</UserControl>

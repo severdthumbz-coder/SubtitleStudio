@@ -1,0 +1,17 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.DubbingTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
+    <!-- Placeholder in build 1. Logic will live in MainViewModel.Dubbing.cs + its service(s), not here. -->
+    <ctl:ComingSoonPanel Glyph="&#xE767;"
+                         Title="Dubbing"
+                         Summary="Generate a dubbed audio track from a subtitle or translation with AI text-to-speech."
+                         Note="The original video is never modified; output is always a new file.">
+        <ctl:ComingSoonPanel.Planned>
+            <sys:String>Choose a voice; audio is generated per cue and time-fitted to each cue window.</sys:String>
+            <sys:String>The new track is muxed into a copy of the video with ffmpeg (video stream copied losslessly, only audio added).</sys:String>
+            <sys:String>Progress reporting, Cancel, and a preview of individual cues.</sys:String>
+        </ctl:ComingSoonPanel.Planned>
+    </ctl:ComingSoonPanel>
+</UserControl>

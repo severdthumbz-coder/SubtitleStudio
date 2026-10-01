@@ -1,0 +1,429 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.SubtitlesTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls"
+             xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+             Loaded="OnLoaded"
+             Unloaded="OnUnloaded">
+    <!-- Subtitles editor. Logic: MainViewModel.Subtitles.cs + CueRowViewModel + Services/Subtitles. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Insert" Command="{Binding AddCueCommand}" />
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewSubtitleCommand}" />
+        <KeyBinding Key="F8" Command="{Binding NextIssueCommand}" />
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
+        <KeyBinding Key="Space" Modifiers="Control" Command="{Binding PlayPauseCommand}" />
+        <KeyBinding Key="Left" Modifiers="Control" Command="{Binding SeekBackCommand}" />
+        <KeyBinding Key="Right" Modifiers="Control" Command="{Binding SeekForwardCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ================= Header ================= -->
+        <DockPanel Margin="0,0,0,12" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource GhostButton}" Tag="&#xE7A7;" Command="{Binding UndoCommand}" ToolTip="Undo the last cue or sync change (Ctrl+Z)" />
+                <Button Style="{StaticResource GhostButton}" Tag="&#xE7A6;" Command="{Binding RedoCommand}" Margin="2,0,12,0" ToolTip="Redo (Ctrl+Y)" />
+                <Button Tag="&#xE710;" Content="New" Command="{Binding NewSubtitleCommand}" ToolTip="Start an empty subtitle (Ctrl+N)" />
+                <Button Tag="&#xE8E5;" Content="Open" Command="{Binding OpenSubtitleCommand}" Margin="8,0,0,0"
+                        ToolTip="Open an SRT, VTT, ASS, SSA or SUB file (Ctrl+O)" />
+                <Button Style="{StaticResource AccentButton}" Tag="&#xE74E;" Content="Save" Command="{Binding SaveSubtitleCommand}"
+                        Margin="8,0,0,0" ToolTip="Save (Ctrl+S). A changed format always asks where to save." />
+                <Button Tag="&#xE792;" Content="Save as" Command="{Binding SaveSubtitleAsCommand}" Margin="8,0,0,0"
+                        ToolTip="Save a copy with a new name or format (Ctrl+Shift+S)" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource Text.H1}" VerticalAlignment="Center" MaxWidth="560"
+                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                <TextBlock Text="{Binding DocumentInfo}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="14,3,0,0"
+                           TextWrapping="NoWrap" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- ================= Empty state ================= -->
+        <Grid Grid.Row="1" Visibility="{Binding HasDocument, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+            <Rectangle RadiusX="12" RadiusY="12" StrokeThickness="1.5" StrokeDashArray="6 4"
+                       Stroke="{DynamicResource Brush.BorderStrong}" Fill="{DynamicResource Brush.Surface}" />
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Margin="24">
+                <Border Width="64" Height="64" CornerRadius="16" HorizontalAlignment="Center" Background="{DynamicResource Brush.AccentSoft}">
+                    <TextBlock Text="&#xE7F0;" Style="{StaticResource Text.Icon}" FontSize="28" Foreground="{DynamicResource Brush.Accent}" HorizontalAlignment="Center" />
+                </Border>
+                <TextBlock Text="No subtitle open" Style="{StaticResource Text.H2}" FontSize="17" HorizontalAlignment="Center" Margin="0,16,0,6" />
+                <TextBlock Style="{StaticResource Text.Muted}" TextAlignment="Center"
+                           Text="Open an SRT, VTT, ASS, SSA or SUB file, or start a new one. In Source / Files you can double-click a subtitle, or use Edit next to a subtitle found beside a video." />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+                    <Button Style="{StaticResource AccentButton}" Tag="&#xE8E5;" Content="Open subtitle" Command="{Binding OpenSubtitleCommand}" />
+                    <Button Tag="&#xE710;" Content="New subtitle" Command="{Binding NewSubtitleCommand}" Margin="10,0,0,0" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- ================= Editor ================= -->
+        <Grid Grid.Row="1" Visibility="{Binding HasDocument, Converter={StaticResource Vis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="460" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="370" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: video preview above the cue list (drag the splitter to resize) -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*" MinHeight="200" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="3*" MinHeight="160" />
+                </Grid.RowDefinitions>
+
+                <DockPanel>
+                    <!-- Transport -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" LastChildFill="True">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                            <Button Style="{StaticResource AccentButton}" Tag="{Binding PlayPauseGlyph}" Command="{Binding PlayPauseCommand}"
+                                    Width="40" Padding="0" ToolTip="Play / pause (Ctrl+Space)" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE892;" Command="{Binding SeekBackCommand}" Margin="6,0,0,0"
+                                    ToolTip="Back 2 s (Ctrl+Left)" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE893;" Command="{Binding SeekForwardCommand}"
+                                    ToolTip="Forward 2 s (Ctrl+Right)" />
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PositionText}" FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                                       Foreground="{DynamicResource Brush.TextSecondary}" VerticalAlignment="Center" Margin="10,0,12,0" />
+                            <CheckBox Content="Overlay" IsChecked="{Binding ShowOverlay, Mode=TwoWay}" Margin="0,0,12,0"
+                                      ToolTip="Show the cue under the playhead over the video (Ctrl+H). Turn off to see the bare picture, for example to compare with burned-in subtitles." />
+                            <CheckBox Content="Follow" IsChecked="{Binding FollowPlayback}" Margin="0,0,12,0"
+                                      ToolTip="Select the cue under the playhead while playing" />
+                            <Button Tag="&#xE72B;" Content="Start" Command="{Binding StartAtPlayheadCommand}" Padding="9,5"
+                                    ToolTip="Set the selected cue's start to the playhead" />
+                            <Button Tag="&#xE72A;" Content="End" Command="{Binding EndAtPlayheadCommand}" Padding="9,5" Margin="6,0,0,0"
+                                    ToolTip="Set the selected cue's end to the playhead" />
+                        </StackPanel>
+                        <Slider Minimum="0" Maximum="{Binding LengthSeconds}" Value="{Binding PositionSeconds, Mode=TwoWay}"
+                                IsEnabled="{Binding IsPreviewLoaded}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </DockPanel>
+
+                    <!-- Video. The overlay (current cue) is drawn by the app, not VLC, so edits show instantly. -->
+                    <Border Background="#FF000000" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                        <Grid>
+                            <vlc:VideoView x:Name="VideoView" Visibility="{Binding IsPreviewLoaded, Converter={StaticResource Vis}}">
+                                <Grid x:Name="OverlayRoot" Background="Transparent" IsHitTestVisible="False">
+                                    <Border VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="24,0,24,20" Padding="12,5"
+                                            CornerRadius="4" Background="#B4000000"
+                                            Visibility="{Binding OverlayVisible, Converter={StaticResource Vis}}">
+                                        <TextBlock Text="{Binding OverlayText}" Foreground="#FFFFFFFF" FontSize="20" FontFamily="Segoe UI"
+                                                   TextAlignment="Center" TextWrapping="Wrap" />
+                                    </Border>
+                                </Grid>
+                            </vlc:VideoView>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="24"
+                                        Visibility="{Binding PreviewMessage, Converter={StaticResource Vis}}">
+                                <TextBlock Text="&#xE714;" Style="{StaticResource Text.Icon}" FontSize="30" Foreground="#80FFFFFF"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding PreviewMessage}" Foreground="#C0FFFFFF" TextAlignment="Center"
+                                           TextWrapping="Wrap" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DockPanel>
+
+                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Rows"
+                              Cursor="SizeNS" ToolTip="Drag to resize" />
+
+                <DataGrid x:Name="CueGrid" Grid.Row="2"
+                          ItemsSource="{Binding Cues}"
+                          SelectedItem="{Binding SelectedCue, Mode=TwoWay}"
+                          IsReadOnly="False"
+                          CanUserSortColumns="False"
+                          CanUserReorderColumns="False"
+                          SelectionChanged="CueGrid_SelectionChanged"
+                          PreviewKeyDown="CueGrid_PreviewKeyDown">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="#" Binding="{Binding Number, Mode=OneWay}" IsReadOnly="True" Width="52">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Start" Binding="{Binding StartText, UpdateSourceTrigger=LostFocus}" Width="138"
+                                            FontFamily="{StaticResource Font.Mono}" />
+                        <DataGridTextColumn Header="End" Binding="{Binding EndText, UpdateSourceTrigger=LostFocus}" Width="138"
+                                            FontFamily="{StaticResource Font.Mono}" />
+                        <DataGridTextColumn Header="Length" Binding="{Binding DurationText, Mode=OneWay}" IsReadOnly="True" Width="72">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="Text" Width="*" MinWidth="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsComment}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+                                                        <Setter Property="FontStyle" Value="Italic" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn.CellEditingTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap"
+                                             MinHeight="0" Padding="2" BorderThickness="0" Background="Transparent" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellEditingTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="" Width="34" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock ToolTip="{Binding IssueText}" FontSize="13" HorizontalAlignment="Center"
+                                               Visibility="{Binding HasIssue, Converter={StaticResource Vis}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                                <Setter Property="Text" Value="&#xE7BA;" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.Warning}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                        <Setter Property="Text" Value="&#xEA39;" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <!-- Right panel -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+
+                    <!-- Selected cue -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <DockPanel>
+                                <ctl:HintMarker DockPanel.Dock="Right"
+                                                Text="Edit here or directly in the list (double-click a cell, or F2). Times accept 00:01:02,500, 1:02.5 or 62.5. Keys: Insert adds a cue, Delete removes the selected ones, F8 jumps to the next problem." />
+                                <TextBlock Style="{StaticResource Text.H2}">
+                                    <Run Text="Cue" />
+                                    <Run Text="{Binding SelectedCue.Number, Mode=OneWay, StringFormat=#{0}}" />
+                                </TextBlock>
+                            </DockPanel>
+
+                            <TextBlock Text="Select a cue in the list." Style="{StaticResource Text.Muted}" Margin="0,10,0,0"
+                                       Visibility="{Binding SelectedCue, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+
+                            <StackPanel Visibility="{Binding SelectedCue, Converter={StaticResource Vis}}" Margin="0,12,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Start" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding SelectedCue.StartText, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}"
+                                                 KeyDown="CommitOnEnter" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="End" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding SelectedCue.EndText, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}"
+                                                 KeyDown="CommitOnEnter" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Text.Caption}" Margin="0,6,0,0">
+                                    <Run Text="Length" />
+                                    <Run Text="{Binding SelectedCue.DurationText, Mode=OneWay}" />
+                                </TextBlock>
+
+                                <TextBlock Text="Text" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                                <TextBox Text="{Binding SelectedCue.Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                         TextWrapping="Wrap" MinHeight="96" MaxHeight="220" VerticalContentAlignment="Top"
+                                         VerticalScrollBarVisibility="Auto" />
+
+                                <DockPanel Margin="0,8,0,0" Visibility="{Binding SelectedCue.HasIssue, Converter={StaticResource Vis}}">
+                                    <TextBlock DockPanel.Dock="Left" Text="&#xE7BA;" Style="{StaticResource Text.Icon}" FontSize="13"
+                                               Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,1,8,0" />
+                                    <TextBlock Text="{Binding SelectedCue.IssueText}" Style="{StaticResource Text.Muted}" />
+                                </DockPanel>
+                            </StackPanel>
+
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Tag="&#xE710;" Content="Add after" Command="{Binding AddCueCommand}" Margin="0,0,8,8"
+                                        ToolTip="Insert an empty cue after the selected one (Insert)" />
+                                <Button Tag="&#xE8C6;" Content="Split" Command="{Binding SplitCueCommand}" Margin="0,0,8,8"
+                                        ToolTip="Split the selected cue in two at its midpoint" />
+                                <Button Tag="&#xE71B;" Content="Merge next" Command="{Binding MergeCueCommand}" Margin="0,0,8,8"
+                                        ToolTip="Merge the selected cue with the one after it" />
+                                <Button Style="{StaticResource DangerButton}" Tag="&#xE74D;" Content="Delete" Margin="0,0,8,8"
+                                        Command="{Binding DeleteCuesCommand}" CommandParameter="{Binding SelectedItems, ElementName=CueGrid}"
+                                        ToolTip="Delete the selected cues (Delete)" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Checks -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" FontSize="15" Margin="0,0,10,0" VerticalAlignment="Top">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Icon}">
+                                            <Setter Property="Text" Value="&#xE7BA;" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Warning}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IssueCount}" Value="0">
+                                                    <Setter Property="Text" Value="&#xE73E;" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel>
+                                    <TextBlock Text="Checks" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding IssueSummary}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Tag="&#xE72A;" Content="Next problem" Command="{Binding NextIssueCommand}" ToolTip="F8" />
+                                <Button Tag="&#xE8CB;" Content="Sort by time" Command="{Binding SortCuesCommand}" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Sync -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <DockPanel>
+                                <ctl:HintMarker DockPanel.Dock="Right"
+                                                Text="Shift moves cues by a fixed amount. Frame rate fixes subtitles that drift because they were timed for another frame rate. Two-point sync fixes offset and drift together from two cues you line up with the video. Audio tools listen to the paired video (needs ffmpeg). Everything can be undone with Ctrl+Z." />
+                                <TextBlock Text="Sync" Style="{StaticResource Text.H2}" />
+                            </DockPanel>
+                            <CheckBox Content="Only the selected cues" IsChecked="{Binding SyncSelectedOnly}" Margin="0,10,0,0" />
+
+                            <TextBlock Text="Shift (seconds, + later / - earlier)" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Tag="&#xE8AB;" Content="Shift" Margin="8,0,0,0"
+                                        Command="{Binding ApplyShiftCommand}" CommandParameter="{Binding SelectedItems, ElementName=CueGrid}" />
+                                <TextBox Text="{Binding ShiftText, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource Font.Mono}"
+                                         ToolTip="e.g. +1.5, -0.250 or -00:00:02,000" />
+                            </DockPanel>
+
+                            <TextBlock Text="Frame rate" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Tag="&#xE916;" Content="Re-time" Margin="8,0,0,0"
+                                        Command="{Binding ApplyStretchCommand}" CommandParameter="{Binding SelectedItems, ElementName=CueGrid}" />
+                                <ComboBox ItemsSource="{Binding FrameRatePresets}" DisplayMemberPath="Label"
+                                          SelectedItem="{Binding SelectedFrameRatePreset, Mode=TwoWay}" />
+                            </DockPanel>
+
+                            <TextBlock Text="Two-point sync (uses the playhead)" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="Set 1" Command="{Binding SetAnchorACommand}" Padding="10,4" MinHeight="28" Margin="8,0,0,0" />
+                                <TextBlock Text="{Binding AnchorAText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="Set 2" Command="{Binding SetAnchorBCommand}" Padding="10,4" MinHeight="28" Margin="8,0,0,0" />
+                                <TextBlock Text="{Binding AnchorBText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Tag="&#xE73E;" Content="Apply" Command="{Binding ApplyAnchorsCommand}" />
+                                <Button Style="{StaticResource GhostButton}" Content="Clear" Command="{Binding ClearAnchorsCommand}" Margin="6,0,0,0" />
+                            </StackPanel>
+
+                            <TextBlock Text="From the audio" Style="{StaticResource Text.Label}" Margin="0,14,0,4" />
+                            <WrapPanel>
+                                <Button Tag="&#xE9D9;" Content="Detect offset" Command="{Binding DetectOffsetCommand}" Margin="0,0,8,8"
+                                        ToolTip="Compare the cues with where people speak and suggest a shift" />
+                                <Button Tag="&#xE8AB;" Content="Snap to speech" Margin="0,0,8,8"
+                                        Command="{Binding SnapToAudioCommand}" CommandParameter="{Binding SelectedItems, ElementName=CueGrid}"
+                                        ToolTip="Move each cue's start/end to the nearest start/end of speech" />
+                                <ComboBox ItemsSource="{Binding SnapWindows}" DisplayMemberPath="Label" Width="130" Margin="0,0,0,8"
+                                          SelectedItem="{Binding SelectedSnapWindow, Mode=TwoWay}" ToolTip="How far a cue edge may move when snapping" />
+                            </WrapPanel>
+                            <DockPanel Visibility="{Binding AudioBusy, Converter={StaticResource Vis}}" Margin="0,4,0,0">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelAudioCommand}" Margin="8,0,0,0" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding AudioProgress, Mode=OneWay}" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save settings -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Save as sidecar" Style="{StaticResource Text.H2}" />
+                                <ctl:HintMarker Margin="8,0,0,0"
+                                                Text="Pairing with a video names the file VideoName.lang[.forced][.hi].ext and saves it next to the video, so Plex and Jellyfin pick it up. Changing the format makes Save ask for a location; the original file is never overwritten with a different format." />
+                            </StackPanel>
+
+                            <TextBlock Text="Video" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE711;" Margin="6,0,0,0"
+                                        Command="{Binding UnpairVideoCommand}" ToolTip="Don't pair with a video" />
+                                <ComboBox ItemsSource="{Binding VideoFiles}" DisplayMemberPath="Name" SelectedItem="{Binding PairedVideo, Mode=TwoWay}"
+                                          ToolTip="Videos from Source / Files" />
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                                       Text="Not paired: the file keeps its own name. Add videos in Source / Files to pair."
+                                       Visibility="{Binding IsPaired, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="96" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Format" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                    <ComboBox ItemsSource="{Binding OutputFormats}" DisplayMemberPath="Display" SelectedValuePath="Id"
+                                              SelectedValue="{Binding EditorFormat, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Language" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                    <TextBox Text="{Binding EditorLanguage, UpdateSourceTrigger=PropertyChanged}" ToolTip="e.g. en, fr, pt-br" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Margin="0,10,0,0" Visibility="{Binding EditorUsesFrames, Converter={StaticResource Vis}}">
+                                <TextBlock Text="Frame rate (MicroDVD counts frames)" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding EditorFrameRateText, UpdateSourceTrigger=LostFocus}" Width="120" HorizontalAlignment="Left"
+                                         KeyDown="CommitOnEnter" />
+                            </StackPanel>
+
+                            <WrapPanel Margin="0,12,0,0">
+                                <CheckBox Content="Forced" IsChecked="{Binding EditorForced}" Margin="0,0,18,6"
+                                          ToolTip="Only foreign-language / on-screen text parts" />
+                                <CheckBox Content="HI" IsChecked="{Binding EditorHearingImpaired}" Margin="0,0,18,6"
+                                          ToolTip="Hearing impaired (includes sound descriptions)" />
+                                <CheckBox Content="SDH" IsChecked="{Binding EditorSdh}" Margin="0,0,0,6"
+                                          ToolTip="Subtitles for the deaf and hard of hearing" />
+                            </WrapPanel>
+
+                            <TextBlock Text="File name" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                            <Border Background="{DynamicResource Brush.InputBackground}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                                    CornerRadius="{StaticResource Radius.Control}" Padding="10,7">
+                                <TextBox Text="{Binding SuggestedFileName, Mode=OneWay}" Style="{StaticResource SelectableText}" FontFamily="{StaticResource Font.Mono}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
