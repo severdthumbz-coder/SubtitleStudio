@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.34] - 2026-09-30
+
+### Fixed
+- AI Transcribe: finding the speech took almost 3 minutes on a 65-minute episode (167 s), longer than Whisper itself (87 s on the graphics card). The speech detector was given 8 processor threads, but it is a tiny network run tens of thousands of times one step after another, and sharing each step across threads cost far more than the step. Measured on the same audio: 8 threads 18 times slower than 1. It now runs on one thread: about 15 s for an episode, with exactly the same result.
+- The Log no longer lists every stretch of speech the detector found (632 lines for one episode). The summary line ("Speech found in 632 places, 25:04 of 1:04:59") stays.
+
 ## [1.0.0.33] - 2026-09-30
 
 ### Fixed

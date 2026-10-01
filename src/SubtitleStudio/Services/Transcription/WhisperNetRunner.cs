@@ -56,8 +56,11 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
             try
             {
                 _vad ??= WhisperVadFactory.FromPath(path, new WhisperFactoryOptions { UseGpu = false });
+                // One thread: Silero is a tiny network run ~2,000 times a minute, one step after another. Spreading
+                // each step over more threads costs more than the step (measured: 8 threads 18x slower than 1; on a
+                // 16-thread laptop a 65-minute episode took 167 s instead of about 15).
                 using var processor = _vad.CreateBuilder()
-                    .WithThreads(Math.Max(1, options.Threads))
+                    .WithThreads(1)
                     .WithThreshold(VadThreshold)
                     .WithMinSpeechDuration(TimeSpan.FromMilliseconds(200))
                     .WithMinSilenceDuration(TimeSpan.FromMilliseconds(300))
@@ -241,6 +244,8 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
 
     private void OnNativeLog(string message, bool warning)
     {
+        // The speech detector lists every stretch it found (hundreds per episode): the summary line is enough.
+        if (!warning && message.Contains("whisper_vad_segments_from_probs: VAD segment ", StringComparison.Ordinal)) return;
         if (message.Contains("vulkan", StringComparison.OrdinalIgnoreCase) || message.Contains("backend", StringComparison.OrdinalIgnoreCase)
             || message.Contains("gpu", StringComparison.OrdinalIgnoreCase))
             lock (_deviceLinesGate) _deviceLines.Add(message);

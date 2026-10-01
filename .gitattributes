@@ -5,3 +5,5 @@
 *.sln text eol=crlf
 *.ico binary
 *.png binary
+*.bin binary
+*.onnx binary

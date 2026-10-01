@@ -8,3 +8,9 @@ dist/
 subt_settings.json
 subt_settings.json.*
 subt_errors.log
+subt_errors.old.log
+subt_activity.log
+subt_activity.old.log
+subt_session.json
+subt_session.*.json
+/models/
