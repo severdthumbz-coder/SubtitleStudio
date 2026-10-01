@@ -470,14 +470,15 @@ public sealed partial class MainViewModel
     public AsyncRelayCommand TranscribeCommand { get; private set; } = null!;
     public RelayCommand CancelTranscribeCommand { get; private set; } = null!;
 
-    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && FfmpegStatus.HasFfmpeg
+    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && !TranslateBusy && FfmpegStatus.HasFfmpeg
                                   && (HasWhisperModel || _s.TranscriptionEngines.Any(e => e.RequiresApiKey));
 
     /// <summary>Why Transcribe can't start (empty when it can).</summary>
     public string TranscribeBlockedText => !FfmpegStatus.HasFfmpeg
         ? "FFmpeg is needed to read the audio: set it in Settings > Engines and tools."
         : !HasWhisperModel ? "Add a Whisper model first (step 2)."
-        : TranscribeFile is null ? "Pick a file." : string.Empty;
+        : TranscribeFile is null ? "Pick a file."
+        : TranslateBusy ? "Wait for Translate to finish." : string.Empty;
 
     private async Task TranscribeAsync()
     {
@@ -501,6 +502,8 @@ public sealed partial class MainViewModel
             }
             modelPath = model.Path;
             local.Device = ResolveWhisperDevice();
+            // One model in graphics memory at a time: the translator's language model goes first.
+            LocalTranslator?.Runner.Release();
         }
 
         var part = SelectedTranscribePart;
@@ -604,7 +607,8 @@ public sealed partial class MainViewModel
 
     private void OnTabSelected(int tab)
     {
-        if (tab == Tabs.Transcribe || tab == Tabs.Settings) EnsureVulkanListed();
+        if (tab == Tabs.Transcribe || tab == Tabs.Translate || tab == Tabs.Settings) EnsureVulkanListed();
+        if (tab == Tabs.Translate) RaiseTranslateSource();
     }
 
     private void InitTranscribe()

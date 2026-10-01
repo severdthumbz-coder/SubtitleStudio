@@ -58,6 +58,9 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
 
     public IWhisperRunner Runner => _runner;
 
+    /// <summary>Frees the Whisper model's memory (the translator needs the graphics card next).</summary>
+    public void ReleaseModel() => _runner.ReleaseModel();
+
     public async Task<SubtitleDocument> TranscribeAsync(string mediaPath, TranscriptionOptions options, IProgress<EngineProgress>? progress, CancellationToken ct)
     {
         if (options.Model is not { Length: > 0 } modelPath || !File.Exists(modelPath))

@@ -88,6 +88,14 @@ public partial class App : Application
                 () => Services.Transcription.SileroVad.EnsureModel(Path.Combine(AppPaths.ExeDirectory, "models", "vad"), m => log.Warning("Transcribe", m))),
             () => ffmpegLocator.Resolve(config.FfmpegPath), log));
 
+        // Translate: a language model with llama.cpp in the app (same graphics card choice). Its messages go to the Log.
+        _services.TranslationEngines.Add(new Services.Translation.LocalLlmTranslator(
+            new Services.Translation.LlamaSharpRunner((message, warning) =>
+            {
+                if (warning) log.Warning("llama.cpp", message);
+                else log.Detail("llama.cpp", message);
+            }), log));
+
         _services.Theme.Apply(config.Theme);
         _services.Log.Info("App", $"Subtitle Studio {AppInfo.DisplayVersion} started on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}, .NET {Environment.Version}.");
 
@@ -250,6 +258,7 @@ public partial class App : Application
         {
             _viewModel?.EndSession(); // normal close: nothing to restore next time
             foreach (var engine in _services.TranscriptionEngines.OfType<IDisposable>()) engine.Dispose();
+            foreach (var engine in _services.TranslationEngines.OfType<IDisposable>()) engine.Dispose();
             _services.Playback.Dispose();
             _viewModel?.ReleaseResources();
             _services.Settings.SaveNow(_services.Config);

@@ -5,6 +5,22 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.35] - 2026-10-01
+
+### Added
+- Translate: the subtitles open in the editor into another language, with a language model running inside the app through llama.cpp (LLamaSharp 0.27.0). Nothing is uploaded and no other program is needed. The translation opens in the Subtitles tab as a new, unsaved subtitle with the same timings and the new language in its suggested file name, so it can be reviewed before saving. If the original isn't saved yet, the app offers to save it first, so a fresh transcription isn't lost. Progress shows the time left and the latest lines with their translations, and Cancel stops it.
+- How it translates: cues go to the model 16 at a time, numbered, with the 6 lines before them and their translations as context, so names and tone stay the same through an episode. A grammar makes the model answer with exactly one numbered line per cue: it can't skip, merge or add commentary. A batch that comes back short is retried in halves, then line by line; a line that still fails keeps its original text and is listed in the Log. Positions ({\an8}), italics and two-speaker dash lines are kept; long lines are wrapped to two lines of 42 columns; music notes and lines with no words are left as they are.
+- Language models: a list to download from Hugging Face. Gemma 3 12B is recommended (natural dialogue, good with Korean and Japanese, fits a 12 GB graphics card); Qwen3 8B and Gemma 3 4B are also offered. Downloads are checked against the size and SHA-256 Hugging Face publishes and continue where they stopped, like the Whisper models. "Use a model file" adds a .gguf you already have, after reading its header to make sure it is a chat model. Models are kept in models\llm next to the app.
+- Runs on the graphics card through Vulkan, the same device chosen for AI Transcribe, otherwise on the processor. If the model doesn't fit in the graphics memory, part of it (then all of it) runs on the processor, and the app says so. The Log says which device was used, how many layers went on it, and how many cues a minute it translated. Only one model is kept in graphics memory at a time: Whisper's is freed before translating and the language model before transcribing.
+- Which engine: the same "ask, or remember the answer" as AI Transcribe, for when an online translation engine is added; "Ask again" for it is in Settings, with the language models folder.
+
+### Changed
+- Help: AI Transcribe and Translate are now marked as available.
+
+### Notes
+- The EXE is larger: llama.cpp's Vulkan library alone is about 62 MB. The avx512 and multimodal builds that come with LLamaSharp are left out.
+- When the translator starts, LLamaSharp asks Windows' "vulkaninfo" once if it is installed (it comes with some graphics drivers). The answer isn't used: the app chooses the library and the device itself.
+
 ## [1.0.0.34] - 2026-09-30
 
 ### Fixed

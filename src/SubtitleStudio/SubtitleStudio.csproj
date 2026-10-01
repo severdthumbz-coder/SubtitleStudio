@@ -5,7 +5,7 @@
     Version / AssemblyVersion / FileVersion / InformationalVersion all derive from it.
   -->
   <PropertyGroup>
-    <FullVersion>1.0.0.34</FullVersion>
+    <FullVersion>1.0.0.35</FullVersion>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -72,6 +72,14 @@
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+    <!--
+      Translate: a language model with llama.cpp through LLamaSharp, built into the EXE. The Vulkan build
+      (graphics card) and the processor builds (avx2 / avx / noavx). LlamaRuntime chooses and loads them
+      from runtimes\win-x64\native\<build> itself.
+    -->
+    <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Vulkan.Windows" Version="0.27.0" />
   </ItemGroup>
 
   <!--
@@ -84,6 +92,19 @@
       <_ForeignWhisperRuntime Include="@(None)"
                               Condition="$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').Contains('/win-x64/'))" />
       <None Remove="@(_ForeignWhisperRuntime)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    LLamaSharp's backend packages bring llama.cpp builds this app doesn't use: avx512 (avx2 runs on
+    those processors too), mtmd (pictures and sound into the model, not used for text), and other
+    platforms when no runtime identifier is set. Left out of the EXE.
+  -->
+  <Target Name="KeepOnlyUsedLlamaRuntimes" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_UnusedLlamaRuntime Include="@(Content)"
+                           Condition="$([System.String]::Copy('%(Content.Link)').Replace('\','/').StartsWith('runtimes/')) and (!$([System.String]::Copy('%(Content.Link)').Replace('\','/').StartsWith('runtimes/win-x64/native/')) or $([System.String]::Copy('%(Content.Link)').Replace('\','/').Contains('/avx512/')) or '%(Content.Filename)' == 'mtmd')" />
+      <Content Remove="@(_UnusedLlamaRuntime)" />
     </ItemGroup>
   </Target>
 

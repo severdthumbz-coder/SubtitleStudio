@@ -275,6 +275,13 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
         }
     }
 
+    public void ReleaseModel()
+    {
+        _factory?.Dispose();
+        _factory = null;
+        _factoryKey = null;
+    }
+
     public void Dispose()
     {
         _vad?.Dispose();

@@ -35,6 +35,9 @@ public sealed class AppServices
     /// <summary>Whisper models for AI Transcribe (models\whisper next to the EXE).</summary>
     public Transcription.WhisperModelStore WhisperModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "whisper"));
 
+    /// <summary>Language models for Translate (models\llm next to the EXE).</summary>
+    public Translation.TranslationModelStore TranslationModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "llm"));
+
     /// <summary>Lists the Vulkan graphics devices (whisper.cpp's graphics card backend). Replaceable in tests.</summary>
     public Func<Transcription.VulkanReport> ListVulkanDevices { get; init; } = Transcription.VulkanDevices.List;
 

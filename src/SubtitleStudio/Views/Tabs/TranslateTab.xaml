@@ -1,17 +1,130 @@
 <UserControl x:Class="SubtitleStudio.Views.Tabs.TranslateTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
-    <!-- Placeholder in build 1. Logic will live in MainViewModel.Translate.cs + its service(s), not here. -->
-    <ctl:ComingSoonPanel Glyph="&#xE8C1;"
-                         Title="Translate"
-                         Summary="Translate a subtitle track into another language, cue by cue."
-                         Note="Uses the translation provider key from Settings > API keys.">
-        <ctl:ComingSoonPanel.Planned>
-            <sys:String>Timings and formatting tags (italics, positioning) are preserved exactly.</sys:String>
-            <sys:String>Whole-file batches with progress; quota and rate-limit errors are reported plainly.</sys:String>
-            <sys:String>Side-by-side review of original and translation before anything is saved.</sys:String>
-        </ctl:ComingSoonPanel.Planned>
-    </ctl:ComingSoonPanel>
+    <!-- Translate. Logic: MainViewModel.Translate.cs + Services/Translation (llama.cpp in the app). -->
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" MinWidth="380" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Translate" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
+            <ctl:HintMarker Margin="8,2,0,0"
+                            Text="Translates the subtitles open in the editor into another language with a language model running inside the app (llama.cpp): nothing is uploaded and no other program is needed. Timings, positions and italics are kept. The translation opens in the Subtitles tab to review and save." />
+        </StackPanel>
+
+        <!-- ================= Left: steps ================= -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="1. What to translate" Style="{StaticResource Text.H2}" />
+                        <TextBlock Text="{Binding TranslateSourceText}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="The subtitles open in the Subtitles tab. Open a file there, or transcribe a video, to change it." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="From" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding TranslateSourceLanguages}" SelectedItem="{Binding SelectedTranslateSourceLanguage, Mode=TwoWay}"
+                                  ToolTip="Normally the subtitle's own language tag. Choose it when the tag is missing or wrong." />
+                        <TextBlock Text="Into" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding TranslateTargetLanguages}" SelectedItem="{Binding SelectedTranslateTargetLanguage, Mode=TwoWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="2. Language model" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="The model that translates, a GGUF file of 2.5 to 7.3 GB kept in models\llm next to the app. Downloaded once from Hugging Face and checked against the size and SHA-256 published there. An interrupted download continues where it stopped." />
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding HasTranslationModel, Converter={StaticResource Vis}}" Margin="0,10,0,0">
+                            <ComboBox ItemsSource="{Binding TranslationModels}" SelectedItem="{Binding SelectedTranslationModel, Mode=TwoWay}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding TranslationModelNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding HasTranslationModelNote, Converter={StaticResource Vis}}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,10,0,6"
+                                   Text="No model yet. Gemma 3 12B is the one to start with: natural dialogue, good with Korean and Japanese, and it fits a 12 GB graphics card."
+                                   Visibility="{Binding NeedsTranslationModel, Converter={StaticResource Vis}}" />
+                        <TextBlock Text="Download a model" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding TranslationCatalogEntries}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedTranslationCatalogEntry, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding SelectedTranslationCatalogEntry.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,2" />
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8">
+                            <Run Text="License:" /> <Run Text="{Binding SelectedTranslationCatalogEntry.License, Mode=OneWay}" />
+                        </TextBlock>
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE896;" Content="{Binding DownloadTranslationModelLabel}" Command="{Binding DownloadTranslationModelCommand}" Margin="0,0,8,6"
+                                    ToolTip="Downloads from huggingface.co and checks it" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Use a model file..." Command="{Binding ImportTranslationModelCommand}" Margin="0,0,8,6"
+                                    ToolTip="Already have a .gguf instruct model? Pick it; it is checked and copied into the models folder" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Models folder" Command="{Binding OpenTranslationModelsFolderCommand}" Margin="0,0,0,6" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="3. Where it runs" Style="{StaticResource Text.H2}" />
+                        <ComboBox ItemsSource="{Binding WhisperDeviceOptions}" SelectedItem="{Binding SelectedWhisperDevice, Mode=TwoWay}" Margin="0,10,0,6"
+                                  ToolTip="Automatic uses the graphics card through Vulkan. A change takes effect after restarting the app." />
+                        <TextBlock Text="{Binding TranslateDeviceText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="4. Translate" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
+                                   Text="Translates the cues a few at a time, with the lines before them as context so names and tone stay the same. The translation opens in the Subtitles tab, unsaved, with the same timings." />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE8C1;" Content="Translate" Command="{Binding TranslateCommand}" Margin="0,0,8,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding TranslateBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ================= Right: progress and the latest lines ================= -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelTranslateCommand}"
+                                Visibility="{Binding TranslateBusy, Converter={StaticResource Vis}}" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding TranslateStatus}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   ToolTip="{Binding TranslateStatus}" />
+                    </DockPanel>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding TranslateProgress, Mode=OneWay}" Margin="0,10,0,0"
+                                 Visibility="{Binding TranslateBusy, Converter={StaticResource Vis}}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Row="1" Style="{StaticResource Card}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Translated so far" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
+                    <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,10,0,0"
+                               Text="Tips: a language model can still misread a line, a name or who is speaking, so review the result before saving. Music and lines with no words are kept as they are. A line that couldn't be translated keeps its original text; the Log lists them." />
+                    <ItemsControl ItemsSource="{Binding TranslateLivePairs}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding Source}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Translation}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>

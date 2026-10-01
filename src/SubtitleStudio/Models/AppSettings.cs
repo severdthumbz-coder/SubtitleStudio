@@ -26,6 +26,15 @@ public sealed class AppSettings
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>
     public string TranscriptionEngine { get; set; } = string.Empty;
 
+    // Translate (a language model with llama.cpp in the app; models in models\llm next to the EXE; runs on WhisperDevice)
+    /// <summary>File name of the chosen language model (GGUF).</summary>
+    public string TranslateModel { get; set; } = string.Empty;
+    /// <summary>"auto" (the subtitle's own language tag) or a language code.</summary>
+    public string TranslateSource { get; set; } = "auto";
+    public string TranslateTarget { get; set; } = "en";
+    /// <summary>Remembered answer to "which engine?" when several can translate (engine id; empty: ask).</summary>
+    public string TranslationEngine { get; set; } = string.Empty;
+
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";
     public string DefaultLanguage { get; set; } = "en";

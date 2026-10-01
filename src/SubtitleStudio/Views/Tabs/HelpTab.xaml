@@ -62,7 +62,7 @@
                 <Border Style="{StaticResource FeatureCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="Planned" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE720;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="AI Transcribe" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
@@ -72,11 +72,11 @@
                 <Border Style="{StaticResource FeatureCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="Planned" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C1;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Translate" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="Cue-by-cue AI translation that keeps timings and tags, with review before saving." />
+                                   Text="The open subtitles into another language with a language model (llama.cpp) running inside the app on the graphics card. Keeps timings, positions and italics; the result opens unsaved for review." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

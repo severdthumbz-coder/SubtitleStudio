@@ -47,4 +47,7 @@ public interface IWhisperRunner : IDisposable
     /// would otherwise be "detected" as something else). Progress: (chunk, percent of that chunk).
     /// </summary>
     IAsyncEnumerable<WhisperSegment> RunAsync(IReadOnlyList<ReadOnlyMemory<float>> chunks, WhisperRunOptions options, IProgress<(int Chunk, int Percent)>? progress, CancellationToken ct);
+
+    /// <summary>Frees the loaded model (graphics memory) until the next run, e.g. before the translator loads its own.</summary>
+    void ReleaseModel() { }
 }
