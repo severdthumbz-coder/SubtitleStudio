@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.36] - 2026-10-01
+
+### Fixed
+- Build warning CS8602 (possibly null reference) in App.xaml.cs, where the app starts listening for files handed over by VME. The single-instance check is created before that point, so it never was null; the code now says so in a way the compiler can check.
+- CI: the GitHub Actions steps moved to the versions that run on Node.js 24 (checkout v7, setup-dotnet v6, upload-artifact v7). GitHub is retiring Node.js 20 and was already forcing these steps onto Node.js 24 with a warning. Same steps, same inputs; nothing in the app changes.
+
 ## [1.0.0.35] - 2026-10-01
 
 ### Added

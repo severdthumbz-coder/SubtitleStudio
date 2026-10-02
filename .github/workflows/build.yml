@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK (version from global.json)
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -59,7 +59,7 @@ jobs:
           if ($fileVersion -ne '${{ steps.ver.outputs.version }}') { Write-Error "FileVersion $fileVersion does not match FullVersion"; exit 1 }
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SubtitleStudio-${{ steps.ver.outputs.version }}-win-x64
           path: publish/SubtitleStudio*.exe

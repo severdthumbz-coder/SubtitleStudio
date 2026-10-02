@@ -131,8 +131,9 @@ public partial class App : Application
         else if (!_services.Ffmpeg.Resolve(config.FfmpegPath).IsComplete)
             _viewModel.SetStatus("Ready. ffmpeg was not found: durations will show '-' until it is set in Settings > Engines & tools.", StatusKind.Warning);
 
-        if (_singleInstance.IsPrimary)
-            _singleInstance.StartListening(paths => Dispatcher.InvokeAsync(() => OnHandoffReceived(paths)));
+        // Set in OnStartup before StartApp runs (the compiler can't see that across methods).
+        if (_singleInstance is { IsPrimary: true } instance)
+            instance.StartListening(paths => Dispatcher.InvokeAsync(() => OnHandoffReceived(paths)));
 
         _ = StartSessionAsync(handoffPaths);
 
