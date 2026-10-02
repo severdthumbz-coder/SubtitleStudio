@@ -26,6 +26,10 @@ public sealed class AppSettings
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>
     public string TranscriptionEngine { get; set; } = string.Empty;
 
+    // Burned-in removal
+    /// <summary>Text left in the picture when burned-in subtitles are removed (one entry per item).</summary>
+    public List<string> RemovalKeepList { get; set; } = new();
+
     // Translate (a language model with llama.cpp in the app; models in models\llm next to the EXE; runs on WhisperDevice)
     /// <summary>File name of the chosen language model (GGUF).</summary>
     public string TranslateModel { get; set; } = string.Empty;

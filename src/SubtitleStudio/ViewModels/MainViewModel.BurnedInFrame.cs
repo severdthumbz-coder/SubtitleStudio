@@ -48,7 +48,10 @@ public sealed partial class MainViewModel
     public string TestReadAll
     {
         get => _testReadAll;
-        private set => SetProperty(ref _testReadAll, value);
+        private set
+        {
+            if (SetProperty(ref _testReadAll, value)) OnPropertyChanged(nameof(KeepCheckText));
+        }
     }
 
     public bool FrameBusy

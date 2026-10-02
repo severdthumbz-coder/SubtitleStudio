@@ -122,7 +122,17 @@
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
-                        <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Keep this text (one per line)" Style="{StaticResource Text.Label}" />
+                            <ctl:HintMarker Margin="8,0,0,0" Text="Text that should stay in the picture, such as a title card, a sign or a translator's note. A line of text in the subtitle area that contains one of these entries is left alone; everything else is removed. Matching ignores upper and lower case, spaces and punctuation, and forgives the odd misread letter in longer entries. The text is read with Windows OCR in the language set under Hardware and text recognition. Check a frame shows whether the frame on screen has text from the list." />
+                        </StackPanel>
+                        <TextBox Text="{Binding RemovalKeepText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="56" MaxHeight="140" VerticalScrollBarVisibility="Auto"
+                                 ToolTip="One entry per line, for example a show's title or a station name" />
+                        <TextBlock Text="{Binding RemovalKeepSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding KeepCheckText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Foreground="{DynamicResource Brush.Accent}" Visibility="{Binding HasKeepCheck, Converter={StaticResource Vis}}" />
+                        <WrapPanel Margin="0,10,0,0">
                             <Button Tag="&#xE768;" Content="Preview 10 s" Command="{Binding PreviewRemovalCommand}" Margin="0,0,8,6"
                                     ToolTip="Render 10 seconds from the frame shown in Check a frame, and play it next to the original" />
                             <Button Style="{StaticResource AccentButton}" Tag="&#xE714;" Content="Create video" Command="{Binding CreateCleanVideoCommand}" Margin="0,0,8,6"

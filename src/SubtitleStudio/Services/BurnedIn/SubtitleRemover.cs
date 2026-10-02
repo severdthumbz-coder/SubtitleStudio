@@ -21,6 +21,7 @@ public enum RemovalMethod
 /// <param name="LightText">White / yellow subtitles: text is found per frame. Otherwise the whole area is blurred throughout.</param>
 /// <param name="Start">Render from here (preview); null = whole video.</param>
 /// <param name="Duration">Render this long (preview); null = to the end.</param>
+/// <param name="Keep">Text to leave in the picture (read with OCR when the text changes). Only with <paramref name="LightText"/>.</param>
 public sealed record RemovalOptions(
     double BandTop,
     double BandBottom,
@@ -28,13 +29,16 @@ public sealed record RemovalOptions(
     bool LightText,
     RemovalMethod Method,
     TimeSpan? Start = null,
-    TimeSpan? Duration = null);
+    TimeSpan? Duration = null,
+    KeepList? Keep = null);
 
 public sealed record RemovalProgress(double Fraction, int Frames, int FramesWithText);
 
 /// <param name="AiPatches">Patches filled by the AI model; <paramref name="AiPatchesSkipped"/>: left to the ordinary fill (smooth background);
 /// <paramref name="AiPatchesReused"/>: took an earlier frame's result (the picture behind the text hadn't changed).</param>
-public sealed record RemovalResult(string OutputPath, int Frames, int FramesWithText, VideoEncoder Encoder, int AiPatches = 0, int AiPatchesSkipped = 0, int AiPatchesReused = 0);
+/// <param name="KeptFrames">Frames in which text on the keep list was left in the picture; <paramref name="KeepReads"/>: OCR readings made for it.</param>
+public sealed record RemovalResult(string OutputPath, int Frames, int FramesWithText, VideoEncoder Encoder, int AiPatches = 0, int AiPatchesSkipped = 0, int AiPatchesReused = 0,
+    int KeptFrames = 0, int KeepReads = 0, IReadOnlyList<string>? KeepMatched = null);
 
 /// <summary>
 /// Removes burned-in subtitles from the picture and writes a new video:
@@ -48,12 +52,15 @@ public sealed class SubtitleRemover
     private readonly AiInpainter? _ai;
     private readonly Hardware.PerformancePlan _plan;
     private readonly ActivityLog? _log;
+    private readonly ITextRecognizer? _ocr;
 
     /// <param name="ai">Needed for <see cref="RemovalMethod.AiFill"/>; without it AI fill falls back to the ordinary fill.</param>
     /// <param name="plan">How to use this PC (workers, memory for frames); detected hardware in the app.</param>
-    public SubtitleRemover(AiInpainter? ai = null, Hardware.PerformancePlan? plan = null, ActivityLog? log = null)
+    /// <param name="ocr">Reads the text for the keep list (<see cref="RemovalOptions.Keep"/>).</param>
+    public SubtitleRemover(AiInpainter? ai = null, Hardware.PerformancePlan? plan = null, ActivityLog? log = null, ITextRecognizer? ocr = null)
     {
         _ai = ai;
+        _ocr = ocr;
         _plan = plan ?? Hardware.PerformancePlan.Default;
         _log = log;
     }
@@ -481,6 +488,25 @@ public sealed class SubtitleRemover
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = stop.Token;
         var covers = new byte[]?[batchSize];
+        KeepFilter? keep = null;
+        if (options.Keep is { IsEmpty: false } keepList)
+        {
+            if (!options.LightText)
+                _log?.Warning("Remove", "The keep list only works when the text is found per frame (white or yellow subtitles); with coloured text the whole area is blurred.");
+            else if (_ocr is not { IsAvailable: true } ocr)
+                _log?.Warning("Remove", "The keep list needs Windows OCR to read the text, which isn't available: everything in the area is removed.");
+            else
+            {
+                keep = new KeepFilter(keepList, ocr, w, bandY, bandH, linePx, fps, options.Start ?? TimeSpan.Zero);
+                _log?.Info("Remove", $"Keep list: {keepList.Count} entr{(keepList.Count == 1 ? "y" : "ies")} ({string.Join(", ", keepList.Entries.Select(e => "\"" + e + "\""))}), read with OCR in {ocr.LanguageTag}.");
+                var log = _log;
+                keep.Trace = (time, lines) =>
+                {
+                    if (lines.Any(l => l.Kept))
+                        log?.Detail("Remove", $"{time:hh\\:mm\\:ss\\.ff} kept: {string.Join(" / ", lines.Select(l => (l.Kept ? "[kept] " : string.Empty) + l.Text))}");
+                };
+            }
+        }
         byte[]? carried = null;
         long waitDecoder = 0, waitEncoder = 0, waitAi = 0, cleanUp = 0, aiTotal = 0;
         var clock = Stopwatch.StartNew();
@@ -571,6 +597,8 @@ public sealed class SubtitleRemover
                     t = Stopwatch.GetTimestamp();
                     Parallel.For(0, count, parallel, i =>
                         covers[i] = FindTextCover(batch[i], bandY, bandH, linePx, options.LightText));
+                    // Text on the keep list stays: taken out of what is replaced (read before anything is painted).
+                    if (keep is not null) await keep.ApplyAsync(batch, covers, count, token).ConfigureAwait(false);
                     var previous = carried;
                     Parallel.For(0, count, parallel, i =>
                         Apply(batch[i], bandY, bandH, linePx, options.LightText, options.Method, covers[i], i == 0 ? previous : covers[i - 1]));
@@ -649,7 +677,8 @@ public sealed class SubtitleRemover
         }
 
         progress?.Report(new RemovalProgress(1, frames, withText));
-        return new RemovalResult(outputPath, frames, withText, encoder, _ai?.PatchesRun ?? 0, _ai?.PatchesSkipped ?? 0, _ai?.PatchesReused ?? 0);
+        return new RemovalResult(outputPath, frames, withText, encoder, _ai?.PatchesRun ?? 0, _ai?.PatchesSkipped ?? 0, _ai?.PatchesReused ?? 0,
+            keep?.KeptFrames ?? 0, keep?.Reads ?? 0, keep?.Matched.ToList());
     }
 
     /// <summary>Where the time went, so a slow run shows which stage held it up.</summary>

@@ -144,6 +144,54 @@ public sealed partial class MainViewModel
         _aiModel = null;
     }
 
+    // ---------------- Keep list ----------------
+
+    /// <summary>The keep list as typed: one entry per line.</summary>
+    public string RemovalKeepText
+    {
+        get => string.Join(Environment.NewLine, _s.Config.RemovalKeepList);
+        set
+        {
+            var entries = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n').Select(e => e.Trim()).Where(e => e.Length > 0).ToList();
+            if (entries.SequenceEqual(_s.Config.RemovalKeepList)) return;
+            _s.Config.RemovalKeepList = entries;
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RemovalKeepSummary));
+            OnPropertyChanged(nameof(KeepCheckText));
+        }
+    }
+
+    private KeepList RemovalKeepList => new(_s.Config.RemovalKeepList);
+
+    public string RemovalKeepSummary
+    {
+        get
+        {
+            var list = RemovalKeepList;
+            if (list.IsEmpty) return "Nothing on the list: all text in the subtitle area is removed.";
+            var note = _burnedInCleanup ? string.Empty : " It only works with white or yellow text found per frame (the clean-up option in step 3).";
+            return $"{list.Count} entr{(list.Count == 1 ? "y" : "ies")}. When the text in the area changes, it is read with Windows OCR ({_s.BurnedIn.Ocr.LanguageTag ?? "not available"}); lines containing an entry stay in the picture.{note}";
+        }
+    }
+
+    /// <summary>Whether the frame shown in Check a frame has text on the keep list (what OCR read there).</summary>
+    public string KeepCheckText
+    {
+        get
+        {
+            var list = RemovalKeepList;
+            if (list.IsEmpty || string.IsNullOrWhiteSpace(TestReadAll) || TestReadAll.StartsWith('(')) return string.Empty;
+            var lines = TestReadAll.Split("  /  ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var kept = lines.Where(l => list.Match(l) is not null).ToList();
+            return kept.Count == 0
+                ? "In the frame shown: nothing matches the keep list, so all its text would be removed."
+                : $"In the frame shown, this stays: {string.Join("  /  ", kept.Select(l => "“" + l + "”"))}";
+        }
+    }
+
+    public bool HasKeepCheck => KeepCheckText.Length > 0;
+
     public string EncoderText => _encoder is null
         ? "Encoder: chosen at the first preview (graphics card when it works, else processor)."
         : $"Encoder: {_encoder.Label}";
@@ -187,6 +235,12 @@ public sealed partial class MainViewModel
         ShowFrameCommand = new RelayCommand(() => ShowCompare = false);
         RevealRemovalOutputCommand = new RelayCommand(() => { if (_lastOutput is { } o) _s.Dialogs.RevealInExplorer(o); }, () => HasRemovalOutput);
 
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BurnedInCleanup)) OnPropertyChanged(nameof(RemovalKeepSummary));
+            else if (e.PropertyName == nameof(KeepCheckText)) OnPropertyChanged(nameof(HasKeepCheck));
+        };
+
         if (_s.CreatePlayer is { } create)
         {
             _compare = new ComparePlayerViewModel(create(), create(), RunOnUi);
@@ -198,8 +252,9 @@ public sealed partial class MainViewModel
     {
         var r = detection.Result;
         double lineHeight = r.SamplesWithSubtitles > 0 ? r.LineHeight : Services.BurnedIn.BurnedInAnalyzer.DefaultLineHeight;
+        var keep = RemovalKeepList;
         return new RemovalOptions(_bandTopPercent / 100, _bandBottomPercent / 100, lineHeight, _burnedInCleanup,
-            SelectedRemovalMethod.Method, start, duration);
+            SelectedRemovalMethod.Method, start, duration, keep.IsEmpty ? null : keep);
     }
 
     private async Task<VideoEncoder> EncoderAsync(string ffmpeg, CancellationToken ct)
@@ -241,12 +296,12 @@ public sealed partial class MainViewModel
             var options = CurrentRemovalOptions(detection, start, PreviewLength);
             LogRemovalStart("Preview", video.Name, options, encoder, output);
             var started = DateTime.UtcNow;
-            var result = await new SubtitleRemover(ai, _plan, _s.Log).RenderAsync(ffmpeg, video.FullPath, detection.Video, output, encoder,
+            var result = await new SubtitleRemover(ai, _plan, _s.Log, _s.BurnedIn.Ocr).RenderAsync(ffmpeg, video.FullPath, detection.Video, output, encoder,
                 options, RemovalProgressReporter("Preview"), ct);
             LogRemovalDone("Preview", result, DateTime.UtcNow - started);
 
             OpenComparison(video.FullPath, result.OutputPath, start, PreviewLength, start);
-            BurnedInStatus = $"Preview ready: text found in {result.FramesWithText} of {result.Frames} frames{AiSummary(result)}. Play it side by side; if it looks right, Create video.";
+            BurnedInStatus = $"Preview ready: text found in {result.FramesWithText} of {result.Frames} frames{AiSummary(result)}{KeepSummary(result)}. Play it side by side; if it looks right, Create video.";
             SetStatus($"Preview of the removal ready ({encoder.Label}).", StatusKind.Success);
         });
     }
@@ -287,7 +342,7 @@ public sealed partial class MainViewModel
             var ai = await AiInpainterAsync(ct);
             var options = CurrentRemovalOptions(detection, null, null);
             LogRemovalStart("Create video", video.Name, options, encoder, output);
-            var result = await new SubtitleRemover(ai, _plan, _s.Log).RenderAsync(ffmpeg, video.FullPath, detection.Video, output, encoder,
+            var result = await new SubtitleRemover(ai, _plan, _s.Log, _s.BurnedIn.Ocr).RenderAsync(ffmpeg, video.FullPath, detection.Video, output, encoder,
                 options, RemovalProgressReporter("Removing"), ct);
             LogRemovalDone("Create video", result, DateTime.UtcNow - started);
 
@@ -295,7 +350,7 @@ public sealed partial class MainViewModel
             OnPropertyChanged(nameof(HasRemovalOutput));
             OpenComparison(video.FullPath, result.OutputPath, TimeSpan.Zero, detection.Video.Duration, at);
             var took = DateTime.UtcNow - started;
-            BurnedInStatus = $"Done in {FormatEta(took)}: {Path.GetFileName(output)}. Text removed in {result.FramesWithText} of {result.Frames} frames{AiSummary(result)}.";
+            BurnedInStatus = $"Done in {FormatEta(took)}: {Path.GetFileName(output)}. Text removed in {result.FramesWithText} of {result.Frames} frames{AiSummary(result)}{KeepSummary(result)}.";
             SetStatus($"Saved {Path.GetFileName(output)} ({encoder.Label}). The original is unchanged.", StatusKind.Success);
             await ImportAsync(new[] { result.OutputPath }, "removal");
         });
@@ -341,8 +396,13 @@ public sealed partial class MainViewModel
         long size = File.Exists(r.OutputPath) ? new FileInfo(r.OutputPath).Length : 0;
         _s.Log.Success("Remove", $"{what} done in {FormatEta(took)}: {r.Frames} frames ({r.Frames / Math.Max(0.1, took.TotalSeconds):0.0} frames/s), "
             + $"text in {r.FramesWithText}" + (r.AiPatches + r.AiPatchesSkipped + r.AiPatchesReused > 0 ? $", AI patches {r.AiPatches} (+{r.AiPatchesReused} reused from earlier frames, +{r.AiPatchesSkipped} smooth, ordinary fill)" : string.Empty)
+            + (r.KeepReads > 0 ? $", keep list: {r.KeepReads} OCR readings, text kept in {r.KeptFrames} frames" + (r.KeepMatched is { Count: > 0 } m ? $" ({string.Join(", ", m.Select(e => "\"" + e + "\""))})" : " (nothing on the list was found)") : string.Empty)
             + $", encoder {r.Encoder.Name}, output {Services.Hardware.HardwareProfile.Bytes(size)}.");
     }
+
+    private static string KeepSummary(RemovalResult r)
+        => r.KeptFrames == 0 ? string.Empty
+            : $"; kept {string.Join(", ", (r.KeepMatched ?? Array.Empty<string>()).Select(m => "“" + m + "”"))} in {r.KeptFrames} frames";
 
     private static string AiSummary(RemovalResult r)
         => r.AiPatches + r.AiPatchesSkipped + r.AiPatchesReused == 0 ? string.Empty : $"; AI repainted {r.AiPatches} patches, reused {r.AiPatchesReused} from earlier frames where the picture hadn't changed ({r.AiPatchesSkipped} smooth ones used Fill in)";

@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.37] - 2026-10-02
+
+### Added
+- Burned-in, step 4: a keep list. Text typed there, one entry per line, stays in the picture when the subtitles are removed: a title card, a channel name, a sign, a translator's note. Everything else in the subtitle area is removed as before. How it works:
+  - Whenever the text in the area changes, the app reads that frame with Windows OCR (in the language chosen under Hardware and text recognition). While the text stays the same, it reuses that answer, so it takes about one reading per subtitle.
+  - A line of text that contains an entry is left alone, with a small margin for its outline and shadow; the rest of the frame's text is still removed. If a subtitle and a kept caption are on screen together, only the subtitle goes.
+  - Matching ignores upper and lower case, spaces and punctuation (OCR spacing varies, especially in Korean and Japanese), and forgives one misread letter per six in longer entries. Entries shorter than six letters must match exactly.
+  - Check a frame shows whether the frame on screen has text from the list, so an entry can be tried before rendering. The list is saved with the settings.
+  - The preview and the finished video say how many frames kept text and which entries were found; the Log lists each reading where something was kept.
+  - It works when the text is found per frame (white or yellow subtitles, the clean-up option). With coloured subtitles the whole area is blurred, so the list can't apply, and the Log says so.
+
 ## [1.0.0.36] - 2026-10-01
 
 ### Fixed
