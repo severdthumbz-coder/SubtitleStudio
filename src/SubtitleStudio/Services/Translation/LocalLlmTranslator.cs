@@ -6,7 +6,8 @@ using SubtitleStudio.Services.Transcription;
 namespace SubtitleStudio.Services.Translation;
 
 /// <summary>What a translation did, for the status bar and the Log.</summary>
-public sealed record TranslationStats(int Cues, int Translated, int KeptAsIs, int Failed, TimeSpan Loading, TimeSpan Translating, string Device, string? DeviceProblem)
+public sealed record TranslationStats(int Cues, int Translated, int KeptAsIs, int Failed, TimeSpan Loading, TimeSpan Translating, string Device, string? DeviceProblem,
+    int LeftoversFixed = 0, int LeftoversRemaining = 0)
 {
     public double CuesPerMinute => Translating.TotalMinutes > 0 ? Translated / Translating.TotalMinutes : 0;
 }
@@ -45,7 +46,10 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
     public int BatchSize { get; set; } = 16;
 
     /// <summary>Earlier cues (with their translations) sent along for context.</summary>
-    public int ContextLines { get; set; } = 6;
+    public int ContextLines { get; set; } = 8;
+
+    /// <summary>Ask again, line by line, when a translation still has words in the original script.</summary>
+    public bool RetryLeftovers { get; set; } = true;
 
     public int MaxColumns { get; set; } = 42;
 
@@ -78,7 +82,7 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         var translations = new string?[cues.Count];
         var history = new List<(string Source, string Translation)>();
         var system = SubtitleTranslationPrompt.SystemMessage(sourceName, targetName);
-        int done = 0, failed = 0;
+        int done = 0, failed = 0, leftoversFixed = 0, leftoversRemaining = 0;
         clock.Restart();
         progress?.Report(new EngineProgress(0.02, $"Translating on {device}... 0 of {todo.Count}"));
 
@@ -115,6 +119,34 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
                 _log?.Warning("Translate", $"Cue {cues[batch[0]].Index}: no translation came back; the original text is kept.");
                 parsed = new[] { string.Empty };
             }
+            // Words left in the original script ("Han 선생님"): that line once more, on its own, with a reminder.
+            if (RetryLeftovers)
+                for (int k = 0; k < batch.Count; k++)
+                {
+                    if (!SubtitleTranslationPrompt.HasLeftoverScript(parsed[k], targetLanguage)) continue;
+                    var retryContext = history.Skip(Math.Max(0, history.Count - ContextLines)).ToList();
+                    var retryUser = SubtitleTranslationPrompt.UserMessage(retryContext, new[] { lines[k] }) + "\n\n" + SubtitleTranslationPrompt.LeftoverReminder(targetName)
+                                    + (noThinking ? "\n/no_think" : string.Empty);
+                    string again;
+                    try
+                    {
+                        again = SubtitleTranslationPrompt.Parse(await _runner.CompleteAsync(system, retryUser, SubtitleTranslationPrompt.Grammar(1), 32 + Math.Max(48, lines[k].Length * 3), null, ct).ConfigureAwait(false), 1)[0];
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        again = string.Empty;
+                    }
+                    if (again.Length > 0 && !SubtitleTranslationPrompt.HasLeftoverScript(again, targetLanguage))
+                    {
+                        parsed = parsed.Select((p, j) => j == k ? again : p).ToList();
+                        leftoversFixed++;
+                    }
+                    else
+                    {
+                        leftoversRemaining++;
+                        _log?.Warning("Translate", $"Cue {cues[batch[k]].Index}: still has untranslated words: \"{parsed[k]}\".");
+                    }
+                }
             for (int k = 0; k < batch.Count; k++)
             {
                 int i = batch[k];
@@ -145,10 +177,12 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         }
 
         int translated = translations.Count(t => t is not null);
-        LastStats = new TranslationStats(cues.Count, translated, cues.Count - todo.Count, failed, loading, translating, device, _runner.DeviceProblem);
+        LastStats = new TranslationStats(cues.Count, translated, cues.Count - todo.Count, failed, loading, translating, device, _runner.DeviceProblem,
+            leftoversFixed, leftoversRemaining);
         _log?.Success("Translate", $"{translated} of {cues.Count} cues translated to {targetName} in {Format(translating)} on {device}"
             + (LastStats.KeptAsIs > 0 ? $"; {LastStats.KeptAsIs} with nothing to translate (music, symbols) kept as they were" : string.Empty)
-            + (failed > 0 ? $"; {failed} couldn't be translated and kept the original text" : string.Empty) + ".");
+            + (failed > 0 ? $"; {failed} couldn't be translated and kept the original text" : string.Empty)
+            + (leftoversFixed + leftoversRemaining > 0 ? $"; {leftoversFixed + leftoversRemaining} came back with words in the original script and were asked again ({leftoversRemaining} still have some, listed above)" : string.Empty) + ".");
         return result;
     }
 

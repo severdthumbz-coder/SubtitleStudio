@@ -49,6 +49,9 @@ public sealed partial class LlamaSharpRunner : ILlmRunner
     private WhisperDevice? _device;
     private string? _gpuName;
     private string? _offload;
+    private StatelessExecutor? _executor;
+    /// <summary>Warnings already in the Log: llama.cpp repeats the same ones for every question.</summary>
+    private readonly HashSet<string> _warned = new(StringComparer.Ordinal);
 
     public LlamaSharpRunner(Action<string, bool>? log = null)
     {
@@ -138,8 +141,15 @@ public sealed partial class LlamaSharpRunner : ILlmRunner
         else if (VulkanDeviceLine().Match(message) is { Success: true } v)
             lock (_logGate) _gpuName ??= v.Groups[1].Value.Trim();
         // Only warnings and the lines that say where it runs go to the Log; llama.cpp is very talkative.
-        if (warning || message.Contains("offloaded", StringComparison.Ordinal) || message.Contains("using device", StringComparison.Ordinal) || message.StartsWith("ggml_vulkan: ", StringComparison.Ordinal))
-            _log?.Invoke(message, warning);
+        // A warning it repeats for every question (each sets up its working memory again) is logged once.
+        if (warning)
+        {
+            bool first;
+            lock (_logGate) first = _warned.Add(message);
+            if (first) _log?.Invoke(message, true);
+        }
+        else if (message.Contains("offloaded", StringComparison.Ordinal) || message.Contains("using device", StringComparison.Ordinal) || message.StartsWith("ggml_vulkan: ", StringComparison.Ordinal))
+            _log?.Invoke(message, false);
     }
 
     public async Task<string> CompleteAsync(string system, string user, string? grammar, int maxTokens, IProgress<string>? tokens, CancellationToken ct)
@@ -152,7 +162,9 @@ public sealed partial class LlamaSharpRunner : ILlmRunner
         var pipeline = new DefaultSamplingPipeline { Temperature = 0 };
         if (grammar is not null) pipeline = new DefaultSamplingPipeline { Temperature = 0, Grammar = new Grammar(grammar, "root") };
         var inference = new InferenceParams { MaxTokens = maxTokens, SamplingPipeline = pipeline };
-        var executor = new StatelessExecutor(weights, _params!);
+        // One executor per loaded model: making one sets up (and drops) a working memory, on top of the
+        // one each question needs; that was half a second wasted per question.
+        var executor = _executor ??= new StatelessExecutor(weights, _params!);
         var sb = new StringBuilder();
         // llama.cpp works on this thread until the answer is complete: keep it off the caller's.
         await Task.Run(async () =>
@@ -169,6 +181,8 @@ public sealed partial class LlamaSharpRunner : ILlmRunner
 
     public void Release()
     {
+        _executor = null;
+        lock (_logGate) _warned.Clear();
         _weights?.Dispose();
         _weights = null;
         _params = null;

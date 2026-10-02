@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.39] - 2026-10-02
+
+### Changed
+- Translate: words left in the original script are caught. On the Korean test episode a few lines came back as "Han 선생님, it's me.", "Ichida 하루" or with Japanese katakana in them. A translated line that still has Korean, Japanese or Chinese letters (when translating into a language that doesn't use them) is asked again on its own, with a reminder to translate every word and write names in the target alphabet. If it is still not clean, the answer is kept and listed in the Log.
+- Translate: clearer instructions for Korean: names in standard romanization and the same every time, forms of address translated (선생님: Doctor, Teacher or Sir by context; 교수님: Professor). The 8 lines before each batch now go along as context (was 6).
+- Translate: what a language model adds and subtitles don't have is removed: markdown emphasis ("*you*"), and a speaker dash or "/" at the start of a line when the original line had none. Dashes the original had are kept.
+
+### Fixed
+- Translate: about 40 seconds of an episode's translation went on setting up the model's working memory twice for each batch. It is now set up once per batch.
+- Translate: the Log no longer repeats the same two llama.cpp notices for every batch (86 lines for one episode). Each notice is logged once per run.
+
 ## [1.0.0.38] - 2026-10-02
 
 ### Fixed
