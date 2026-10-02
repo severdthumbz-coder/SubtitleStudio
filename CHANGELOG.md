@@ -5,6 +5,16 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.38] - 2026-10-02
+
+### Fixed
+- AI Transcribe: sentences came out one syllable per cue, spread over a minute or more (on the Korean test episode: "감 / 사 / 합 / 니다. / LA에 / 서 / …" across 52 seconds, "수 / 술 / 은 / 잘 / 끝 / 냈 / 어 / 요." across 45 seconds, about 15 places in all). Whisper sometimes gives one short line a time span that covers long stretches of music it never heard as speech. Its word times for Korean often can't be used (a syllable split across two tokens garbles both), so the text was shared out over the whole span. Then the 7-second limit kept cutting it, down to single syllables. Now:
+  - without usable word times, the text is laid over the speech found from the segment's start, at a speaking pace (about 5 Korean syllables or 12 letters a second), stopping at the first long pause, instead of being stretched over everything the segment spans;
+  - a cue that is only too long in time is split only between words, never into scraps of fewer than 8 columns; text is split between characters only when it is too wide for two lines (Chinese, Japanese);
+  - a cue is held at most about as long as it takes to read: 1 second plus 0.12 seconds per column, within the 0.8 to 7 second range.
+- AI Transcribe: a cue stayed on screen for 70 seconds ("도", 9:02 to 10:12) and another for 24. Whisper stamped the first word of the line at the end of the previous one. A first word more than 2 seconds ahead of the second is now moved up to it, and a cue ends where its last word ends (within the reading time above).
+- Burned-in removal, keep list: "A.D. 24" in The Chosen wasn't kept (the Log showed "text kept in 0 frames"). Its thin serif strokes break apart in the cleaned-up image that OCR read, so nothing could be recognised. The keep list now reads both the picture itself (enlarged to the usual reading size) and the cleaned-up text, and a line found by either counts. Check a frame does the same, and reads the frame again when the list is changed.
+
 ## [1.0.0.37] - 2026-10-02
 
 ### Added

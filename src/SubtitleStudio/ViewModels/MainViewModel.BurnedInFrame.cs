@@ -137,6 +137,7 @@ public sealed partial class MainViewModel
     {
         CancelFrameRead();
         TestReadText = string.Empty;
+        _keepReadLines = null;
         TestReadAll = string.Empty;
     }
 
@@ -169,7 +170,8 @@ public sealed partial class MainViewModel
                 if (frame is null)
                 {
                     TestReadText = "This moment could not be read from the video.";
-                    TestReadAll = string.Empty;
+                    _keepReadLines = null;
+        TestReadAll = string.Empty;
                     return;
                 }
                 RunOnUi(() => PreviewFrame = frame); // also refreshes the strip
@@ -181,10 +183,21 @@ public sealed partial class MainViewModel
             double? linePx = detection.Result.SamplesWithSubtitles > 0 ? detection.Result.LineHeight * previewFrame.Height : null;
             var read = await _s.BurnedIn.TestReadAsync(strip, linePx, ct);
             ct.ThrowIfCancellationRequested();
+            // For the keep list, also the picture itself (removal reads both): thin or serif lettering can
+            // fall apart in the cleaned-up strip.
+            var keepLines = read.Everything.Split("  /  ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (!RemovalKeepList.IsEmpty)
+            {
+                var plain = await _s.BurnedIn.TestReadAsync(CropBand(previewFrame), linePx, ct);
+                ct.ThrowIfCancellationRequested();
+                keepLines.AddRange(plain.Everything.Split("  /  ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
             RunOnUi(() =>
             {
+                _keepReadLines = keepLines;
                 TestReadText = read.Subtitle.Length > 0 ? read.Subtitle : "(nothing kept as subtitle text)";
                 TestReadAll = read.Everything.Length > 0 ? read.Everything : "(no text found)";
+                OnPropertyChanged(nameof(KeepCheckText));
             });
         }
         catch (OperationCanceledException)

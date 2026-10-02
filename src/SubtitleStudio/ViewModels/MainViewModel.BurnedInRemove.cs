@@ -159,10 +159,14 @@ public sealed partial class MainViewModel
             OnPropertyChanged();
             OnPropertyChanged(nameof(RemovalKeepSummary));
             OnPropertyChanged(nameof(KeepCheckText));
+            if (PreviewFrame is not null) ScheduleFrameRead(grab: false); // read the frame shown again for the new list
         }
     }
 
     private KeepList RemovalKeepList => new(_s.Config.RemovalKeepList);
+
+    /// <summary>What OCR read in the frame shown (the cleaned strip and the picture), for <see cref="KeepCheckText"/>.</summary>
+    private List<string>? _keepReadLines;
 
     public string RemovalKeepSummary
     {
@@ -181,9 +185,8 @@ public sealed partial class MainViewModel
         get
         {
             var list = RemovalKeepList;
-            if (list.IsEmpty || string.IsNullOrWhiteSpace(TestReadAll) || TestReadAll.StartsWith('(')) return string.Empty;
-            var lines = TestReadAll.Split("  /  ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var kept = lines.Where(l => list.Match(l) is not null).ToList();
+            if (list.IsEmpty || _keepReadLines is null) return string.Empty;
+            var kept = _keepReadLines.Where(l => list.Match(l) is not null).Distinct().ToList();
             return kept.Count == 0
                 ? "In the frame shown: nothing matches the keep list, so all its text would be removed."
                 : $"In the frame shown, this stays: {string.Join("  /  ", kept.Select(l => "“" + l + "”"))}";

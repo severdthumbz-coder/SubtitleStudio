@@ -87,30 +87,67 @@ public sealed class KeepFilter
     {
         Reads++;
         var band = frame.CropRows(_bandY, _bandH);
-        var mask = SubtitleImageCleaner.RemoveNonText(SubtitleImageCleaner.LightTextMask(band, _linePx), _linePx);
         var keep = new List<(int, int, int, int)>();
-        if (mask.Count == 0) return keep;
-
-        // OCR reads lines about 20-60 px tall best, and refuses images over its size limit.
-        int max = Math.Max(256, _ocr.MaxImageDimension);
-        double scale = _linePx < 24 ? 2 : 1;
-        if (mask.Width * scale > max) scale = max / (double)mask.Width;
-        var image = SubtitleImageCleaner.Render(Scale(mask, scale), time);
-        var lines = await _ocr.RecognizeAsync(image, ct).ConfigureAwait(false);
-
         var trace = new List<(string, bool)>();
-        foreach (var line in lines)
-        {
-            var entry = _list.Match(line.Text);
-            trace.Add((line.Text, entry is not null));
-            if (entry is null) continue;
-            _matched.Add(entry);
-            int x0 = (int)Math.Floor(line.X / scale) - _pad, y0 = (int)Math.Floor(line.Y / scale) - _pad;
-            int x1 = (int)Math.Ceiling((line.X + line.Width) / scale) + _pad, y1 = (int)Math.Ceiling(line.Bottom / scale) + _pad;
-            keep.Add((Math.Max(0, x0), Math.Max(0, y0), Math.Min(_width, x1), Math.Min(_bandH, y1)));
-        }
+
+        // OCR reads lines about 30-60 px tall best, and refuses images over its size limit.
+        int max = Math.Max(256, _ocr.MaxImageDimension);
+        double scale = Math.Clamp(BurnedInService.TargetLinePixels / Math.Max(8, _linePx), 1, 3);
+        if (band.Width * scale > max) scale = max / (double)band.Width;
+
+        // Two readings: the picture itself (thin or serif lettering, a caption on a plain background) and the
+        // cleaned-up text (white subtitles over a busy picture). Thin strokes can break apart in the
+        // clean-up; busy pictures can hide text from the plain reading. A line found by either one counts.
+        var readings = new List<(IReadOnlyList<OcrLine> Lines, string Kind)>();
+        readings.Add((await _ocr.RecognizeAsync(Resize(band, scale), ct).ConfigureAwait(false), "picture"));
+        var mask = SubtitleImageCleaner.RemoveNonText(SubtitleImageCleaner.LightTextMask(band, _linePx), _linePx);
+        if (mask.Count > 0)
+            readings.Add((await _ocr.RecognizeAsync(SubtitleImageCleaner.Render(Scale(mask, scale), time), ct).ConfigureAwait(false), "clean"));
+
+        foreach (var (lines, _) in readings)
+            foreach (var line in lines)
+            {
+                var entry = _list.Match(line.Text);
+                trace.Add((line.Text, entry is not null));
+                if (entry is null) continue;
+                _matched.Add(entry);
+                int x0 = (int)Math.Floor(line.X / scale) - _pad, y0 = (int)Math.Floor(line.Y / scale) - _pad;
+                int x1 = (int)Math.Ceiling((line.X + line.Width) / scale) + _pad, y1 = (int)Math.Ceiling(line.Bottom / scale) + _pad;
+                keep.Add((Math.Max(0, x0), Math.Max(0, y0), Math.Min(_width, x1), Math.Min(_bandH, y1)));
+            }
         Trace?.Invoke(time, trace);
         return keep;
+    }
+
+    /// <summary>A picture resized (bilinear) for reading.</summary>
+    public static FrameSample Resize(FrameSample image, double scale)
+    {
+        if (Math.Abs(scale - 1) < 0.01) return image;
+        int w = Math.Max(1, (int)Math.Round(image.Width * scale)), h = Math.Max(1, (int)Math.Round(image.Height * scale));
+        var src = image.Bgra;
+        var dst = new byte[w * h * 4];
+        int sw = image.Width, sh = image.Height;
+        for (int y = 0; y < h; y++)
+        {
+            double fy = Math.Clamp((y + 0.5) / scale - 0.5, 0, sh - 1);
+            int y0 = (int)fy, y1 = Math.Min(sh - 1, y0 + 1);
+            double ty = fy - y0;
+            for (int x = 0; x < w; x++)
+            {
+                double fx = Math.Clamp((x + 0.5) / scale - 0.5, 0, sw - 1);
+                int x0 = (int)fx, x1 = Math.Min(sw - 1, x0 + 1);
+                double tx = fx - x0;
+                int a = (y0 * sw + x0) * 4, b = (y0 * sw + x1) * 4, c = (y1 * sw + x0) * 4, d = (y1 * sw + x1) * 4, o = (y * w + x) * 4;
+                for (int k = 0; k < 3; k++)
+                {
+                    double top = src[a + k] + (src[b + k] - src[a + k]) * tx;
+                    double bottom = src[c + k] + (src[d + k] - src[c + k]) * tx;
+                    dst[o + k] = (byte)Math.Round(top + (bottom - top) * ty);
+                }
+                dst[o + 3] = 255;
+            }
+        }
+        return new FrameSample(w, h, dst, image.Time);
     }
 
     /// <summary>The cover without the kept boxes; null when too little is left to be text.</summary>

@@ -20,6 +20,20 @@ public sealed record CueShapeOptions
 
     /// <summary>Silence at the start or end of a cue longer than this is cut off (0.15 s lead-in, 0.3 s hold kept).</summary>
     public TimeSpan SilenceTrim { get; init; } = TimeSpan.FromSeconds(0.8);
+
+    /// <summary>
+    /// Reading time: a cue stays up at most this long per column of text (plus <see cref="HoldBase"/>),
+    /// so a one-word line isn't held for half a minute when Whisper's times run long.
+    /// </summary>
+    public TimeSpan HoldPerColumn { get; init; } = TimeSpan.FromSeconds(0.12);
+    public TimeSpan HoldBase { get; init; } = TimeSpan.FromSeconds(1.0);
+
+    /// <summary>
+    /// Speaking pace used to place text when Whisper's own word times can't be used: about 5 Korean
+    /// syllables or 12 Latin letters a second. Text is laid over the speech from the segment's start at
+    /// this pace instead of being stretched over everything the segment spans.
+    /// </summary>
+    public TimeSpan SpeechPerColumn { get; init; } = TimeSpan.FromSeconds(0.085);
 }
 
 public sealed record ShapeResult(List<SubtitleCue> Cues, int DroppedNotSpeech, int DroppedRepeats, int DroppedKnownPhrases = 0);
@@ -108,12 +122,18 @@ public static class TranscriptShaper
         {
             if (drop[i]) continue;
             var (segment, text, _) = kept[i];
-            Split(text, 0, text.Length, TimeMap(segment, text), o, pieces);
+            Split(text, 0, text.Length, TimeMap(segment, text, active, o), o, pieces);
         }
 
         if (active is not null)
             for (int i = 0; i < pieces.Count; i++)
                 pieces[i] = TrimToSound(pieces[i], active, o);
+        for (int i = 0; i < pieces.Count; i++)
+        {
+            var (start, end, text) = pieces[i];
+            var hold = HoldFor(text, o);
+            if (end - start > hold) pieces[i] = (start, start + hold, text);
+        }
 
         pieces.Sort((a, b) => a.Start.CompareTo(b.Start));
         var cues = new List<SubtitleCue>(pieces.Count);
@@ -136,6 +156,13 @@ public static class TranscriptShaper
     }
 
     private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+    /// <summary>The longest a cue with this text stays up: reading time, within the minimum and maximum duration.</summary>
+    public static TimeSpan HoldFor(string text, CueShapeOptions o)
+    {
+        var t = o.HoldBase + TimeSpan.FromTicks(o.HoldPerColumn.Ticks * Columns(text));
+        return t < o.MinDuration ? o.MinDuration : t > o.MaxDuration ? o.MaxDuration : t;
+    }
 
     private static bool SameRun(List<string> keys, int a, int b, int length)
     {
@@ -264,11 +291,12 @@ public static class TranscriptShaper
     /// exactly that text (not always: a Korean syllable can be split across two tokens, garbling both);
     /// otherwise shared out by text width across the segment.
     /// </summary>
-    private static Func<int, TimeSpan> TimeMap(WhisperSegment segment, string text)
+    private static Func<int, TimeSpan> TimeMap(WhisperSegment segment, string text, bool[]? active, CueShapeOptions o)
     {
         TimeSpan start = segment.Start, end = segment.End > segment.Start ? segment.End : segment.Start + TimeSpan.FromSeconds(1);
         int total = Math.Max(1, Columns(text));
-        TimeSpan Proportional(int i) => start + TimeSpan.FromTicks((long)((end - start).Ticks * (Columns(text, 0, i) / (double)total)));
+        var paced = PacedMap(start, end, text, total, active, o);
+        TimeSpan Proportional(int i) => paced(Columns(text, 0, i) / (double)total);
 
         var words = segment.Tokens.Where(t => !t.Special).ToList();
         if (words.Count == 0) return Proportional;
@@ -292,11 +320,63 @@ public static class TranscriptShaper
             starts.Add((first, t.Start));
             pos += t.Text.Length;
         }
+        // The first word's time is often the segment's start, long before the word is said (Whisper's
+        // segment began at the end of the previous line): a first word far ahead of the second is moved up.
+        if (starts.Count >= 2 && starts[1].Time - starts[0].Time > LeadingGap)
+            starts[0] = (starts[0].Char, starts[1].Time - TimeSpan.FromSeconds(0.3));
+        var lastEnd = words[^1].End > words[^1].Start ? words[^1].End : words[^1].Start;
         return i =>
         {
             for (int k = 0; k < starts.Count; k++)
                 if (starts[k].Char >= i) return Clamp(starts[k].Time, start, end);
-            return Proportional(i);
+            // The end of the text: where its last word ends.
+            return i >= text.Length && lastEnd > starts[^1].Time ? Clamp(lastEnd, start, end) : Proportional(i);
+        };
+    }
+
+    /// <summary>A first word this far ahead of the second isn't where it was said.</summary>
+    private static readonly TimeSpan LeadingGap = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Time at a share of the text (0..1) when there are no usable word times: the text is laid over the
+    /// speech heard from the segment's start (<paramref name="active"/>, 10 ms steps) at a speaking pace, not
+    /// spread over everything the segment spans. A segment can span a minute of music with one short line
+    /// in it; spreading put one syllable on each cue. Without speech information, the pace alone limits it.
+    /// </summary>
+    private static Func<double, TimeSpan> PacedMap(TimeSpan start, TimeSpan end, string text, int columns, bool[]? active, CueShapeOptions o)
+    {
+        var needed = TimeSpan.FromTicks(o.SpeechPerColumn.Ticks * columns) + TimeSpan.FromSeconds(0.3);
+        var span = end - start;
+        // Short enough for the text: spread evenly, as Whisper gave it.
+        if (span <= needed + needed / 2) return f => start + TimeSpan.FromTicks((long)(span.Ticks * f));
+
+        if (active is null)
+        {
+            var limit = needed + needed / 2;
+            return f => start + TimeSpan.FromTicks((long)(limit.Ticks * f));
+        }
+
+        // The speech frames from the start on, until the text has had its time (or the segment ends).
+        int a = Math.Clamp((int)(start.TotalMilliseconds / 10), 0, active.Length), b = Math.Clamp((int)Math.Ceiling(end.TotalMilliseconds / 10), 0, active.Length);
+        int want = Math.Max(1, (int)(needed.TotalMilliseconds / 10));
+        var frames = new List<int>(want);
+        int gap = 0, pause = Math.Max(1, (int)(o.SilenceTrim.TotalMilliseconds / 10));
+        for (int f = a; f < b && frames.Count < want; f++)
+        {
+            if (active[f]) { frames.Add(f); gap = 0; continue; }
+            // A long pause once most of the text has had its time: the line ended (what follows is the next one).
+            if (frames.Count > 0 && ++gap >= pause && frames.Count >= want / 2) break;
+        }
+        if (frames.Count == 0)
+        {
+            var limit = needed + needed / 2;
+            return f => start + TimeSpan.FromTicks((long)(limit.Ticks * f));
+        }
+        return f =>
+        {
+            if (f <= 0) return TimeSpan.FromMilliseconds(frames[0] * 10.0);
+            if (f >= 1) return TimeSpan.FromMilliseconds((frames[^1] + 1) * 10.0);
+            return TimeSpan.FromMilliseconds(frames[Math.Min(frames.Count - 1, (int)(f * frames.Count))] * 10.0);
         };
     }
 
@@ -312,7 +392,10 @@ public static class TranscriptShaper
         TimeSpan start = timeAt(from), end = timeAt(to);
         bool tooWide = !FitsLines(text[from..to], o);
         bool tooLong = end - start > o.MaxDuration;
-        int cut = tooWide || tooLong ? BestBreak(text, from, to) : -1;
+        // Too wide: split where needed (between characters in Chinese or Japanese). Only too long: only
+        // between words, and not into scraps: a short line stays whole and is shortened in time instead.
+        int cut = tooWide ? BestBreak(text, from, to)
+            : tooLong && Columns(text, from, to) >= 2 * MinTimeSplitColumns ? BestBreak(text, from, to, wordsOnly: true) : -1;
         if (cut < 0)
         {
             output.Add((start, end, text[from..to]));
@@ -323,12 +406,15 @@ public static class TranscriptShaper
     }
 
     /// <summary>Where to split text[from..to): near the middle, preferring sentence ends, then commas. -1: nowhere.</summary>
-    private static int BestBreak(string text, int from, int to)
+    /// <summary>A split made only for time leaves at least this many columns on each side.</summary>
+    private const int MinTimeSplitColumns = 8;
+
+    private static int BestBreak(string text, int from, int to, bool wordsOnly = false)
     {
         int total = Math.Max(1, Columns(text, from, to));
         bool hasSpace = text.IndexOf(' ', from, to - from) >= 0;
         // Without spaces, only East Asian text may be split between characters; a single word never is.
-        if (!hasSpace && !HasWide(text, from, to)) return -1;
+        if (!hasSpace && (wordsOnly || !HasWide(text, from, to))) return -1;
         int best = -1;
         double bestScore = double.MaxValue;
         for (int i = from + 1; i < to; i++)
@@ -339,6 +425,7 @@ public static class TranscriptShaper
             while (left > from && text[left - 1] == ' ') left--;
             if (left <= from) continue;
             if (!HasWord(text, from, left) || !HasWord(text, i, to)) continue;
+            if (wordsOnly && (Columns(text, from, left) < MinTimeSplitColumns || Columns(text, i, to) < MinTimeSplitColumns)) continue;
             double f = Columns(text, from, i) / (double)total;
             char before = text[left - 1];
             double bonus = StrongEnds.IndexOf(before) >= 0 ? 0.3 : SoftEnds.IndexOf(before) >= 0 ? 0.15 : 0;
