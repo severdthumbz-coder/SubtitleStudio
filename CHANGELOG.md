@@ -5,6 +5,18 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.40] - 2026-10-02
+
+### Added
+- Translate: a names list for each show. One name per line, spelled the way you want it, and after "=" the other spellings to replace with it ("Choi Deok-gi = Choi Deok-hee, Choi Da-ki"). The show is taken from the file name ("Hyper Knife - S01E03 …" belongs to Hyper Knife), so every episode uses the same list. Listed names are given to the language model, so it uses those spellings from the start, and after translating every listed variant is replaced (upper or lower case, whole names only).
+- Translate: name matching, on by default (Settings > Translate). After translating:
+  - a spelling one letter away from a listed name becomes the listed name;
+  - a spelling one letter away from another, much more common one (Ichiza once, Ichida three times) becomes the common one, when both have the same family name and are at least 5 letters long;
+  - looser look-alikes are only suggested, never changed, because they could be two people. These are names with the same family name that sound the same in romanization (Choi Deok-gi / Choi Deok-hee / Choi Da-ki, Kim Myeong-jin / Kim Myung-joon). Names that only share a syllable (Gi-young, Kyung-hwa) are kept apart. Each suggestion has an "Add to list" button that adds it to the show's list.
+  - Every change is listed in the Log ("Ichiza" → "Ichida" in 1 cue) and summed up in the tab.
+  With matching off, only the list is used.
+- Translate: "Apply names to the open subtitles" uses the list (and matching) on the subtitles in the editor without translating again, for example after adding a suggestion. One Undo puts them back.
+
 ## [1.0.0.39] - 2026-10-02
 
 ### Changed

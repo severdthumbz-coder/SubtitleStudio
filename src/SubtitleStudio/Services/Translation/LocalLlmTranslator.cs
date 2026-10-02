@@ -48,6 +48,9 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
     /// <summary>Earlier cues (with their translations) sent along for context.</summary>
     public int ContextLines { get; set; } = 8;
 
+    /// <summary>The show's names, spelled the way the user wants (from the names list): given to the model.</summary>
+    public IReadOnlyList<string> Names { get; set; } = Array.Empty<string>();
+
     /// <summary>Ask again, line by line, when a translation still has words in the original script.</summary>
     public bool RetryLeftovers { get; set; } = true;
 
@@ -81,7 +84,7 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         var todo = Enumerable.Range(0, cues.Count).Where(i => !prepared[i].IsEmpty).ToList();
         var translations = new string?[cues.Count];
         var history = new List<(string Source, string Translation)>();
-        var system = SubtitleTranslationPrompt.SystemMessage(sourceName, targetName);
+        var system = SubtitleTranslationPrompt.SystemMessage(sourceName, targetName, Names);
         int done = 0, failed = 0, leftoversFixed = 0, leftoversRemaining = 0;
         clock.Restart();
         progress?.Report(new EngineProgress(0.02, $"Translating on {device}... 0 of {todo.Count}"));

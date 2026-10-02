@@ -102,7 +102,7 @@ public static partial class SubtitleTranslationPrompt
     public static string LeftoverReminder(string targetLanguage)
         => $"Your previous answer left words in the original script. Write the line entirely in {targetLanguage}: translate every word, titles and forms of address too, and write names in the alphabet {targetLanguage} uses.";
 
-    public static string SystemMessage(string? sourceLanguage, string targetLanguage)
+    public static string SystemMessage(string? sourceLanguage, string targetLanguage, IReadOnlyList<string>? names = null)
     {
         var from = string.IsNullOrWhiteSpace(sourceLanguage) ? "the language they are in" : sourceLanguage;
         bool korean = sourceLanguage is null or "Korean";
@@ -115,6 +115,8 @@ public static partial class SubtitleTranslationPrompt
           .Append("- Keep names as they sound and spell each name the same way every time. Never leave words in the original script.\n");
         if (korean)
             sb.Append("- Korean names in standard romanization (e.g. Kim Myeong-jin). Translate titles and forms of address into what a speaker of the target language would say (선생님: Doctor, Teacher or Sir by context; 교수님: Professor).\n");
+        if (names is { Count: > 0 })
+            sb.Append($"- Names in this show, always spelled exactly like this: {string.Join(", ", names.Take(60))}.\n");
         sb.Append("- Plain text only: no asterisks, quotes or other markup for emphasis.\n")
           .Append("- \" / \" inside a line separates two speakers: keep it, with one part per speaker.\n")
           .Append("- Lines under \"Earlier lines\" were already translated: they are only there for context. Translate only the lines under \"Translate\".");

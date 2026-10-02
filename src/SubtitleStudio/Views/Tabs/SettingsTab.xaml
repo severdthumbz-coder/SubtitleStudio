@@ -224,6 +224,10 @@
                                 <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Models folder" Command="{Binding OpenTranslationModelsFolderCommand}" Margin="8,0,0,0" />
                                 <TextBlock Text="{Binding TranslationModelsFolder}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
+                            <CheckBox IsChecked="{Binding NameMatching, Mode=TwoWay}" Margin="0,12,0,0"
+                                      ToolTip="After translating: spellings of a name a letter apart become the usual one, and look-alikes are suggested in the Translate tab. The show's names list is always used.">
+                                <TextBlock Text="Match names spelled almost the same (the names list is always used)" TextWrapping="Wrap" />
+                            </CheckBox>
                             <TextBlock Text="Which engine" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Ask again" Command="{Binding ForgetTranslationEngineChoiceCommand}" Margin="8,0,0,0"

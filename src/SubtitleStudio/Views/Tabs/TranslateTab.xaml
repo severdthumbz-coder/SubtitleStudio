@@ -76,6 +76,40 @@
                     </StackPanel>
                 </Border>
 
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding NamesHeader}" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="Keeps names spelled the same way through an episode, and from one episode to the next. One name per line, spelled the way you want it; after &quot;=&quot;, other spellings to replace with it, separated by commas, for example: Choi Deok-gi = Choi Deok-hee, Choi Da-ki. The list belongs to the show (taken from the file name) and is given to the language model. Matching (Settings, on by default) also makes spellings a letter apart match the usual one, and suggests look-alikes, which you can add here with one click." />
+                        </StackPanel>
+                        <TextBox Text="{Binding TranslateNamesText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="56" MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0"
+                                 ToolTip="Choi Deok-gi = Choi Deok-hee, Choi Da-ki" />
+                        <TextBlock Text="{Binding NamesSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding NameReportText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Foreground="{DynamicResource Brush.Accent}" Visibility="{Binding HasNameReport, Converter={StaticResource Vis}}" />
+                        <StackPanel Visibility="{Binding HasNameSuggestions, Converter={StaticResource Vis}}" Margin="0,8,0,0">
+                            <TextBlock Text="Maybe the same person (most used spelling first):" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding NameSuggestions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Add to list" Command="{Binding AddCommand}" Margin="8,0,0,0"
+                                                    ToolTip="Adds it as one name, spelled the first way; edit the list if another spelling is right" />
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8AC;" Content="Apply names to the open subtitles" Command="{Binding ApplyNamesCommand}"
+                                    ToolTip="Uses the list (and matching) on the subtitles open in the editor now, without translating again. Undo puts them back." />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="4. Translate" Style="{StaticResource Text.H2}" />

@@ -38,6 +38,10 @@ public sealed class AppSettings
     public string TranslateTarget { get; set; } = "en";
     /// <summary>Remembered answer to "which engine?" when several can translate (engine id; empty: ask).</summary>
     public string TranslationEngine { get; set; } = string.Empty;
+    /// <summary>After translating, make near-identical spellings of a name match, and suggest look-alikes.</summary>
+    public bool TranslateNameMatching { get; set; } = true;
+    /// <summary>Names list per show (show name in lower case → the list as typed).</summary>
+    public Dictionary<string, string> TranslateNames { get; set; } = new();
 
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";

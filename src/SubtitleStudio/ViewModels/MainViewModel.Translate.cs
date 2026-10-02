@@ -355,6 +355,7 @@ public sealed partial class MainViewModel
                 return;
             }
             local.ModelPath = model.Path;
+            local.Names = CurrentNames.Entries.Select(e => e.Name).ToList();
             local.Device = ResolveWhisperDevice();
             // One model in graphics memory at a time: Whisper's goes before the language model loads.
             LocalWhisper?.ReleaseModel();
@@ -391,6 +392,11 @@ public sealed partial class MainViewModel
                 if (st.DeviceProblem is { } problem) SetStatus(problem, StatusKind.Warning);
             }
 
+            // Names: the show's list, and near-identical spellings made to match.
+            var translatedCues = translated.ToList();
+            ApplyNames(translatedCues);
+            translated = translatedCues;
+
             var doc = new SubtitleDocument
             {
                 Language = target,
@@ -409,7 +415,8 @@ public sealed partial class MainViewModel
             var name = WhisperLanguages.NameOf(target);
             var failed = (engine as LocalLlmTranslator)?.LastStats?.Failed ?? 0;
             TranslateStatus = $"Done: {translated.Count} cues in {name}. They are open in the Subtitles tab, unsaved: review and save."
-                + (failed > 0 ? $" {failed} couldn't be translated and kept the original text (see the Log)." : string.Empty);
+                + (failed > 0 ? $" {failed} couldn't be translated and kept the original text (see the Log)." : string.Empty)
+                + (NameSuggestions.Count > 0 ? $" {NameSuggestions.Count} group{(NameSuggestions.Count == 1 ? "" : "s")} of look-alike names to check below." : string.Empty);
             SetStatus($"Translated {translated.Count} cues into {name}. Review them in the Subtitles tab, then save.", failed > 0 ? StatusKind.Warning : StatusKind.Success);
         });
     }
@@ -465,6 +472,7 @@ public sealed partial class MainViewModel
 
     private void RaiseTranslateSource()
     {
+        RaiseNames();
         OnPropertyChanged(nameof(TranslateSourceText));
         OnPropertyChanged(nameof(HasTranslateSource));
         OnPropertyChanged(nameof(TranslateBlockedText));
@@ -475,6 +483,7 @@ public sealed partial class MainViewModel
     {
         _translationCatalogEntry = TranslationCatalog.Entries.First(e => e.Recommended);
         RefreshTranslationModels();
+        InitTranslateNames();
 
         TranslateCommand = new AsyncRelayCommand(TranslateAsync, () => CanTranslate);
         CancelTranslateCommand = new RelayCommand(() => _translateCts?.Cancel(), () => TranslateBusy);
@@ -497,7 +506,7 @@ public sealed partial class MainViewModel
         Cues.CollectionChanged += (_, _) => RaiseTranslateSource();
         PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(HasDocument) or nameof(EditorLanguage) or nameof(EditorTitle)) RaiseTranslateSource();
+            if (e.PropertyName is nameof(HasDocument) or nameof(EditorLanguage) or nameof(EditorTitle) or nameof(PairedVideo)) RaiseTranslateSource();
             else if (e.PropertyName is nameof(TranscribeBusy)) OnPropertyChanged(nameof(TranslateBlockedText));
             else if (e.PropertyName is nameof(TranslateBusy)) OnPropertyChanged(nameof(TranscribeBlockedText));
         };
