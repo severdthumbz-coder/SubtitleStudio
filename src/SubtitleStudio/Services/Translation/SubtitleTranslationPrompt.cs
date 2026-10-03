@@ -98,6 +98,29 @@ public static partial class SubtitleTranslationPrompt
         return false;
     }
 
+    /// <summary>
+    /// The language the text is written in, judged by its letters, for the scripts that say it clearly:
+    /// Korean (Hangul), Japanese (kana), Chinese (Han characters only). Null for anything else.
+    /// </summary>
+    public static string? ScriptLanguage(IEnumerable<string> texts)
+    {
+        int letters = 0, hangul = 0, kana = 0, han = 0;
+        foreach (var text in texts)
+            foreach (var c in text)
+            {
+                if (!char.IsLetter(c)) continue;
+                letters++;
+                if (c is >= '가' and <= '힣') hangul++;
+                else if (c is >= '぀' and <= 'ヿ') kana++;
+                else if (c is >= '一' and <= '鿿') han++;
+            }
+        if (letters < 8) return null;
+        if (hangul > letters * 0.4) return "ko";
+        if (kana > letters * 0.2) return "ja";
+        if (han > letters * 0.6) return "zh";
+        return null;
+    }
+
     /// <summary>Added to the question when a line came back with words left in the original script.</summary>
     public static string LeftoverReminder(string targetLanguage)
         => $"Your previous answer left words in the original script. Write the line entirely in {targetLanguage}: translate every word, titles and forms of address too, and write names in the alphabet {targetLanguage} uses.";

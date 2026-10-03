@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.41] - 2026-10-02
+
+### Fixed
+- Translate: the last run on the Korean episode was sent as "from Assamese" (the Log says "516 cues from Assamese to English"). "From" had been changed, probably by the mouse wheel passing over the list. The model still read the Korean, but the Korean-only instructions (romanized names, 선생님 as Doctor or Teacher) were left out, which is why "Han 선생님" stayed in three lines. When the letters plainly contradict "From" (Hangul, Japanese kana, or Chinese characters only), the app now translates from the language the text is written in, and says so in the status bar and the Log. With "From" left as "As the subtitle says" and no language tag, the letters decide too.
+- Help: Burned-in subtitles showed "Partial" and "Removal comes next", from before removal was added. It now shows "Available" and describes reading, removal and the keep list.
+
 ## [1.0.0.40] - 2026-10-02
 
 ### Added

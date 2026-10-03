@@ -52,11 +52,11 @@
                 <Border Style="{StaticResource FeatureCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="Partial" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Info}" />
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE91B;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Burned-in subs" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="Detect subtitles that are part of the picture and read them into an editable subtitle (OCR). Removal comes next." />
+                                   Text="Detect subtitles that are part of the picture, read them into an editable subtitle (OCR), or remove them from the picture into a new video (fill in, soften, or AI fill on the graphics card), keeping any text on the keep list." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

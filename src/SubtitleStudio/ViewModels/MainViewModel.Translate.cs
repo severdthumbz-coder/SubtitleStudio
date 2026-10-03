@@ -326,6 +326,16 @@ public sealed partial class MainViewModel
         if (_doc is null || Cues.Count == 0) return;
         var target = SelectedTranslateTargetLanguage.Code ?? "en";
         var source = ResolveTranslateSource();
+        // A "From" language that the letters plainly contradict (Assamese chosen, Korean text): the letters win.
+        var written = SubtitleTranslationPrompt.ScriptLanguage(Cues.Select(c => c.Cue.Text));
+        if (written is not null && source is not null && source != written && !(written == "zh" && source is "yue" or "ja"))
+        {
+            _s.Log.Warning("Translate", $"\"From\" was {WhisperLanguages.NameOf(source)}, but the subtitles are written in {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.");
+            SetStatus($"\"From\" says {WhisperLanguages.NameOf(source)}, but the text is {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.", StatusKind.Warning);
+            source = written;
+        }
+        else if (source is null && written is not null)
+            source = written;
         if (source is not null && source == target)
         {
             SetStatus($"The subtitles are already in {WhisperLanguages.NameOf(target)}: choose another language to translate into.", StatusKind.Warning);
