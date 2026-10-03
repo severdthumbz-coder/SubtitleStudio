@@ -327,10 +327,15 @@
                                        Foreground="{DynamicResource Brush.OnAccent}" HorizontalAlignment="Center"
                                        VerticalAlignment="Center" Visibility="Collapsed" />
                         </Border>
-                        <ContentPresenter Grid.Column="1" Margin="9,0,0,0" RecognizesAccessKey="True"
+                        <ContentPresenter x:Name="Label" Grid.Column="1" Margin="9,0,0,0" RecognizesAccessKey="True"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <!-- No label (a check box in a list): no gap after the box, so it fits a narrow column. -->
+                        <Trigger Property="HasContent" Value="False">
+                            <Setter TargetName="Label" Property="Margin" Value="0" />
+                            <Setter TargetName="Label" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                         </Trigger>

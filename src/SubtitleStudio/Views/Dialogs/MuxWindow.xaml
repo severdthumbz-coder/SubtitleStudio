@@ -1,0 +1,133 @@
+<Window x:Class="SubtitleStudio.Views.Dialogs.MuxWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add subtitles to video"
+        Width="780" Height="720" MinWidth="640" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Brush.Window}"
+        Foreground="{DynamicResource Brush.Text}"
+        FontFamily="{StaticResource Font.UI}"
+        FontSize="13"
+        UseLayoutRounding="True">
+    <!-- Logic: ViewModels/MuxViewModel.cs + Services/Muxing/SubtitleMuxer.cs (FFmpeg, no re-encoding). -->
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="Add subtitles to video" Style="{StaticResource Text.H2}" />
+            <TextBlock Text="{Binding VideoName}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,6,0,0" ToolTip="{Binding VideoPath}" />
+            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Text="The subtitles become tracks inside the video, with their language and name, so players and Plex show them without the separate files. The picture and sound are copied as they are (no re-encoding, no loss), which takes about as long as copying the file." />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <!-- Tracks to add -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Subtitles to add" Style="{StaticResource Text.Label}" />
+                        <TextBlock Text="No subtitle files found next to this video. Add one below." Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding HasTracks, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                        <ItemsControl ItemsSource="{Binding Tracks}" Margin="0,8,0,0" IsEnabled="{Binding CanEdit}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1" Padding="0,8,0,10">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE711;" ToolTip="Take this file off the list"
+                                                        Command="{Binding DataContext.RemoveTrackCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <CheckBox IsChecked="{Binding Include}" VerticalAlignment="Center" ToolTip="Add this file as a track">
+                                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                                </CheckBox>
+                                            </DockPanel>
+                                            <Grid Margin="27,8,0,0" IsEnabled="{Binding Include}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="170" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Language, Mode=TwoWay}" ToolTip="The track's language (tagged in the video)" />
+                                                <TextBox Grid.Column="2" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" ToolTip="The track's name, shown in the player's subtitle menu" />
+                                            </Grid>
+                                            <WrapPanel Margin="27,8,0,0" IsEnabled="{Binding Include}">
+                                                <CheckBox Content="Default" IsChecked="{Binding IsDefault}" Margin="0,0,18,0"
+                                                          ToolTip="Shown when the video starts, without choosing it. Only one track can be the default." />
+                                                <CheckBox Content="Forced" IsChecked="{Binding Forced}" Margin="0,0,18,0"
+                                                          ToolTip="Only the lines in another language (or signs): shown even when subtitles are turned off" />
+                                                <CheckBox Content="SDH (hearing impaired)" IsChecked="{Binding HearingImpaired}"
+                                                          ToolTip="Describes sounds and music for the deaf and hard of hearing" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE710;" Content="Add a subtitle file..." Command="{Binding AddFileCommand}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- What's in the video now -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="In the video now" Style="{StaticResource Text.Label}" />
+                        <TextBlock Text="{Binding ExistingText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <CheckBox Content="Keep the subtitle tracks it already has" IsChecked="{Binding KeepExisting}" Margin="0,10,0,0" IsEnabled="{Binding CanEdit}"
+                                  Visibility="{Binding HasExistingSubtitles, Converter={StaticResource Vis}}"
+                                  ToolTip="Off: the video's own subtitle tracks are left out of the new video, and only the ones above go in" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Where it goes -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel IsEnabled="{Binding CanEdit}">
+                        <TextBlock Text="Container" Style="{StaticResource Text.Label}" />
+                        <RadioButton GroupName="Container" IsChecked="{Binding IsMkv}" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap"><Run Text="MKV" FontWeight="SemiBold" /><Run Text="  Keeps every kind of subtitle as it is, with styling, fonts and picture-based tracks. Best for Plex, Jellyfin, VLC." /></TextBlock>
+                        </RadioButton>
+                        <RadioButton GroupName="Container" IsChecked="{Binding IsMp4}" Margin="0,6,0,0">
+                            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap"><Run Text="MP4" FontWeight="SemiBold" /><Run Text="  Plays on more devices (phones, TVs, browsers); subtitles become plain text, and some audio can't go in without re-encoding." /></TextBlock>
+                        </RadioButton>
+
+                        <TextBlock Text="Save" Style="{StaticResource Text.Label}" Margin="0,14,0,0" />
+                        <RadioButton GroupName="Output" IsChecked="{Binding SaveAsNew}" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap"><Run Text="As a new video: " /><Run Text="{Binding OutputName, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock>
+                        </RadioButton>
+                        <Button Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Choose name and folder..." Command="{Binding BrowseOutputCommand}" HorizontalAlignment="Left" Margin="27,4,0,0" />
+                        <RadioButton GroupName="Output" IsChecked="{Binding ReplaceOriginal}" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Text="Replace the original" />
+                        </RadioButton>
+                        <TextBlock Text="{Binding ReplaceText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="27,2,0,0"
+                                   Visibility="{Binding ReplaceOriginal, Converter={StaticResource Vis}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding PlanWarning}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,8"
+                           Foreground="{DynamicResource Brush.Warning}" Visibility="{Binding HasPlanWarning, Converter={StaticResource Vis}}" />
+                <TextBlock Text="{Binding NotesText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8"
+                           Visibility="{Binding HasNotes, Converter={StaticResource Vis}}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}" Margin="0,0,0,8"
+                         Visibility="{Binding Busy, Converter={StaticResource Vis}}" />
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Tag="&#xE838;" Content="Show in folder" Command="{Binding RevealCommand}" Margin="0,0,8,0"
+                            Visibility="{Binding IsDone, Converter={StaticResource Vis}}" />
+                    <Button Style="{StaticResource GhostButton}" Content="{Binding CloseText}" Padding="14,7" Margin="0,0,8,0" Click="OnClose" />
+                    <Button Style="{StaticResource AccentButton}" Tag="&#xE7F0;" Content="Add to video" Padding="14,7" Command="{Binding StartCommand}" IsDefault="True"
+                            Visibility="{Binding IsDone, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+            </DockPanel>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -50,7 +50,7 @@ public sealed class QueueRowViewModel : ObservableObject
 
     public string StepText => _step switch
     {
-        QueueStep.Waiting => "Waiting",
+        QueueStep.Waiting => _transcriptPath is null ? "Waiting" : "Transcribed",
         QueueStep.Transcribing => "Transcribing",
         QueueStep.Translating => "Translating",
         QueueStep.Done => "Done",
@@ -80,7 +80,9 @@ public sealed class QueueRowViewModel : ObservableObject
         get => _transcriptPath;
         set
         {
-            if (SetProperty(ref _transcriptPath, value)) OnPropertyChanged(nameof(HasResult));
+            if (!SetProperty(ref _transcriptPath, value)) return;
+            OnPropertyChanged(nameof(HasResult));
+            OnPropertyChanged(nameof(StepText));
         }
     }
 

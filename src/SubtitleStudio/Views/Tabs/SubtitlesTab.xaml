@@ -35,6 +35,9 @@
                         Margin="8,0,0,0" ToolTip="Save (Ctrl+S). A changed format always asks where to save." />
                 <Button Tag="&#xE792;" Content="Save as" Command="{Binding SaveSubtitleAsCommand}" Margin="8,0,0,0"
                         ToolTip="Save a copy with a new name or format (Ctrl+Shift+S)" />
+                <Button Tag="&#xE7F0;" Content="Add to video" Command="{Binding AddEditorSubtitleToVideoCommand}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaired, Converter={StaticResource Vis}}"
+                        ToolTip="Put these subtitles (saved first) into the paired video as a track, with the other subtitle files next to it on offer" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource Text.H1}" VerticalAlignment="Center" MaxWidth="560"

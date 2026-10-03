@@ -46,7 +46,7 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7F0;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Subtitles" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="Edit, check and save SRT / VTT / ASS / SSA / SUB with a live video preview, shift / frame-rate / two-point sync and audio-based offset and snap." />
+                                   Text="Edit, check and save SRT / VTT / ASS / SSA / SUB with a live video preview, shift / frame-rate / two-point sync and audio-based offset and snap. Add subtitles to a video as tracks (MKV or MP4, no re-encoding)." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

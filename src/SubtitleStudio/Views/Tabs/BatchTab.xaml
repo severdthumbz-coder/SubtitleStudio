@@ -143,7 +143,7 @@
                           PreviewKeyDown="QueueGrid_PreviewKeyDown" MouseDoubleClick="QueueGrid_MouseDoubleClick"
                           Visibility="{Binding HasBatchRows, Converter={StaticResource Vis}}">
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="" Width="36">
+                        <DataGridTemplateColumn Header="" Width="46" CanUserResize="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <CheckBox IsChecked="{Binding Include, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -196,6 +196,8 @@
                     <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Open the subtitles in the editor" Command="{Binding BatchOpenResultCommand}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Add the subtitles to this video..." Command="{Binding AddSubtitlesToVideoCommand}"
                                       CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             <MenuItem Header="Show in folder" Command="{Binding BatchRevealCommand}"
                                       CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />

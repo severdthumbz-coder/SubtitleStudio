@@ -23,12 +23,22 @@ public interface IDialogService
     /// Null: cancelled. <paramref name="remember"/>: don't ask again.
     /// </summary>
     Abstractions.EngineChoice? ChooseEngine(string task, IReadOnlyList<Abstractions.EngineChoice> choices, out bool remember);
+
+    /// <summary>Sends a file to the Recycle Bin; true when it's gone (false: refused, or not possible).</summary>
+    bool MoveToRecycleBin(string path);
+
+    /// <summary>Shows "Add subtitles to video" until it's closed (closing stops a run that's going).</summary>
+    void ShowAddToVideo(ViewModels.MuxViewModel model);
 }
 
 public sealed class WpfDialogService : IDialogService
 {
     public Abstractions.EngineChoice? ChooseEngine(string task, IReadOnlyList<Abstractions.EngineChoice> choices, out bool remember)
         => Views.Dialogs.EngineChoiceWindow.Ask(Application.Current?.MainWindow, task, choices, out remember);
+
+    public bool MoveToRecycleBin(string path) => Infrastructure.NativeMethods.MoveToRecycleBin(path);
+
+    public void ShowAddToVideo(ViewModels.MuxViewModel model) => Views.Dialogs.MuxWindow.Open(Owner, model);
 
     public void CopyText(string text)
     {

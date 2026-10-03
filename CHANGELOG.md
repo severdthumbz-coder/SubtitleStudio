@@ -5,6 +5,23 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.43] - 2026-10-03
+
+### Added
+- Add subtitles to a video as tracks. "Add subtitles to video" opens from three places: a video in Source / Files, "Add to video" in the Subtitles tab (the open subtitle, saved first, into its paired video), and right-clicking a file in the Batch tab.
+  - Every subtitle file next to the video is offered (SRT, VTT, ASS, SSA, MicroDVD SUB; a VobSub .sub/.idx pair is not), and "Add a subtitle file..." adds others.
+  - Each track gets a language, a name players show ("Korean", "English (Forced)", "English (SDH)", or your own), and the Default, Forced and SDH flags. The language, forced and SDH are read from the file name. The full track in your usual language (Settings > Output defaults) starts as the default, and only one track can be the default.
+  - Uses FFmpeg without re-encoding. The picture and sound are copied as they are (checked bit for bit in testing), so it takes about as long as copying the file.
+  - MKV keeps subtitles as they are: SRT as SubRip, and ASS/SSA with their styling and positions. Fonts and picture-based tracks (PGS, VobSub) already in the video are kept too. MP4 stores subtitles as plain text (mov_text). When the video or audio can't go into MP4 without re-encoding (Vorbis audio, for example), the window says so before you start, and suggests MKV.
+  - The video's own subtitle tracks are kept unless you untick "Keep the subtitle tracks it already has". When a new track is the default, the old ones lose that flag.
+  - The new video is saved beside the original ("Episode 1 (subtitles).mkv", or a name you choose), or it replaces the original, which then goes to the Recycle Bin. On a drive without a Recycle Bin, Windows asks before deleting it.
+  - The new video is written under a temporary name and checked (all tracks there, nothing cut short) before it gets its real name. Only then does a replaced original go to the Recycle Bin. A failed or cancelled run leaves nothing behind.
+  - The window lists what the video already has, and says what will be left out (for example, fonts in MP4).
+
+### Fixed
+- Batch: the include checkboxes were clipped. A checkbox without a label no longer reserves room for one, and the column is wider.
+- Batch: a file that has been transcribed and is waiting for its translation now shows "Transcribed" instead of "Waiting".
+
 ## [1.0.0.42] - 2026-10-02
 
 ### Added
