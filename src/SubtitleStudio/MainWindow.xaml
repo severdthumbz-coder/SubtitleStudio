@@ -86,6 +86,9 @@
             <TabItem Header="Translate" Tag="&#xE8C1;">
                 <tabs:TranslateTab />
             </TabItem>
+            <TabItem Header="Batch" Tag="&#xE8FD;">
+                <tabs:BatchTab />
+            </TabItem>
             <TabItem Header="Dubbing" Tag="&#xE767;">
                 <tabs:DubbingTab />
             </TabItem>

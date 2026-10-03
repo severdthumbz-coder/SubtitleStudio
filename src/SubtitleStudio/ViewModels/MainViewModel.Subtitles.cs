@@ -251,7 +251,16 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>Called when the window closes. False = the user wants to keep editing.</summary>
-    public bool ConfirmCloseEditor() => ConfirmDiscardChanges();
+    public bool ConfirmCloseEditor()
+    {
+        if (BatchBusy)
+        {
+            if (!_s.Dialogs.Confirm("Stop the Batch queue?", "The Batch queue is still running. Close anyway?\n\nSubtitles already saved are kept, and pressing Start next time carries on with the files that aren't done."))
+                return false;
+            _batchCts?.Cancel();
+        }
+        return ConfirmDiscardChanges();
+    }
 
     // ---------------- Open / new ----------------
 

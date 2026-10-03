@@ -43,6 +43,12 @@ public sealed class AppSettings
     /// <summary>Names list per show (show name in lower case → the list as typed).</summary>
     public Dictionary<string, string> TranslateNames { get; set; } = new();
 
+    // Batch (season queue: transcribe and translate many files, subtitles saved next to each one)
+    /// <summary>Language to translate the transcripts into, or "none" (transcribe only).</summary>
+    public string BatchTranslateTo { get; set; } = "en";
+    /// <summary>Make subtitles again even when a file already has them.</summary>
+    public bool BatchRedo { get; set; }
+
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";
     public string DefaultLanguage { get; set; } = "en";

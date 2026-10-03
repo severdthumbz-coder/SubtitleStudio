@@ -20,10 +20,11 @@ public static class Tabs
     public const int BurnedIn = 2;
     public const int Transcribe = 3;
     public const int Translate = 4;
-    public const int Dubbing = 5;
-    public const int Settings = 6;
-    public const int Log = 7;
-    public const int Help = 8;
+    public const int Batch = 5;
+    public const int Dubbing = 6;
+    public const int Settings = 7;
+    public const int Log = 8;
+    public const int Help = 9;
 }
 
 /// <summary>
@@ -56,6 +57,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitBurnedIn();
         InitTranscribe();
         InitTranslate();
+        InitBatch();
         InitDubbing();
         InitSettings();
         InitHelp();

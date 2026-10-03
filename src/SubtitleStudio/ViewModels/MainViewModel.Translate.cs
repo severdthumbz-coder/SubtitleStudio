@@ -314,12 +314,13 @@ public sealed partial class MainViewModel
     public AsyncRelayCommand TranslateCommand { get; private set; } = null!;
     public RelayCommand CancelTranslateCommand { get; private set; } = null!;
 
-    private bool CanTranslate => HasTranslateSource && !TranslateBusy && !TranscribeBusy
+    private bool CanTranslate => HasTranslateSource && !TranslateBusy && !TranscribeBusy && !BatchBusy
                                  && (HasTranslationModel || _s.TranslationEngines.Any(e => e.RequiresApiKey));
 
     public string TranslateBlockedText => !HasTranslateSource ? "Open subtitles first (Subtitles tab), or transcribe a video."
         : !HasTranslationModel ? "Add a language model first (step 2)."
-        : TranscribeBusy ? "Wait for AI Transcribe to finish." : string.Empty;
+        : TranscribeBusy ? "Wait for AI Transcribe to finish."
+        : BatchBusy ? "Wait for the Batch queue to finish." : string.Empty;
 
     private async Task TranslateAsync()
     {

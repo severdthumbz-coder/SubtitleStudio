@@ -5,6 +5,21 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.42] - 2026-10-02
+
+### Added
+- Batch tab (after Translate): a season queue. Point it at a folder ("Add folder", drop it on the tab, or take the files listed in Source / Files) and it transcribes, then translates, every video or audio file in turn. Each file gets its subtitles saved next to it, named for Plex and Jellyfin ("Hyper Knife S01E03.ko.srt" and "Hyper Knife S01E03.en.srt", in the default output format from Settings). Files are queued in episode order (Episode 2 before Episode 10), and each one can be ticked or unticked.
+- The queue uses the same spoken language, Whisper model, language model, device and names lists as AI Transcribe and Translate. "Translate into" can also be "Don't translate", for transcripts only.
+- All files are transcribed first and then all translated, so each model is loaded once. Whisper's graphics memory is freed before the language model loads.
+- Subtitles a file already has are not made again: an existing transcript is used, and an existing translation is left alone. The list shows this for each file before you start. Cancel (or closing the app) stops after the current step, and pressing Start again carries on with what isn't done. "Redo files that already have subtitles" makes them all again.
+- A file that fails (unreadable audio, a translation error) is marked Failed with the reason, written to the Log, and the queue moves on. A file with no speech is marked Skipped and nothing is written.
+- Names: each file uses its own show's names list (editable in the tab when all the files are from one show), with matching as set in Settings. When the queue finishes, look-alike names across the whole season are suggested, each with "Add to list". "Apply names to the translated files" then fixes the saved translations without translating again.
+- Each file shows its step, its own progress and what it wrote, and the tab shows overall progress with the time left. Double-click a finished file (or right-click) to open its subtitles in the editor, or show it in its folder.
+
+### Changed
+- AI Transcribe and Translate wait while the Batch queue runs, and the queue waits for them, so only one model uses the graphics card at a time.
+- The tab order is now Source / Files, Subtitles, Burned-in subs, AI Transcribe, Translate, Batch, Dubbing, Settings, Log, Help.
+
 ## [1.0.0.41] - 2026-10-02
 
 ### Fixed

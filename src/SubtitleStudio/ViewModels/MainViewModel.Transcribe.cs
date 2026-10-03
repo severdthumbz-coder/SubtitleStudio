@@ -470,7 +470,7 @@ public sealed partial class MainViewModel
     public AsyncRelayCommand TranscribeCommand { get; private set; } = null!;
     public RelayCommand CancelTranscribeCommand { get; private set; } = null!;
 
-    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && !TranslateBusy && FfmpegStatus.HasFfmpeg
+    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && !TranslateBusy && !BatchBusy && FfmpegStatus.HasFfmpeg
                                   && (HasWhisperModel || _s.TranscriptionEngines.Any(e => e.RequiresApiKey));
 
     /// <summary>Why Transcribe can't start (empty when it can).</summary>
@@ -478,7 +478,8 @@ public sealed partial class MainViewModel
         ? "FFmpeg is needed to read the audio: set it in Settings > Engines and tools."
         : !HasWhisperModel ? "Add a Whisper model first (step 2)."
         : TranscribeFile is null ? "Pick a file."
-        : TranslateBusy ? "Wait for Translate to finish." : string.Empty;
+        : TranslateBusy ? "Wait for Translate to finish."
+        : BatchBusy ? "Wait for the Batch queue to finish." : string.Empty;
 
     private async Task TranscribeAsync()
     {

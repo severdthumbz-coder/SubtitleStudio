@@ -1,0 +1,220 @@
+<UserControl x:Class="SubtitleStudio.Views.Tabs.BatchTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls"
+             xmlns:inf="clr-namespace:SubtitleStudio.Infrastructure">
+    <!-- Batch (season queue). Logic: MainViewModel.Batch.cs + Services/Batch/SeasonQueue.cs.
+         Files dropped on this tab go into the queue (the window's own drop imports to Source / Files). -->
+    <Grid Margin="20,16,20,16" inf:FileDrop.Command="{Binding BatchDropCommand}" Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" MinWidth="420" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Batch" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
+            <ctl:HintMarker Margin="8,2,0,0"
+                            Text="A whole season unattended: every file in the queue is transcribed, then translated, and the subtitles are saved next to it (Episode 01.ko.srt and Episode 01.en.srt). It uses the same Whisper model, language model, device and names lists as AI Transcribe and Translate. Nothing opens in the editor; double-click a finished file to review it." />
+            <TextBlock Text="{Binding BatchSummary}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="14,2,0,0" />
+        </StackPanel>
+
+        <!-- ================= Left: what to do ================= -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="1. Files" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
+                                   Text="Videos and audio files, in name order (Episode 2 before Episode 10). Drop them on this tab, or:" />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE838;" Content="Add folder..." Command="{Binding BatchAddFolderCommand}" Margin="0,0,8,6"
+                                    ToolTip="Every video and audio file in the folder (and its subfolders, if that's on in Source / Files)" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Add files..." Command="{Binding BatchAddFilesCommand}" Margin="0,0,8,6" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8B7;" Content="From Source / Files" Command="{Binding BatchAddListedCommand}" Margin="0,0,8,6"
+                                    ToolTip="The videos and audio files listed in the Source / Files tab" />
+                        </WrapPanel>
+                        <WrapPanel>
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE74D;" Content="Remove selected" Margin="0,0,8,6"
+                                    Command="{Binding BatchRemoveCommand}" CommandParameter="{Binding SelectedItems, ElementName=QueueGrid}"
+                                    ToolTip="Takes the selected files out of the queue (the Delete key does the same)" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE894;" Content="Clear" Command="{Binding BatchClearCommand}" Margin="0,0,0,6" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="2. What to make" Style="{StaticResource Text.H2}" />
+                        <TextBlock Text="Language spoken" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding TranscribeLanguages}" SelectedItem="{Binding SelectedTranscribeLanguage, Mode=TwoWay}" IsEnabled="{Binding BatchCanEdit}"
+                                  ToolTip="The same setting as AI Transcribe. Choosing it (rather than detecting) is faster and avoids a wrong guess on a quiet start." />
+                        <TextBlock Text="Whisper model" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding WhisperModels}" SelectedItem="{Binding SelectedWhisperModel, Mode=TwoWay}" IsEnabled="{Binding BatchCanEdit}"
+                                  Visibility="{Binding HasWhisperModel, Converter={StaticResource Vis}}" />
+                        <TextBlock Text="None yet: download one in AI Transcribe, step 2." Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                                   Visibility="{Binding NeedsWhisperModel, Converter={StaticResource Vis}}" />
+                        <TextBlock Text="Translate into" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding BatchTargetLanguages}" SelectedItem="{Binding SelectedBatchTarget, Mode=TwoWay}" IsEnabled="{Binding BatchCanEdit}" />
+                        <TextBlock Text="Language model" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding TranslationModels}" SelectedItem="{Binding SelectedTranslationModel, Mode=TwoWay}" IsEnabled="{Binding BatchCanEdit}"
+                                  Visibility="{Binding HasTranslationModel, Converter={StaticResource Vis}}" />
+                        <TextBlock Text="None yet: download one in Translate, step 2 (not needed to transcribe only)." Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                                   Visibility="{Binding NeedsTranslationModel, Converter={StaticResource Vis}}" />
+                        <CheckBox Content="Redo files that already have subtitles" IsChecked="{Binding BatchRedo}" IsEnabled="{Binding BatchCanEdit}" Margin="0,12,0,0"
+                                  ToolTip="Off: a transcript already next to a file is used as it is, and a translation already there is left alone. On: both are made again and overwritten." />
+                        <TextBlock Text="{Binding BatchPlanText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding BatchNamesHeader}" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="One name per line, spelled the way you want it; after &quot;=&quot;, other spellings to replace with it, for example: Choi Deok-gi = Choi Deok-hee, Choi Da-ki. The show is taken from the file names. When the queue is done, look-alike names across all the episodes are suggested here." />
+                        </StackPanel>
+                        <TextBox Text="{Binding BatchNamesText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="56" MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0"
+                                 IsEnabled="{Binding HasBatchShow}" ToolTip="Choi Deok-gi = Choi Deok-hee, Choi Da-ki" />
+                        <TextBlock Text="{Binding BatchNamesNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding BatchNameReport}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Foreground="{DynamicResource Brush.Accent}" Visibility="{Binding HasBatchNameReport, Converter={StaticResource Vis}}" />
+                        <StackPanel Visibility="{Binding HasBatchNameSuggestions, Converter={StaticResource Vis}}" Margin="0,8,0,0">
+                            <TextBlock Text="Maybe the same person (most used spelling first):" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding BatchNameSuggestions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Add to list" Command="{Binding AddCommand}" Margin="8,0,0,0"
+                                                    ToolTip="Adds it as one name, spelled the first way; edit the list if another spelling is right" />
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8AC;" Content="Apply names to the translated files" Command="{Binding BatchApplyNamesCommand}"
+                                    ToolTip="Uses the list (and matching) on the translations this queue saved, and saves them again. No translating again." />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="3. Start" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
+                                   Text="It runs on its own; a file that fails is noted and the queue moves on. Cancel stops after the current step, and Start again carries on from there." />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE768;" Content="Start" Command="{Binding StartBatchCommand}" Margin="0,0,8,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding BatchBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ================= Right: progress and the queue ================= -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelBatchCommand}"
+                                Visibility="{Binding BatchBusy, Converter={StaticResource Vis}}" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding BatchStatus}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   ToolTip="{Binding BatchStatus}" />
+                    </DockPanel>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding BatchProgress, Mode=OneWay}" Margin="0,10,0,0"
+                                 Visibility="{Binding BatchBusy, Converter={StaticResource Vis}}" />
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <DataGrid x:Name="QueueGrid" ItemsSource="{Binding BatchRows}"
+                          PreviewKeyDown="QueueGrid_PreviewKeyDown" MouseDoubleClick="QueueGrid_MouseDoubleClick"
+                          Visibility="{Binding HasBatchRows, Converter={StaticResource Vis}}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="" Width="36">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Include, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              IsEnabled="{Binding DataContext.BatchCanEdit, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                              ToolTip="Include this file when the queue runs" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="File" Width="2*" MinWidth="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding FullPath}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Length" Binding="{Binding Item.DurationText}" Width="72" />
+                        <DataGridTemplateColumn Header="Step" Width="104">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StepText}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding StepText}" Value="Done">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.KindSubtitle}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}" Height="4" Margin="0,3,8,0"
+                                                     Visibility="{Binding IsActive, Converter={StaticResource Vis}}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Status" Width="2.4*" MinWidth="180">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" ToolTip="{Binding Status}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Open the subtitles in the editor" Command="{Binding BatchOpenResultCommand}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Show in folder" Command="{Binding BatchRevealCommand}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+
+                <!-- Empty state -->
+                <Grid Visibility="{Binding HasBatchRows, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+                    <Rectangle RadiusX="12" RadiusY="12" StrokeThickness="1.5" StrokeDashArray="6 4"
+                               Stroke="{DynamicResource Brush.BorderStrong}" Fill="{DynamicResource Brush.Surface}" />
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
+                        <TextBlock Text="&#xE8B7;" Style="{StaticResource Text.Icon}" FontSize="36" HorizontalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" />
+                        <TextBlock Text="Drop a season folder here" Style="{StaticResource Text.H2}" HorizontalAlignment="Center" Margin="0,10,0,4" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" TextAlignment="Center"
+                                   Text="Or use Add folder. Each episode gets its transcript and translation saved next to it, one after another, while you do something else." />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -149,6 +149,7 @@ public sealed class SettingsService : IDisposable
         s.WhisperDevice = string.IsNullOrWhiteSpace(s.WhisperDevice) ? "auto" : s.WhisperDevice;
         s.TranscribeLanguage = string.IsNullOrWhiteSpace(s.TranscribeLanguage) ? "auto" : s.TranscribeLanguage;
         s.TranscriptionEngine ??= string.Empty;
+        s.BatchTranslateTo = string.IsNullOrWhiteSpace(s.BatchTranslateTo) ? "en" : s.BatchTranslateTo.Trim().ToLowerInvariant();
 
         if (s.Theme is not ("Dark" or "Light")) s.Theme = "Dark";
 
