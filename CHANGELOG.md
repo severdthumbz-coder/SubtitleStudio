@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.46] - 2026-10-04
+
+### Fixed
+- Review translation: comparing an original with its translation had the roles reversed. On E03, the unsaved Korean transcript was open and Episode 3.en.srt was chosen. The English was treated as the original, so 101 lines were flagged, most as "the original is a question; the translation isn't". Now, when the other file is in the language you translate into (Translate's "Into", English) and the open one isn't, the other file opens in the editor as the translation, with the open subtitles beside it as the original. If the open subtitles aren't saved, the app offers to save them first; otherwise they stay beside the translation, labelled "not saved" or "with unsaved changes".
+- Review translation: short lines that naturally repeat ("가시죠." and "가자.", both "Let's go.") were flagged as "the same as the line before". Only lines of four words or more are checked for repeats now.
+
+### Added
+- Review translation: a new check for a translation much longer than its original, as when the model pulls the next lines into one (E01 cue 8: "환자 깨웁니다." came back as "Waking them up... to remove the tumor without damaging the language center, it's unavailable."). "Much longer" is judged against the usual length ratio of the file itself (three times or more, and at least 25 letters), so it fits any pair of languages. Files with fewer than 20 paired lines aren't judged.
+
 ## [1.0.0.45] - 2026-10-04
 
 ### Added

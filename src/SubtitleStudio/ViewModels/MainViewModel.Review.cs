@@ -52,7 +52,7 @@ public sealed partial class MainViewModel
 
     public string ReviewSummary => _reviewOriginal is null ? string.Empty
         : _reviewCount == 0 ? "Nothing flagged: no leftover original script, untranslated, repeated or empty lines."
-        : $"{_reviewCount} line{(_reviewCount == 1 ? "" : "s")} to check (leftover original script, untranslated, repeated, empty, or a question that lost its question mark).";
+        : $"{_reviewCount} line{(_reviewCount == 1 ? "" : "s")} to check (leftover original script, untranslated, empty, repeated, much longer than the original, or a question that lost its question mark).";
 
     /// <summary>Other-language subtitle files of the same video (or name) that could be the original.</summary>
     public IReadOnlyList<ReviewCandidate> ReviewCandidates
@@ -157,6 +157,11 @@ public sealed partial class MainViewModel
         {
             var doc = _s.SubtitleFormats.Load(path);
             var language = doc.Language ?? SidecarDetector.ParseStandalone(path).Language ?? SubtitleTranslationPrompt.ScriptLanguage(doc.Cues.Select(c => c.Text));
+            if (IsTranslationOfOpen(language))
+            {
+                OpenTranslationBesideOpen(path, doc, language);
+                return;
+            }
             SetReviewOriginal(doc.Cues, Path.GetFileName(path), language);
             SetStatus($"Showing {Path.GetFileName(path)} next to the translation: {ReviewSummary}", ReviewCount > 0 ? StatusKind.Warning : StatusKind.Success);
         }
@@ -164,6 +169,50 @@ public sealed partial class MainViewModel
         {
             SetStatus($"Can't open {Path.GetFileName(path)}: {ex.Message}", StatusKind.Error);
         }
+    }
+
+    /// <summary>
+    /// The other file is the translation, the open one its original: the other file is in the language
+    /// translations go into (Translate's "Into") and the open one isn't.
+    /// </summary>
+    private bool IsTranslationOfOpen(string? otherLanguage)
+    {
+        var target = _s.Config.TranslateTarget;
+        var open = EditorLanguage.Length > 0 ? EditorLanguage.Split('-', '_')[0]
+            : SubtitleTranslationPrompt.ScriptLanguage(Cues.Select(r => r.Text));
+        return otherLanguage is { } other && other.Split('-', '_')[0].Equals(target, StringComparison.OrdinalIgnoreCase)
+               && open is not null && !open.Equals(target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The open subtitles are the original: the translation opens in the editor with them beside it.</summary>
+    private void OpenTranslationBesideOpen(string path, SubtitleDocument translation, string? translationLanguage)
+    {
+        if (_doc is null) return;
+        SyncDocumentFromRows();
+        var originalCues = Cues.Select(r => r.Cue.Clone()).ToList();
+        var originalName = _doc.SourcePath is { } p ? Path.GetFileName(p) : "the open subtitles (not saved)";
+        var originalLanguage = EditorLanguage.Length > 0 ? EditorLanguage.Split('-', '_')[0] : SubtitleTranslationPrompt.ScriptLanguage(originalCues.Select(c => c.Text));
+        var video = PairedVideo;
+        if (IsDirty)
+        {
+            // The original stays beside the translation, but only in memory: offer to save it first.
+            if (_s.Dialogs.Confirm("Save the original first?",
+                    $"{Path.GetFileName(path)} is the translation, so it opens in the editor, with the open subtitles beside it as the original.\n\nThe open subtitles aren't saved. Save them first? (Yes: save. No: keep them only beside the translation, until you close it.)"))
+            {
+                Save();
+                if (IsDirty) return; // save cancelled or failed
+                originalName = _doc.SourcePath is { } saved ? Path.GetFileName(saved) : originalName;
+            }
+            else if (_doc.SourcePath is not null)
+                originalName += " (with unsaved changes)";
+            IsDirty = false;
+        }
+        translation.SourcePath = path;
+        translation.Language ??= translationLanguage;
+        LoadDocument(translation, video, selectIndex: 0);
+        SetReviewOriginal(originalCues, originalName, originalLanguage);
+        SetStatus($"{Path.GetFileName(path)} is the translation: it's open in the editor, with {originalName} beside it as the original. {ReviewSummary}",
+            ReviewCount > 0 ? StatusKind.Warning : StatusKind.Success);
     }
 
     private void CompareWithFile()
@@ -218,13 +267,13 @@ public sealed partial class MainViewModel
         var rows = Cues.ToList();
         var paired = TranslationReview.Pair(rows.Select(r => r.Cue).ToList(), _reviewOriginal);
         var target = EditorLanguage.Length > 0 ? EditorLanguage.Split('-', '_')[0] : _s.Config.TranslateTarget;
+        var flags = TranslationReview.CheckAll(paired, rows.Select(r => r.Text).ToList(), target);
         int count = 0;
         for (int i = 0; i < rows.Count; i++)
         {
             rows[i].SourceText = paired[i];
-            var flag = TranslationReview.Check(paired[i], rows[i].Text, i > 0 ? paired[i - 1] : null, i > 0 ? rows[i - 1].Text : null, target);
-            rows[i].ReviewFlag = flag;
-            if (flag is not null) count++;
+            rows[i].ReviewFlag = flags[i];
+            if (flags[i] is not null) count++;
         }
         ReviewCount = count;
         OnPropertyChanged(nameof(SelectedOriginal));

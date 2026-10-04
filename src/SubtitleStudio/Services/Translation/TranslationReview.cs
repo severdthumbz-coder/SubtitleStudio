@@ -3,7 +3,7 @@ using SubtitleStudio.Models;
 
 namespace SubtitleStudio.Services.Translation;
 
-public enum ReviewFlagKind { Missing, Leftover, Unchanged, Repeated, Question }
+public enum ReviewFlagKind { Missing, Leftover, Unchanged, Repeated, TooLong, Question }
 
 /// <summary>Why a translated line deserves a look.</summary>
 public sealed record ReviewFlag(ReviewFlagKind Kind, string Message);
@@ -72,13 +72,44 @@ public static partial class TranslationReview
             return new ReviewFlag(ReviewFlagKind.Leftover, "Words left in the original script.");
         if (Key(o) == Key(t) && Words(o) >= 2)
             return new ReviewFlag(ReviewFlagKind.Unchanged, "Not translated: the same as the original.");
-        if (previousOriginal is not null && previousTranslation is not null && Words(t) >= 2
+        // Short lines ("Let's go.") repeat naturally; only longer ones are suspicious.
+        if (previousOriginal is not null && previousTranslation is not null && Words(t) >= 4
             && Key(t) == Key(Plain(previousTranslation)) && Key(o) != Key(Plain(previousOriginal)))
             return new ReviewFlag(ReviewFlagKind.Repeated, "The same as the line before, though the originals differ.");
         if (IsQuestion(o) && !t.Contains('?') && !t.Contains('？'))
             return new ReviewFlag(ReviewFlagKind.Question, "The original is a question; the translation isn't.");
         return null;
     }
+
+    /// <summary>
+    /// All lines at once: <see cref="Check"/> for each, and translations far longer than their original
+    /// compared with the usual length ratio of this pair of languages in this file (a model that pulled in
+    /// the next lines writes three or more times as much as usual).
+    /// </summary>
+    public static ReviewFlag?[] CheckAll(IReadOnlyList<string?> originals, IReadOnlyList<string> translations, string targetLanguage)
+    {
+        var flags = new ReviewFlag?[translations.Count];
+        var ratios = new List<double>();
+        for (int i = 0; i < translations.Count; i++)
+        {
+            flags[i] = Check(originals[i], translations[i], i > 0 ? originals[i - 1] : null, i > 0 ? translations[i - 1] : null, targetLanguage);
+            if (originals[i] is { } o && Letters(Plain(o)) >= 2 && Letters(Plain(translations[i])) >= 2)
+                ratios.Add(Letters(Plain(translations[i])) / (double)Letters(Plain(o)));
+        }
+        if (ratios.Count < 20) return flags; // too few lines to know what's usual
+        ratios.Sort();
+        double usual = ratios[ratios.Count / 2];
+        for (int i = 0; i < translations.Count; i++)
+        {
+            if (flags[i] is not null || originals[i] is not { } o) continue;
+            int source = Letters(Plain(o)), target = Letters(Plain(translations[i]));
+            if (source >= 2 && target >= 25 && target > source * usual * 3)
+                flags[i] = new ReviewFlag(ReviewFlagKind.TooLong, "Much longer than the original: it may have taken words from the lines around it.");
+        }
+        return flags;
+    }
+
+    private static int Letters(string text) => text.Count(char.IsLetter);
 
     private static bool IsQuestion(string text)
     {
