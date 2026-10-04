@@ -345,6 +345,7 @@ public sealed partial class MainViewModel
 
     private void LoadDocument(SubtitleDocument doc, MediaItem? video, int selectIndex)
     {
+        ClearReviewOriginal();
         foreach (var row in Cues) row.Detach();
         Cues.Clear();
 
@@ -373,6 +374,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(EditorTitle));
         OnPropertyChanged(nameof(DocumentInfo));
         OnPropertyChanged(nameof(SuggestedFileName));
+        RefreshReviewCandidates();
         SelectedTabIndex = Tabs.Subtitles;
     }
 
@@ -651,5 +653,6 @@ public sealed partial class MainViewModel
         }
         IssueCount = issues.Count;
         ErrorCount = errors;
+        RefreshReview();
     }
 }

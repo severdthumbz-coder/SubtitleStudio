@@ -161,6 +161,34 @@ public static partial class SubtitleTranslationPrompt
         return sb.ToString().TrimEnd('\n');
     }
 
+    /// <summary>
+    /// Asking for other ways to translate one line: the lines around it (earlier ones with their current
+    /// translations, later ones as they are), an optional note from the person reviewing, and a request
+    /// for <paramref name="count"/> differently worded translations, numbered.
+    /// </summary>
+    public static string AlternativesMessage(IReadOnlyList<(string Source, string Translation)> before, string line, string? current,
+        IReadOnlyList<string> after, string? hint, int count, string targetLanguage, bool noThinking = false)
+    {
+        var sb = new StringBuilder();
+        if (before.Count > 0)
+        {
+            sb.Append("Earlier lines (context only):\n");
+            foreach (var (source, translation) in before) sb.Append(source).Append(" => ").Append(translation).Append('\n');
+            sb.Append('\n');
+        }
+        sb.Append("The line:\n").Append(line).Append('\n');
+        if (!string.IsNullOrWhiteSpace(current)) sb.Append("Its current translation (to improve on): ").Append(current.Trim()).Append('\n');
+        if (after.Count > 0)
+        {
+            sb.Append("\nNext lines (context only, not to translate):\n");
+            foreach (var a in after) sb.Append(a).Append('\n');
+        }
+        if (!string.IsNullOrWhiteSpace(hint)) sb.Append("\nNote from the person reviewing (follow it): ").Append(hint.Trim()).Append('\n');
+        sb.Append($"\nWrite {count} different good translations of the line into {targetLanguage}, numbered 1 to {count}: each natural and short enough for a subtitle, each worded differently.");
+        if (noThinking) sb.Append("\n/no_think");
+        return sb.ToString();
+    }
+
     /// <summary>GBNF that allows exactly <paramref name="count"/> numbered lines, each with some text.</summary>
     public static string Grammar(int count)
     {

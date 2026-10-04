@@ -189,6 +189,41 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Other ways to translate one cue, for reviewing: the model sees the lines before it (with their
+    /// translations), the lines after it, the current translation and the reviewer's note, and writes
+    /// <paramref name="count"/> differently worded translations. Tags, italics and position are kept.
+    /// The model is loaded if it isn't already (and stays loaded for the next line).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> SuggestAsync(IReadOnlyList<(string Source, string Translation)> before, string cueText, string? currentTranslation,
+        IReadOnlyList<string> after, string? sourceLanguage, string targetLanguage, string? hint, int count, CancellationToken ct)
+    {
+        if (ModelPath is not { Length: > 0 } modelPath || !File.Exists(modelPath))
+            throw new InvalidOperationException("Choose a language model first (download one in the Model section of Translate).");
+        await _runner.LoadAsync(modelPath, Device, ct).ConfigureAwait(false);
+        bool noThinking = _runner.Architecture is { } arch && arch.StartsWith("qwen3", StringComparison.OrdinalIgnoreCase);
+        string targetName = WhisperLanguages.NameOf(targetLanguage);
+        string? sourceName = string.IsNullOrWhiteSpace(sourceLanguage) ? null : WhisperLanguages.NameOf(sourceLanguage);
+        var prepared = SubtitleTranslationPrompt.Prepare(cueText);
+        if (prepared.IsEmpty) return Array.Empty<string>();
+        var currentLine = currentTranslation is null ? null : SubtitleTranslationPrompt.Prepare(currentTranslation).Text;
+        var system = SubtitleTranslationPrompt.SystemMessage(sourceName, targetName, Names);
+        var user = SubtitleTranslationPrompt.AlternativesMessage(before.Skip(Math.Max(0, before.Count - ContextLines)).ToList(), prepared.Text, currentLine,
+            after.Select(a => SubtitleTranslationPrompt.Prepare(a).Text).Where(a => a.Length > 0).Take(3).ToList(), hint, count, targetName, noThinking);
+        var output = await _runner.CompleteAsync(system, user, SubtitleTranslationPrompt.Grammar(count), 32 + count * Math.Max(64, prepared.Text.Length * 3), null, ct).ConfigureAwait(false);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var line in SubtitleTranslationPrompt.Parse(output, count))
+        {
+            if (line.Length == 0) continue;
+            var restored = SubtitleTranslationPrompt.Restore(prepared, line, MaxColumns);
+            if (seen.Add(restored)) result.Add(restored);
+        }
+        _log?.Info("Translate", $"Suggestions for \"{prepared.Text}\"" + (string.IsNullOrWhiteSpace(hint) ? "" : $" (note: {hint.Trim()})") + ": "
+            + string.Join(" | ", result.Select(r => r.Replace("\n", " "))));
+        return result;
+    }
+
     private static string Format(TimeSpan t) => t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
 
     public void Dispose() => _runner.Dispose();

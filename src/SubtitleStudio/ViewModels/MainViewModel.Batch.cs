@@ -313,7 +313,7 @@ public sealed partial class MainViewModel
     public RelayCommand CancelBatchCommand { get; private set; } = null!;
     public RelayCommand BatchApplyNamesCommand { get; private set; } = null!;
 
-    private bool CanStartBatch => BatchRows.Any(r => r.Include) && !BatchBusy && !TranscribeBusy && !TranslateBusy && FfmpegStatus.HasFfmpeg
+    private bool CanStartBatch => BatchRows.Any(r => r.Include) && !BatchBusy && !TranscribeBusy && !TranslateBusy && !ReviewBusy && FfmpegStatus.HasFfmpeg
                                   && (HasWhisperModel || _s.TranscriptionEngines.Any(e => e.RequiresApiKey))
                                   && (BatchTarget is null || HasTranslationModel || _s.TranslationEngines.Any(e => e.RequiresApiKey));
 

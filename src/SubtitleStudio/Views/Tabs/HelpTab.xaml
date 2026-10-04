@@ -76,7 +76,7 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8C1;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Translate" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="The open subtitles into another language with a language model (llama.cpp) running inside the app on the graphics card. Keeps timings, positions and italics; the result opens unsaved for review." />
+                                   Text="The open subtitles into another language with a language model (llama.cpp) running inside the app on the graphics card. Keeps timings, positions and italics. Review it next to the original: lines worth a look are flagged, and the model suggests other wordings for any line." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

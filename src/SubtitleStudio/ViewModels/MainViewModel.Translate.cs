@@ -314,7 +314,7 @@ public sealed partial class MainViewModel
     public AsyncRelayCommand TranslateCommand { get; private set; } = null!;
     public RelayCommand CancelTranslateCommand { get; private set; } = null!;
 
-    private bool CanTranslate => HasTranslateSource && !TranslateBusy && !TranscribeBusy && !BatchBusy
+    private bool CanTranslate => HasTranslateSource && !TranslateBusy && !TranscribeBusy && !BatchBusy && !ReviewBusy
                                  && (HasTranslationModel || _s.TranslationEngines.Any(e => e.RequiresApiKey));
 
     public string TranslateBlockedText => !HasTranslateSource ? "Open subtitles first (Subtitles tab), or transcribe a video."
@@ -423,12 +423,15 @@ public sealed partial class MainViewModel
             if (original.SourcePath is { } path) _standaloneBaseName = StripLanguage(Path.GetFileNameWithoutExtension(path));
             LoadDocument(doc, video, selectIndex: 0);
             IsDirty = true;
+            // The original goes next to the translation for reviewing.
+            SetReviewOriginal(original.Cues, original.SourcePath is { } from ? Path.GetFileName(from) : "the subtitles before translating", source);
             var name = WhisperLanguages.NameOf(target);
             var failed = (engine as LocalLlmTranslator)?.LastStats?.Failed ?? 0;
             TranslateStatus = $"Done: {translated.Count} cues in {name}. They are open in the Subtitles tab, unsaved: review and save."
                 + (failed > 0 ? $" {failed} couldn't be translated and kept the original text (see the Log)." : string.Empty)
                 + (NameSuggestions.Count > 0 ? $" {NameSuggestions.Count} group{(NameSuggestions.Count == 1 ? "" : "s")} of look-alike names to check below." : string.Empty);
-            SetStatus($"Translated {translated.Count} cues into {name}. Review them in the Subtitles tab, then save.", failed > 0 ? StatusKind.Warning : StatusKind.Success);
+            SetStatus($"Translated {translated.Count} cues into {name}. Review them in the Subtitles tab (the original is shown beside each line), then save."
+                      + (ReviewCount > 0 ? $" {ReviewCount} line{(ReviewCount == 1 ? "" : "s")} flagged to check." : string.Empty), failed > 0 || ReviewCount > 0 ? StatusKind.Warning : StatusKind.Success);
         });
     }
 

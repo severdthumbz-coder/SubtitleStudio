@@ -67,6 +67,31 @@ public sealed class CueRowViewModel : ObservableObject
         }
     }
 
+    private string? _sourceText;
+    private Services.Translation.ReviewFlag? _reviewFlag;
+
+    /// <summary>The original line(s) at this time, when the subtitle is a translation being reviewed.</summary>
+    public string? SourceText
+    {
+        get => _sourceText;
+        set => SetProperty(ref _sourceText, value);
+    }
+
+    /// <summary>Why this translated line deserves a look (null: nothing found).</summary>
+    public Services.Translation.ReviewFlag? ReviewFlag
+    {
+        get => _reviewFlag;
+        set
+        {
+            if (!SetProperty(ref _reviewFlag, value)) return;
+            OnPropertyChanged(nameof(HasReviewFlag));
+            OnPropertyChanged(nameof(ReviewText));
+        }
+    }
+
+    public bool HasReviewFlag => _reviewFlag is not null;
+    public string ReviewText => _reviewFlag?.Message ?? string.Empty;
+
     public bool HasIssue => _issue is not null;
     public bool IsError => _issue?.Severity == CueIssueSeverity.Error;
     public string IssueText => _issue?.Message ?? string.Empty;

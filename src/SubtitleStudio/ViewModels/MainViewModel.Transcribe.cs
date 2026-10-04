@@ -470,7 +470,7 @@ public sealed partial class MainViewModel
     public AsyncRelayCommand TranscribeCommand { get; private set; } = null!;
     public RelayCommand CancelTranscribeCommand { get; private set; } = null!;
 
-    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && !TranslateBusy && !BatchBusy && FfmpegStatus.HasFfmpeg
+    private bool CanTranscribe => TranscribeFile is not null && !TranscribeBusy && !TranslateBusy && !BatchBusy && !ReviewBusy && FfmpegStatus.HasFfmpeg
                                   && (HasWhisperModel || _s.TranscriptionEngines.Any(e => e.RequiresApiKey));
 
     /// <summary>Why Transcribe can't start (empty when it can).</summary>

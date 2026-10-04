@@ -5,6 +5,19 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.45] - 2026-10-04
+
+### Added
+- Review a translation next to its original, in the Subtitles tab. After Translate the original appears automatically in an "Original" column beside each line. For a translation saved earlier (a Batch result, say), the new "Review translation" card offers the other-language files of the same video: "Episode.en.srt" finds "Episode.ko.srt". You can also choose any file. A translation made by the app pairs line for line; other files pair by time, so a line covering two originals shows both.
+- Lines worth a look are flagged in the Original column, and the card counts them:
+  - words left in the original script ("Han 선생님");
+  - a line left untranslated or empty;
+  - a line repeating the one before, although the originals differ;
+  - a question that lost its question mark.
+  "Next to check" (F9) goes through them. Flags update as you edit, and Undo restores them.
+- Other translations for any line: select it, optionally write a note for the language model ("Han is a surname; 선생님 means Doctor here"), and press "Suggest translations". The model sees the lines before it (with their translations), the lines after it, the current translation and your note, and writes three differently worded translations. "Use" puts one in the line, and Undo puts the old one back. The note stays while you move between lines, and the model stays loaded, so the next line is quick. The show's names list goes to the model too.
+- AI Transcribe, Translate and Batch wait while suggestions are being made (one model on the graphics card at a time).
+
 ## [1.0.0.44] - 2026-10-03
 
 ### Added

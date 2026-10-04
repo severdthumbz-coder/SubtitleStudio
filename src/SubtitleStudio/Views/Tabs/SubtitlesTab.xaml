@@ -3,13 +3,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls"
              xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+             xmlns:inf="clr-namespace:SubtitleStudio.Infrastructure"
              Loaded="OnLoaded"
              Unloaded="OnUnloaded">
+    <UserControl.Resources>
+        <!-- Lets the "Original" column follow HasReviewOriginal (columns aren't in the visual tree). -->
+        <inf:BindingProxy x:Key="Proxy" Data="{Binding}" />
+    </UserControl.Resources>
     <!-- Subtitles editor. Logic: MainViewModel.Subtitles.cs + CueRowViewModel + Services/Subtitles. -->
     <UserControl.InputBindings>
         <KeyBinding Key="Insert" Command="{Binding AddCueCommand}" />
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewSubtitleCommand}" />
         <KeyBinding Key="F8" Command="{Binding NextIssueCommand}" />
+        <KeyBinding Key="F9" Command="{Binding NextToCheckCommand}" />
         <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
         <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
         <KeyBinding Key="Space" Modifiers="Control" Command="{Binding PlayPauseCommand}" />
@@ -162,6 +168,21 @@
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="Original" Width="*" MinWidth="160" IsReadOnly="True"
+                                                Visibility="{Binding Data.HasReviewOriginal, Source={StaticResource Proxy}, Converter={StaticResource Vis}}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding SourceText}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextSecondary}" />
+                                        <DockPanel Margin="0,3,0,0" Visibility="{Binding HasReviewFlag, Converter={StaticResource Vis}}">
+                                            <TextBlock DockPanel.Dock="Left" Text="&#xE7BA;" Style="{StaticResource Text.Icon}" FontSize="11"
+                                                       Foreground="{DynamicResource Brush.Warning}" Margin="0,1,5,0" VerticalAlignment="Top" />
+                                            <TextBlock Text="{Binding ReviewText}" TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Brush.Warning}" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Text" Width="*" MinWidth="200">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -263,6 +284,45 @@
                                                Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,1,8,0" />
                                     <TextBlock Text="{Binding SelectedCue.IssueText}" Style="{StaticResource Text.Muted}" />
                                 </DockPanel>
+
+                                <!-- Review: the original, and other translations from the language model -->
+                                <StackPanel Visibility="{Binding HasSelectedOriginal, Converter={StaticResource Vis}}" Margin="0,14,0,0">
+                                    <TextBlock Text="Original" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                    <TextBox Text="{Binding SelectedOriginal, Mode=OneWay}" Style="{StaticResource SelectableText}" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource Brush.TextSecondary}" />
+                                    <DockPanel Margin="0,6,0,0" Visibility="{Binding SelectedCue.HasReviewFlag, Converter={StaticResource Vis}}">
+                                        <TextBlock DockPanel.Dock="Left" Text="&#xE7BA;" Style="{StaticResource Text.Icon}" FontSize="13"
+                                                   Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,1,8,0" />
+                                        <TextBlock Text="{Binding SelectedCue.ReviewText}" Style="{StaticResource Text.Muted}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,12,0,4">
+                                        <ctl:HintMarker DockPanel.Dock="Right"
+                                                        Text="Optional. Tell the language model what it got wrong or what it needs to know, for example: Han is a surname; 선생님 means Doctor here. The note stays while you move between lines, so it can help several of them." />
+                                        <TextBlock Text="Note for the language model" Style="{StaticResource Text.Label}" />
+                                    </DockPanel>
+                                    <TextBox Text="{Binding ReviewHint, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" AcceptsReturn="False"
+                                             ToolTip="Han is a surname; 선생님 means Doctor here" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Tag="&#xE8C1;" Content="Suggest translations" Command="{Binding SuggestCommand}" Margin="0,0,8,6"
+                                                ToolTip="Three other ways to translate this line, from the language model, using the lines around it and your note" />
+                                        <Button Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelSuggestCommand}" Margin="0,0,8,6"
+                                                Visibility="{Binding ReviewBusy, Converter={StaticResource Vis}}" />
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding SuggestStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding Suggestions}" Margin="0,6,0,0" Visibility="{Binding HasSuggestions, Converter={StaticResource Vis}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Use" Command="{Binding UseCommand}"
+                                                                VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Put this translation in the line (Undo puts the old one back)" />
+                                                        <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </StackPanel>
 
                             <WrapPanel Margin="0,12,0,0">
@@ -276,6 +336,37 @@
                                         Command="{Binding DeleteCuesCommand}" CommandParameter="{Binding SelectedItems, ElementName=CueGrid}"
                                         ToolTip="Delete the selected cues (Delete)" />
                             </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Review a translation -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <DockPanel>
+                                <ctl:HintMarker DockPanel.Dock="Right"
+                                                Text="Shows the original next to each translated line, and flags the lines worth a look: words left in the original script, lines left untranslated or empty, a line repeating the one before although the originals differ, and questions that lost their question mark. After Translate the original is shown automatically. For a translation saved earlier (a Batch result, say), pick the original here. F9 jumps to the next line to check." />
+                                <TextBlock Text="Review translation" Style="{StaticResource Text.H2}" />
+                            </DockPanel>
+                            <StackPanel Visibility="{Binding HasReviewOriginal, Converter={StaticResource Vis}, ConverterParameter=Invert}" Margin="0,8,0,0">
+                                <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                                           Text="Show the original next to this translation, to check it line by line and ask the language model for other wordings." />
+                                <ComboBox ItemsSource="{Binding ReviewCandidates}" SelectedItem="{Binding SelectedReviewCandidate, Mode=TwoWay}" Margin="0,10,0,0"
+                                          Visibility="{Binding HasReviewCandidates, Converter={StaticResource Vis}}"
+                                          ToolTip="Subtitle files of the same video in another language" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Tag="&#xE8A1;" Content="Show side by side" Command="{Binding CompareWithCandidateCommand}" Margin="0,0,8,6"
+                                            Visibility="{Binding HasReviewCandidates, Converter={StaticResource Vis}}" />
+                                    <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Choose the original..." Command="{Binding CompareWithFileCommand}" Margin="0,0,8,6" />
+                                </WrapPanel>
+                            </StackPanel>
+                            <StackPanel Visibility="{Binding HasReviewOriginal, Converter={StaticResource Vis}}" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding ReviewOriginalText}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReviewSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Tag="&#xE72A;" Content="Next to check" Command="{Binding NextToCheckCommand}" Margin="0,0,8,6" ToolTip="F9" />
+                                    <Button Style="{StaticResource GhostButton}" Content="Hide original" Command="{Binding HideOriginalCommand}" Margin="0,0,8,6" />
+                                </WrapPanel>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
