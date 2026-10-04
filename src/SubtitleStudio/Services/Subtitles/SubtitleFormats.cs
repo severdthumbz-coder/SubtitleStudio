@@ -427,7 +427,7 @@ public sealed partial class MicroDvdFormat : TextSubtitleFormat
     {
         // VobSub .sub is an MPEG program stream (pack header 00 00 01 BA).
         if (bytes.Length >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 1 && bytes[3] == 0xBA)
-            throw new SubtitleFormatException("This .sub is an image-based VobSub file (it pairs with an .idx). It can't be edited as text; it would need OCR first.");
+            throw new SubtitleFormatException("This .sub is an image-based VobSub file (it pairs with an .idx). To read it as text, select the video in Source / Files and use \"Subtitles inside\" (it's read with Windows OCR there).");
         if (bytes.Take(4096).Count(b => b == 0) > 16)
             throw new SubtitleFormatException("This .sub file is binary, not MicroDVD text, so it can't be edited here.");
     }

@@ -36,7 +36,7 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Source / Files" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="Import by drag and drop, file/folder pickers or hand-off. Detects sidecar subtitles and reads durations." />
+                                   Text="Import by drag and drop, file/folder pickers or hand-off. Detects sidecar subtitles and reads durations. Reads the subtitle tracks inside a video: text tracks exactly, Blu-ray and DVD picture tracks with OCR." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

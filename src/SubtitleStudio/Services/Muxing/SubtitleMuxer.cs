@@ -319,9 +319,9 @@ public sealed class SubtitleMuxer
                 replaced = video;
             }
             File.Move(partial, target, overwrite: true);
-            _log?.Success("Mux", $"Saved {Path.GetFileName(target)}: {subs} subtitle track{(subs == 1 ? "" : "s")} in all"
-                + (replaced is null ? "." : $"; the original {Path.GetFileName(video)} is in the Recycle Bin."));
-            return new MuxResult(target, request.Tracks.Count, subs, plan.Notes, replaced);
+            var result = new MuxResult(target, request.Tracks.Count, subs, plan.Notes, replaced);
+            _log?.Success("Mux", Summary(result));
+            return result;
         }
         catch
         {
@@ -333,6 +333,21 @@ public sealed class SubtitleMuxer
         {
             try { Directory.Delete(work, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// What was done, in words: "Saved Film (subtitles).mkv with 2 subtitle tracks.", "Replaced Film.mp4 (now with
+    /// 1 subtitle track); the original is in the Recycle Bin.", or "Saved Film.mkv with 2 subtitle tracks in place
+    /// of Film.mp4, which is in the Recycle Bin."
+    /// </summary>
+    public static string Summary(MuxResult r)
+    {
+        var tracks = $"{r.SubtitleTracks} subtitle track{(r.SubtitleTracks == 1 ? "" : "s")}";
+        var name = Path.GetFileName(r.OutputPath);
+        if (r.ReplacedOriginal is null) return $"Saved {name} with {tracks}.";
+        return string.Equals(r.ReplacedOriginal, r.OutputPath, StringComparison.OrdinalIgnoreCase)
+            ? $"Replaced {name} (now with {tracks}); the original is in the Recycle Bin."
+            : $"Saved {name} with {tracks} in place of {Path.GetFileName(r.ReplacedOriginal)}, which is in the Recycle Bin.";
     }
 
     /// <summary>The subtitle read by the app and written out clean: ASS/SSA stays ASS in MKV; everything else becomes SRT.</summary>

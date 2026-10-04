@@ -64,8 +64,7 @@ public sealed partial class MainViewModel
     /// <summary>The new video joins the list (and a replaced original leaves it).</summary>
     private void AfterMux(MuxResult result)
     {
-        SetStatus($"Saved {Path.GetFileName(result.OutputPath)} with {result.SubtitleTracks} subtitle track{(result.SubtitleTracks == 1 ? "" : "s")}"
-                  + (result.ReplacedOriginal is null ? "." : $"; {Path.GetFileName(result.ReplacedOriginal)} is in the Recycle Bin."), StatusKind.Success);
+        SetStatus(SubtitleMuxer.Summary(result), StatusKind.Success);
         if (result.ReplacedOriginal is { } old && !string.Equals(old, result.OutputPath, StringComparison.OrdinalIgnoreCase))
         {
             var gone = Files.FirstOrDefault(f => string.Equals(f.FullPath, old, StringComparison.OrdinalIgnoreCase));

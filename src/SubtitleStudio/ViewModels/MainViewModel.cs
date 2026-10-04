@@ -59,6 +59,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitTranslate();
         InitBatch();
         InitMux();
+        InitEmbedded();
         InitDubbing();
         InitSettings();
         InitHelp();

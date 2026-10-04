@@ -186,6 +186,10 @@
                                     Visibility="{Binding IsVideo, Converter={StaticResource Vis}}"
                                     Command="{Binding DataContext.AddSubtitlesToVideoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" ToolTip="Put subtitle files into this video as tracks, with language and flags (FFmpeg, no re-encoding)" />
+                            <Button Tag="&#xE8A5;" Content="Subtitles inside" Margin="0,0,8,8"
+                                    Visibility="{Binding IsVideo, Converter={StaticResource Vis}}"
+                                    Command="{Binding DataContext.SubtitlesInsideCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" ToolTip="List the subtitle tracks inside this video; open one in the editor or save it next to the video (picture tracks are read with Windows OCR)" />
                             <Button Tag="&#xE838;" Content="Show in Explorer" Margin="0,0,8,8"
                                     Command="{Binding DataContext.RevealFileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" />

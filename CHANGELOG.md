@@ -5,6 +5,22 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.44] - 2026-10-03
+
+### Added
+- Subtitles inside a video. Select a video in Source / Files and press "Subtitles inside". The window lists every subtitle track in it (language, format, name, default/forced/SDH), plus any Blu-ray .sup or DVD .idx/.sub files next to it. Each track can be opened in the editor (unsaved, paired with the video, ready to review or translate) or saved next to the video as "Name.language.srt" (ASS tracks as .ass, with .forced or .sdh when flagged). "Save all next to video" saves every readable track. When a file name is already taken, it asks before replacing; otherwise a number is added.
+  - Text tracks (SubRip, ASS, MP4 text, WebVTT) come out exactly as they are, through FFmpeg. ASS keeps its styles and positions.
+  - Picture tracks are read with Windows OCR, so no other program is needed. That covers PGS (Blu-ray) and VobSub (DVD), whether inside an MKV or as a .sup or .idx/.sub file.
+    - The app decodes the pictures itself and separates the letters' fill from their outline and shadow. Each picture goes to the OCR as dark text on white, enlarged to a comfortable size.
+    - Timings come from the track, so they're exact. Two-line subtitles stay two lines, and a subtitle shown at the top of the screen (a sign) keeps its place ({\an8}).
+    - Pictures that discs send twice are read once. "|" read for a capital I is corrected, and so is a lone "l" for "I" in English.
+    - The OCR language follows the track's language. If that language's Windows OCR isn't installed (Korean, for example), the window says so and tells you where to add it.
+  - TV (DVB) picture subtitles are listed but can't be read yet; the window says so.
+- Opening a .sup or .idx file as text now points to "Subtitles inside", instead of only saying it needs OCR.
+
+### Changed
+- Add subtitles to video: the result message now says plainly what happened: "Replaced Episode.mp4 (now with 1 subtitle track); the original is in the Recycle Bin." Before, it named the same file twice and sounded contradictory.
+
 ## [1.0.0.43] - 2026-10-03
 
 ### Added

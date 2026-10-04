@@ -29,6 +29,9 @@ public interface IDialogService
 
     /// <summary>Shows "Add subtitles to video" until it's closed (closing stops a run that's going).</summary>
     void ShowAddToVideo(ViewModels.MuxViewModel model);
+
+    /// <summary>Shows "Subtitles inside this video" until it's closed.</summary>
+    void ShowEmbeddedTracks(ViewModels.EmbeddedTracksViewModel model);
 }
 
 public sealed class WpfDialogService : IDialogService
@@ -39,6 +42,8 @@ public sealed class WpfDialogService : IDialogService
     public bool MoveToRecycleBin(string path) => Infrastructure.NativeMethods.MoveToRecycleBin(path);
 
     public void ShowAddToVideo(ViewModels.MuxViewModel model) => Views.Dialogs.MuxWindow.Open(Owner, model);
+
+    public void ShowEmbeddedTracks(ViewModels.EmbeddedTracksViewModel model) => Views.Dialogs.EmbeddedTracksWindow.Open(Owner, model);
 
     public void CopyText(string text)
     {

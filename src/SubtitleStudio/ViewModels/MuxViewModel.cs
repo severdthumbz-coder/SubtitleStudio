@@ -470,8 +470,7 @@ public sealed class MuxViewModel : ObservableObject
             var result = await _muxer.RunAsync(_ffmpeg, _ffprobe, request, _dialogs.MoveToRecycleBin, progress, _cts.Token);
             ResultPath = result.OutputPath;
             Progress = 100;
-            Status = $"Done: {Path.GetFileName(result.OutputPath)} has {result.SubtitleTracks} subtitle track{(result.SubtitleTracks == 1 ? "" : "s")}"
-                     + (result.ReplacedOriginal is null ? "." : "; the original is in the Recycle Bin.");
+            Status = "Done. " + SubtitleMuxer.Summary(result);
             IsDone = true;
             OnPropertyChanged(nameof(ResultPath));
             _completed?.Invoke(result);

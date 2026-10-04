@@ -27,7 +27,7 @@ public sealed class SubtitleFormatRegistry
     {
         var ext = Path.GetExtension(path);
         if (ext.Equals(".idx", StringComparison.OrdinalIgnoreCase) || ext.Equals(".sup", StringComparison.OrdinalIgnoreCase))
-            throw new SubtitleFormatException($"{ext.TrimStart('.').ToUpperInvariant()} subtitles are images (VobSub / Blu-ray PGS). They can't be edited as text; they would need OCR first.");
+            throw new SubtitleFormatException($"{ext.TrimStart('.').ToUpperInvariant()} subtitles are images (VobSub / Blu-ray PGS). To read them as text, select the video in Source / Files and use \"Subtitles inside\" (the file next to the video is listed there and read with Windows OCR).");
 
         var format = ForExtension(ext) ?? throw new SubtitleFormatException($"'{ext}' is not a subtitle format Subtitle Studio can open.");
 

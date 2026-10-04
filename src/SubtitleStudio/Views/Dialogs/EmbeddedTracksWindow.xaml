@@ -1,0 +1,78 @@
+<Window x:Class="SubtitleStudio.Views.Dialogs.EmbeddedTracksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Subtitles inside this video"
+        Width="760" Height="600" MinWidth="600" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Brush.Window}"
+        Foreground="{DynamicResource Brush.Text}"
+        FontFamily="{StaticResource Font.UI}"
+        FontSize="13"
+        UseLayoutRounding="True">
+    <!-- Logic: ViewModels/EmbeddedTracksViewModel.cs + Services/Extraction (FFmpeg for text, Windows OCR for pictures). -->
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="Subtitles inside this video" Style="{StaticResource Text.H2}" />
+            <TextBlock Text="{Binding VideoName}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,6,0,0" ToolTip="{Binding VideoPath}" />
+            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Text="Text tracks (SubRip, ASS, MP4 text, WebVTT) come out exactly as they are. Picture tracks (PGS from Blu-ray, VobSub from DVD, also as .sup or .idx/.sub files next to the video) are read with Windows OCR: the timings are exact, but check the words. Open a track to review and translate it, or save it next to the video as Name.language.srt." />
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}">
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding HasTracks, Converter={StaticResource Vis}}">
+                    <ItemsControl ItemsSource="{Binding Tracks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1" Padding="0,10,0,10">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                    Visibility="{Binding CanRead, Converter={StaticResource Vis}}">
+                                            <Button Style="{StaticResource GhostButton}" Tag="&#xE8E5;" Content="Open in editor" Margin="0,0,6,0"
+                                                    Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                            <Button Style="{StaticResource GhostButton}" Tag="&#xE74E;" Content="Save next to video"
+                                                    Command="{Binding DataContext.SaveCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding HowText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource Brush.Accent}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <TextBlock Text="No subtitle tracks in this video (and no .sup or .idx files next to it)." Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding NoTracks, Converter={StaticResource Vis}}" />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}" Margin="0,0,0,6"
+                         Visibility="{Binding Busy, Converter={StaticResource Vis}}" />
+            <TextBlock Text="{Binding LatestText}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
+                       Visibility="{Binding Busy, Converter={StaticResource Vis}}" />
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0"
+                            Visibility="{Binding Busy, Converter={StaticResource Vis}}" />
+                    <Button Style="{StaticResource GhostButton}" Tag="&#xE74E;" Content="Save all next to video" Command="{Binding SaveAllCommand}" Margin="0,0,8,0"
+                            ToolTip="Every readable track, each as Name.language.srt (or .ass) next to the video" />
+                    <Button Style="{StaticResource GhostButton}" Content="Close" Padding="14,7" Click="OnClose" />
+                </StackPanel>
+                <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+            </DockPanel>
+        </StackPanel>
+    </Grid>
+</Window>
