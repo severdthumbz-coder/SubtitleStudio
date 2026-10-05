@@ -108,6 +108,7 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
         if (progress is not null) builder = builder.WithProgressHandler(p => progress.Report((Volatile.Read(ref current), p)));
 
         await using var processor = builder.Build();
+        string? currentLanguage = options.Language;
         if (options.Language is not { Length: > 0 } && chunks.Count > 0)
         {
             var first = chunks[0];
@@ -116,6 +117,7 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
             {
                 DetectedLanguage = (code, probability);
                 processor.ChangeLanguage(code);
+                currentLanguage = code;
             }
         }
 
@@ -123,6 +125,13 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
         {
             ct.ThrowIfCancellationRequested();
             Volatile.Write(ref current, c);
+            // A scene in another language: that language for this chunk, then back.
+            var wanted = options.ChunkLanguages is { } langs && c < langs.Count && langs[c] is { Length: > 0 } l ? l : options.Language is { Length: > 0 } main ? main : currentLanguage;
+            if (wanted is { Length: > 0 } && wanted != currentLanguage)
+            {
+                processor.ChangeLanguage(wanted);
+                currentLanguage = wanted;
+            }
             IAsyncEnumerator<SegmentData>? segments = null;
             try
             {
@@ -147,6 +156,32 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
                 if (segments is not null) await segments.DisposeAsync().ConfigureAwait(false);
             }
         }
+    }
+
+    public async Task<IReadOnlyList<(string Code, float Probability)?>?> DetectLanguagesAsync(IReadOnlyList<ReadOnlyMemory<float>> audio, WhisperRunOptions options,
+        IProgress<int>? progress, CancellationToken ct)
+    {
+        var factory = await Task.Run(() => FactoryFor(options), ct).ConfigureAwait(false);
+        return await Task.Run(() =>
+        {
+            var result = new (string Code, float Probability)?[audio.Count];
+            using var processor = factory.CreateBuilder().WithThreads(Math.Max(1, options.Threads)).WithLanguageDetection().Build();
+            for (int i = 0; i < audio.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var (code, probability) = processor.DetectLanguageWithProbability(audio[i].Span);
+                    if (!string.IsNullOrEmpty(code)) result[i] = (code, probability);
+                }
+                catch (Exception ex) when (ex is WhisperProcessingException or InvalidOperationException)
+                {
+                    // Too short or unreadable: no answer for this piece.
+                }
+                progress?.Report(i + 1);
+            }
+            return (IReadOnlyList<(string Code, float Probability)?>?)result;
+        }, ct).ConfigureAwait(false);
     }
 
     private static WhisperSegment Map(SegmentData s, int chunk)

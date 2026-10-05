@@ -23,6 +23,8 @@ public sealed class AppSettings
     /// <summary>"auto" or a Whisper language code such as "ko".</summary>
     public string TranscribeLanguage { get; set; } = "auto";
     public bool TranscribeTranslate { get; set; }
+    /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
+    public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>
     public string TranscriptionEngine { get; set; } = string.Empty;
 

@@ -135,6 +135,7 @@ public static partial class SubtitleTranslationPrompt
           .Append("- Translate every numbered line and keep its number: one line in, one line out, in the same order.\n")
           .Append($"- Write natural, spoken {targetLanguage}, the way people really talk in a film, not word for word. Keep it short enough to read as a subtitle.\n")
           .Append("- Keep the meaning, the tone and how polite or casual the speaker is. Don't add explanations, notes, quotes or the original text.\n")
+          .Append(string.IsNullOrWhiteSpace(sourceLanguage) ? string.Empty : $"- A few lines may be in another language than {from} (a scene in Japanese, say): translate those into {targetLanguage} too.\n")
           .Append("- Keep names as they sound and spell each name the same way every time. Never leave words in the original script.\n");
         if (korean)
             sb.Append("- Korean names in standard romanization (e.g. Kim Myeong-jin). Translate titles and forms of address into what a speaker of the target language would say (선생님: Doctor, Teacher or Sir by context; 교수님: Professor).\n");

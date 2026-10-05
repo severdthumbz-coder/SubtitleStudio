@@ -10,7 +10,9 @@ public sealed record WhisperDevice(bool UseGpu, int? VulkanIndex, string Label)
 
 /// <param name="CarryContext">Feed the text so far back in as context. Off by default: after a long pause
 /// Whisper then tends to repeat earlier lines instead of hearing new ones.</param>
-public sealed record WhisperRunOptions(string ModelPath, string? Language, bool Translate, WhisperDevice Device, int Threads, bool CarryContext = false);
+/// <param name="ChunkLanguages">A language per chunk (scenes in another language); null entries, or no list, use <paramref name="Language"/>.</param>
+public sealed record WhisperRunOptions(string ModelPath, string? Language, bool Translate, WhisperDevice Device, int Threads, bool CarryContext = false,
+    IReadOnlyList<string?>? ChunkLanguages = null);
 
 /// <summary>One token of a segment: text (may be part of a character), times, probability.</summary>
 public sealed record WhisperTokenInfo(string Text, TimeSpan Start, TimeSpan End, float Probability, bool Special);
@@ -47,6 +49,14 @@ public interface IWhisperRunner : IDisposable
     /// would otherwise be "detected" as something else). Progress: (chunk, percent of that chunk).
     /// </summary>
     IAsyncEnumerable<WhisperSegment> RunAsync(IReadOnlyList<ReadOnlyMemory<float>> chunks, WhisperRunOptions options, IProgress<(int Chunk, int Percent)>? progress, CancellationToken ct);
+
+    /// <summary>
+    /// The language spoken in each piece of audio, and how sure (0..1), with the loaded model; null for a
+    /// piece it couldn't judge. Null altogether when this runner can't detect languages.
+    /// </summary>
+    Task<IReadOnlyList<(string Code, float Probability)?>?> DetectLanguagesAsync(IReadOnlyList<ReadOnlyMemory<float>> audio, WhisperRunOptions options,
+        IProgress<int>? progress, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<(string Code, float Probability)?>?>(null);
 
     /// <summary>Frees the loaded model (graphics memory) until the next run, e.g. before the translator loads its own.</summary>
     void ReleaseModel() { }

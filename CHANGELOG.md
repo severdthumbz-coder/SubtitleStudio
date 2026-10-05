@@ -5,6 +5,18 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.50] - 2026-10-05
+
+### Added
+- AI Transcribe: scenes in other languages are written in their own language. Until now Whisper picked one language from the start of the speech and forced everything into it. The Japanese scenes in Hyper Knife E03 came out as Japanese squeezed into a Korean transcript, or as mixed lines like "代사에 정보를 주장했습니다." (cue 454). Now Whisper checks the language of every chunk of speech (up to about 28 seconds each) before transcribing:
+  - A chunk it is sure about (80% or more; 90% for chunks under 5 seconds) is transcribed in that language.
+  - A chunk it isn't sure about can hold two languages, for example one doctor speaking Japanese and another answering in Korean. Each stretch of speech in it of 1.5 seconds or more is checked on its own (90% sure), and the chunk is cut where the language changes. Shorter stretches go with their neighbours.
+  - With "Detect automatically", the main language is the one of most of the speech, not just of its start.
+  - When the language is chosen in the list, another language must be 95% sure before it overrides that choice for a scene.
+  - The Log lists what was found, for example "Korean, with 3 scenes in another language: Japanese 21:03–22:41, ...".
+  - On by default: "Scenes in other languages: write each in its own language" in step 1 of AI Transcribe (and used by Batch). The check costs one short pass per chunk, roughly half a minute for an hour-long episode on the graphics card (an estimate).
+- Translate: the instructions tell the model that a few lines may be in another language than the subtitles' own (a scene in Japanese, say), and to translate those too.
+
 ## [1.0.0.49] - 2026-10-05
 
 ### Changed

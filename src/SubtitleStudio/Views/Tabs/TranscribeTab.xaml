@@ -42,7 +42,7 @@
                         <TextBlock Text="1. What to write" Style="{StaticResource Text.H2}" />
                         <TextBlock Text="Language spoken" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
                         <ComboBox ItemsSource="{Binding TranscribeLanguages}" SelectedItem="{Binding SelectedTranscribeLanguage, Mode=TwoWay}"
-                                  ToolTip="Automatic detection listens to the start of the speech. Choosing the language is a little more reliable." />
+                                  ToolTip="Automatic detection takes the language of most of the speech (or of its start, with the option below off). Choosing the language is a little more reliable." />
                         <RadioButton GroupName="TranscribeTask" IsChecked="{Binding WriteSpokenLanguage, Mode=TwoWay}" Margin="0,12,0,4">
                             <TextBlock Text="Write it out in the language spoken" TextWrapping="Wrap" />
                         </RadioButton>
@@ -50,6 +50,10 @@
                                      ToolTip="Whisper translates as it listens. Use Large v3 or Medium for this; Large v3 Turbo translates poorly.">
                             <TextBlock Text="Translate it into English subtitles" TextWrapping="Wrap" />
                         </RadioButton>
+                        <CheckBox IsChecked="{Binding TranscribeSceneLanguages, Mode=TwoWay}" Margin="0,10,0,0"
+                                  ToolTip="Whisper checks the language of each stretch of speech. Scenes in another language (Japanese scenes in a Korean drama) are written in that language instead of being forced into the main one. Adds about a second per half minute of speech.">
+                            <TextBlock Text="Scenes in other languages: write each in its own language" TextWrapping="Wrap" />
+                        </CheckBox>
                         <TextBlock Text="How much" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
                         <ComboBox ItemsSource="{Binding TranscribeParts}" SelectedItem="{Binding SelectedTranscribePart, Mode=TwoWay}"
                                   ToolTip="Try the first 2 minutes to check the model, language and speed before a whole episode" />

@@ -140,6 +140,19 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Scenes in another language (Japanese in a Korean drama) are transcribed in their own language.</summary>
+    public bool TranscribeSceneLanguages
+    {
+        get => _s.Config.TranscribeSceneLanguages;
+        set
+        {
+            if (_s.Config.TranscribeSceneLanguages == value) return;
+            _s.Config.TranscribeSceneLanguages = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
     public bool WriteSpokenLanguage
     {
         get => !TranslateToEnglish;
@@ -503,6 +516,7 @@ public sealed partial class MainViewModel
             }
             modelPath = model.Path;
             local.Device = ResolveWhisperDevice();
+            local.DetectSceneLanguages = TranscribeSceneLanguages;
             // One model in graphics memory at a time: the translator's language model goes first.
             LocalTranslator?.Runner.Release();
         }

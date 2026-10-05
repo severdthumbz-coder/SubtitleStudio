@@ -54,6 +54,14 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
     /// <summary>Find the speech with the Silero detector before Whisper listens (off: loudness only).</summary>
     public bool UseSpeechDetector { get; set; } = true;
 
+    /// <summary>
+    /// Listen for scenes in another language (Japanese scenes in a Korean drama) and transcribe each in its
+    /// own language. Costs one short language check per chunk of speech.
+    /// </summary>
+    public bool DetectSceneLanguages { get; set; } = true;
+
+    public SceneLanguages.Options SceneOptions { get; set; } = new();
+
     public TranscriptionStats? LastStats { get; private set; }
 
     public IWhisperRunner Runner => _runner;
@@ -111,11 +119,27 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
                 + $"long silences found by loudness are skipped ({Format(plan.SilenceSkipped)}).");
         _log?.Detail("Transcribe", $"{plan.Chunks.Count} pieces for Whisper.");
 
-        // 4. Speech to text.
+        // 4. The language of each scene (when asked): chunks in another language get that language.
         clock.Restart();
+        IReadOnlyList<SpeechChunk> chunks = plan.Chunks;
+        string? sceneMain = null;
+        double transcribeFrom = 0.1;
+        if (DetectSceneLanguages && chunks.Count > 0)
+        {
+            var scenes = await PlanSceneLanguagesAsync(chunks, language, run, progress, ct).ConfigureAwait(false);
+            if (scenes is { } found)
+            {
+                sceneMain = found.Main;
+                chunks = found.Chunks.Select(c => c.Chunk).ToList();
+                run = run with { Language = found.Main, ChunkLanguages = found.Chunks.Select(c => c.Language).ToList() };
+                transcribeFrom = 0.15;
+            }
+        }
+
+        // 5. Speech to text.
         var segments = new List<WhisperSegment>();
-        var chunkStarts = new double[plan.Chunks.Count + 1];
-        for (int c = 0; c < plan.Chunks.Count; c++) chunkStarts[c + 1] = chunkStarts[c] + plan.Chunks[c].Audio.Length;
+        var chunkStarts = new double[chunks.Count + 1];
+        for (int c = 0; c < chunks.Count; c++) chunkStarts[c + 1] = chunkStarts[c] + chunks[c].Audio.Length;
         double totalSamples = Math.Max(1, chunkStarts[^1]);
         // Updated from whisper.cpp's thread and read by progress callbacks: plain values, no shared list.
         // whisper.cpp's progress (its own thread) and new segments (this loop) both move the bar: one lock,
@@ -129,24 +153,24 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
             {
                 if (f < done) f = done;
                 done = Math.Clamp(f, 0, 1);
-                progress?.Report(new EngineProgress(0.1 + 0.9 * done, $"Transcribing on {device}... {done:P0}", latest));
+                progress?.Report(new EngineProgress(transcribeFrom + (1 - transcribeFrom) * done, $"Transcribing on {device}... {done:P0}", latest));
             }
         }
         var chunkProgress = new InlineProgress<(int Chunk, int Percent)>(p =>
             Advance((chunkStarts[p.Chunk] + (chunkStarts[p.Chunk + 1] - chunkStarts[p.Chunk]) * p.Percent / 100.0) / totalSamples));
-        var audioChunks = plan.Chunks.Select(c => c.Audio).ToList();
+        var audioChunks = chunks.Select(c => c.Audio).ToList();
         await foreach (var raw in _runner.RunAsync(audioChunks, run, chunkProgress, ct).ConfigureAwait(false))
         {
-            var chunk = plan.Chunks[raw.Chunk];
+            var chunk = chunks[raw.Chunk];
             var segment = ToSource(raw, chunk);
             segments.Add(segment);
             var text = TranscriptShaper.Clean(segment.Text);
             if (text.Length > 0) lock (gate) latest = text;
             Advance((chunkStarts[raw.Chunk] + Math.Min(raw.End.TotalSeconds * AudioExtractor.SampleRate, chunk.Audio.Length)) / totalSamples);
         }
-        string? detected = _runner.DetectedLanguage?.Code ?? segments.Select(x => x.Language).FirstOrDefault(l => !string.IsNullOrEmpty(l));
-        if (language is null && _runner.DetectedLanguage is { } found)
-            _log?.Info("Transcribe", $"Language detected: {WhisperLanguages.NameOf(found.Code)} ({found.Probability:P0} sure).");
+        string? detected = sceneMain ?? _runner.DetectedLanguage?.Code ?? segments.Select(x => x.Language).FirstOrDefault(l => !string.IsNullOrEmpty(l));
+        if (language is null && sceneMain is null && _runner.DetectedLanguage is { } runnerFound)
+            _log?.Info("Transcribe", $"Language detected: {WhisperLanguages.NameOf(runnerFound.Code)} ({runnerFound.Probability:P0} sure).");
         var transcribing = clock.Elapsed;
 
         var shaped = TranscriptShaper.Shape(segments, Shape, options.Start ?? TimeSpan.Zero, plan.Active);
@@ -165,6 +189,61 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
         var doc = new SubtitleDocument { Language = docLanguage, Format = "srt" };
         doc.Cues.AddRange(shaped.Cues);
         return doc;
+    }
+
+    /// <summary>
+    /// Whisper's language check on every chunk, then on each stretch of the chunks it wasn't sure about.
+    /// Null when the runner can't check languages or no chunk was clear enough to know the main language.
+    /// </summary>
+    private async Task<(string Main, IReadOnlyList<SceneChunk> Chunks)?> PlanSceneLanguagesAsync(IReadOnlyList<SpeechChunk> chunks, string? chosen,
+        WhisperRunOptions run, IProgress<EngineProgress>? progress, CancellationToken ct)
+    {
+        var o = SceneOptions;
+        // The language was chosen: another language has to be very clear before it overrides that choice.
+        if (chosen is not null) o = o with { SureChunk = Math.Max(o.SureChunk, 0.95), SurePiece = Math.Max(o.SurePiece, 0.95) };
+        progress?.Report(new EngineProgress(0.1, "Listening for the language of each scene..."));
+        var clock = Stopwatch.StartNew();
+        var perChunk = await _runner.DetectLanguagesAsync(chunks.Select(c => c.Audio).ToList(), run,
+            new InlineProgress<int>(i => progress?.Report(new EngineProgress(0.1 + 0.04 * i / chunks.Count, $"Listening for the language of each scene... {i} of {chunks.Count}"))), ct).ConfigureAwait(false);
+        if (perChunk is null) return null;
+        var main = chosen ?? SceneLanguages.MainLanguage(chunks, perChunk, o);
+        if (main is null)
+        {
+            _log?.Info("Transcribe", "Couldn't tell the language of the scenes clearly; Whisper detects it from the start of the speech instead.");
+            return null;
+        }
+        if (chosen is null)
+            _log?.Info("Transcribe", $"Language detected: {WhisperLanguages.NameOf(main)} (most of the speech).");
+
+        // Unsure chunks: each stretch long enough to judge, in one go.
+        var unsure = Enumerable.Range(0, chunks.Count).Where(i => SceneLanguages.IsUnsure(chunks[i], perChunk[i], o)).ToList();
+        var stretches = unsure.SelectMany(i => SceneLanguages.JudgedPieces(chunks[i], o).Select(p => (Chunk: i, Piece: p))).ToList();
+        var perStretch = stretches.Count == 0 ? Array.Empty<(string, float)?>()
+            : await _runner.DetectLanguagesAsync(stretches.Select(s => SceneLanguages.Slice(chunks[s.Chunk], s.Piece, s.Piece).Audio).ToList(), run,
+                new InlineProgress<int>(i => progress?.Report(new EngineProgress(0.14 + 0.01 * i / stretches.Count, $"Listening for the language of each scene... {chunks.Count + i} of {chunks.Count + stretches.Count}"))), ct).ConfigureAwait(false)
+              ?? Array.Empty<(string, float)?>();
+
+        var result = new List<SceneChunk>();
+        for (int i = 0; i < chunks.Count; i++)
+        {
+            if (!unsure.Contains(i))
+            {
+                result.Add(new SceneChunk(chunks[i], SceneLanguages.ChunkLanguage(chunks[i], perChunk[i], main, o)));
+                continue;
+            }
+            var pieceLanguages = new (string Code, float Probability)?[chunks[i].Pieces.Count];
+            for (int k = 0; k < stretches.Count && k < perStretch.Count; k++)
+                if (stretches[k].Chunk == i) pieceLanguages[stretches[k].Piece] = perStretch[k];
+            result.AddRange(SceneLanguages.Split(chunks[i], pieceLanguages, main, o));
+        }
+
+        var others = SceneLanguages.OtherScenes(result, main);
+        _log?.Info("Transcribe", $"Languages checked for {chunks.Count} chunks" + (stretches.Count > 0 ? $" and {stretches.Count} stretches of {unsure.Count} mixed or unclear chunks" : string.Empty)
+            + $" in {clock.Elapsed.TotalSeconds:0.0} s: " + (others.Count == 0
+                ? $"all {WhisperLanguages.NameOf(main)}."
+                : $"{WhisperLanguages.NameOf(main)}, with {others.Count} scene{(others.Count == 1 ? "" : "s")} in another language: "
+                  + string.Join(", ", others.Select(x => $"{WhisperLanguages.NameOf(x.Language)} {Format(x.Start)}–{Format(x.End)}")) + "."));
+        return (main, result);
     }
 
     /// <summary>Segment and token times from chunk time to source time.</summary>
