@@ -173,44 +173,57 @@ public static partial class SubtitleTranslationPrompt
         => $"This line may be only part of a sentence that goes on in the next lines or began in the earlier ones. Translate only the words of this line into {targetLanguage}, as its own part of the sentence: nothing from the lines before or after it.";
 
     /// <summary>
-    /// The check after translating: the model reads each original line with its translation and answers
-    /// only y or n (does the translation say what its own line says).
+    /// The check after translating: the model gets the original lines numbered, in order, and their
+    /// translations lettered and shuffled, and says for each translation which original it translates.
+    /// Shuffled, it can't just answer 1, 2, 3 in order; it has to read each one. A translation matched to a
+    /// different line than its own is a line that slid.
     /// </summary>
     public static string CheckSystemMessage(string? sourceLanguage, string targetLanguage)
     {
         var from = string.IsNullOrWhiteSpace(sourceLanguage) ? "another language" : sourceLanguage;
-        return $"You check film and TV subtitle translations from {from} into {targetLanguage}.\n"
-             + "Each numbered line is an original subtitle line, \" => \", and its translation. Lines can be parts of one sentence.\n"
-             + "For each number answer y if the translation says what its own original line says (other wording, a different word order or a free translation is fine; half a sentence translated as half a sentence is fine).\n"
-             + "Answer n if the translation says what a different line says, has words that belong to the line before or after it, or leaves out most of its own line.\n"
-             + "Answer with the number, \"|\" and y or n, one per line, nothing else.";
+        return $"You match film and TV subtitle translations from {from} into {targetLanguage} to their original lines.\n"
+             + $"You get the original lines, numbered and in order, then translations into {targetLanguage}, lettered and in mixed order.\n"
+             + "For each letter, answer with the number of the original line whose meaning that translation gives. Lines can be parts of one sentence; a free translation still belongs to the line it translates.\n"
+             + "Answer each letter on its own line: the letter, \"|\", the number. Nothing else.";
     }
 
-    public static string CheckMessage(IReadOnlyList<(string Source, string Translation)> pairs, bool noThinking = false)
+    public static string CheckMessage(IReadOnlyList<string> originals, IReadOnlyList<string> translations, bool noThinking = false)
     {
-        var sb = new StringBuilder("Check:\n");
-        for (int i = 0; i < pairs.Count; i++)
-            sb.Append(i + 1).Append('|').Append(pairs[i].Source).Append(" => ").Append(pairs[i].Translation.Replace('\n', ' ')).Append('\n');
+        var sb = new StringBuilder("Original lines:\n");
+        for (int i = 0; i < originals.Count; i++) sb.Append(i + 1).Append('|').Append(originals[i]).Append('\n');
+        sb.Append("\nTranslations (mixed order):\n");
+        for (int i = 0; i < translations.Count; i++) sb.Append(Letter(i)).Append('|').Append(translations[i].Replace('\n', ' ')).Append('\n');
         if (noThinking) sb.Append("/no_think");
         return sb.ToString().TrimEnd('\n');
     }
 
-    /// <summary>GBNF for the check: exactly <paramref name="count"/> numbered answers, each y or n.</summary>
-    public static string CheckGrammar(int count)
+    /// <summary>A, B, ... Z (the check takes at most 26 translations at a time).</summary>
+    public static char Letter(int i) => (char)('A' + i);
+
+    /// <summary>GBNF for the check: one answer per letter, in order, each the number of one of the originals.</summary>
+    public static string CheckGrammar(int translations, int originals)
     {
         var sb = new StringBuilder("root ::=");
-        for (int i = 1; i <= count; i++) sb.Append(" l").Append(i);
+        for (int i = 0; i < translations; i++) sb.Append(" l").Append(Letter(i));
         sb.Append('\n');
-        for (int i = 1; i <= count; i++) sb.Append('l').Append(i).Append(" ::= \"").Append(i).Append("|\" yn \"\\n\"\n");
-        sb.Append("yn ::= \"y\" | \"n\"\n");
+        for (int i = 0; i < translations; i++) sb.Append('l').Append(Letter(i)).Append(" ::= \"").Append(Letter(i)).Append("|\" num \"\\n\"\n");
+        sb.Append("num ::=").Append(string.Join(" |", Enumerable.Range(1, originals).Select(n => $" \"{n}\""))).Append('\n');
         return sb.ToString();
     }
 
-    /// <summary>The check's answers: true where the translation was judged not to match its line (only an exact "n").</summary>
-    public static bool[] ParseCheck(string output, int count)
+    /// <summary>The check's answers: the original's number for each letter (null where it's missing or not a number of an original).</summary>
+    public static int?[] ParseCheck(string output, int translations, int originals)
     {
-        var answers = Parse(output, count);
-        return answers.Select(a => a == "n").ToArray();
+        var result = new int?[translations];
+        foreach (var raw in (output ?? string.Empty).Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length < 3 || line[1] != '|') continue;
+            int k = line[0] - 'A';
+            if (k < 0 || k >= translations || result[k] is not null) continue;
+            if (int.TryParse(line.AsSpan(2).Trim(), out var n) && n >= 1 && n <= originals) result[k] = n;
+        }
+        return result;
     }
 
     /// <summary>

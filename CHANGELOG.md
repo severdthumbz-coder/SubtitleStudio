@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.49] - 2026-10-05
+
+### Changed
+- Translate: the check after translating asks a harder question. In build 48 the model answered y or n for each "original => translation" pair. On E03 it fixed cues 3 to 6, 11 and 24, but said y to cues 7, 9, 10 and 12 to 15, which had still slid by one ("안녕하세요" => "This is my son."). Seeing the pairs in order, it judged the flow rather than each line. Now it gets the original lines numbered and the translations lettered in shuffled order, and has to say which original each translation belongs to. A translation matched to another line is one that slid. The lines from the one before it up to the line it matched are then translated again one at a time, because the line before a slide usually took in its neighbour's words. Each check question also shows the original just before and after its lines, so a line that slid out of the question is caught too.
+- Translate: the check also translates again, one at a time, any line that Review would flag as much longer than the original or as repeating the line before.
+- Translate: if the check answers the same number for every line in a question, those answers are ignored. The model didn't do the task, and every line would otherwise be asked again.
+- Translate: the Log shows how long the first translation took and how long the check and fixes took, separately.
+
 ## [1.0.0.48] - 2026-10-05
 
 ### Changed

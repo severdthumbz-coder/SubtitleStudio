@@ -183,8 +183,13 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         //    split over two cues into the first one, and every later line in the batch then slides up by one.)
         int checkedCount = 0, mismatched = 0, realigned = 0;
         if (CheckAlignment)
+        {
+            var firstPass = clock.Elapsed;
+            _log?.Info("Translate", $"Translated in {Format(firstPass)}; now checking each translation against its original.");
             (checkedCount, mismatched, realigned) = await CheckAndRealignAsync(cues, prepared, todo, translations, system, sourceName, targetName, targetLanguage,
                 noThinking, device, progress, ct).ConfigureAwait(false);
+            _log?.Info("Translate", $"Check and fixes took {Format(clock.Elapsed - firstPass)}.");
+        }
         var translating = clock.Elapsed;
 
         // 4. Back into cues: same times, tags and positions.
@@ -203,7 +208,7 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
             + (LastStats.KeptAsIs > 0 ? $"; {LastStats.KeptAsIs} with nothing to translate (music, symbols) kept as they were" : string.Empty)
             + (failed > 0 ? $"; {failed} couldn't be translated and kept the original text" : string.Empty)
             + (leftoversFixed + leftoversRemaining > 0 ? $"; {leftoversFixed + leftoversRemaining} came back with words in the original script and were asked again ({leftoversRemaining} still have some, listed above)" : string.Empty)
-            + (CheckAlignment ? $"; checked {checkedCount} lines against their originals: {(mismatched == 0 ? "all matched" : $"{mismatched} didn't match their own line, {realigned} translated again on their own (listed above)")}" : string.Empty) + ".");
+            + (CheckAlignment ? $"; checked {checkedCount} lines against their originals: {(mismatched == 0 ? "all matched" : $"{mismatched} translated again on their own, {realigned} of them changed (listed above)")}" : string.Empty) + ".");
         return result;
     }
 
@@ -255,42 +260,72 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         if (translated.Count == 0) return (0, 0, 0);
         progress?.Report(new EngineProgress(0.90, $"Checking the translation on {device}... 0 of {translated.Count}"));
         var checkSystem = SubtitleTranslationPrompt.CheckSystemMessage(sourceName, targetName);
-        var flagged = new List<int>();
+        var position = todo.Select((cue, pos) => (cue, pos)).ToDictionary(p => p.cue, p => p.pos);
+        var slid = new HashSet<int>();
         int checkedCount = 0;
-        int size = Math.Max(1, CheckBatchSize);
+        int size = Math.Clamp(CheckBatchSize, 1, 24);
         for (int start = 0; start < translated.Count; start += size)
         {
             ct.ThrowIfCancellationRequested();
             var batch = translated.Skip(start).Take(size).ToList();
-            var pairs = batch.Select(i => (prepared[i].Text, translations[i]!)).ToList();
+            // The originals: the batch's lines and one more on each side (a line can slide out of the batch).
+            int from = Math.Max(0, position[batch[0]] - 1), to = Math.Min(todo.Count - 1, position[batch[^1]] + 1);
+            var window = todo.Skip(from).Take(to - from + 1).ToList();
+            // The translations shuffled (always the same way for the same lines), so the answer can't just be 1, 2, 3...
+            var rng = new Random(start * 7919 + batch.Count);
+            var shown = batch.OrderBy(_ => rng.Next()).ToList();
             try
             {
-                var output = await _runner.CompleteAsync(checkSystem, SubtitleTranslationPrompt.CheckMessage(pairs, noThinking),
-                    SubtitleTranslationPrompt.CheckGrammar(batch.Count), 16 + batch.Count * 8, null, ct).ConfigureAwait(false);
-                var wrong = SubtitleTranslationPrompt.ParseCheck(output, batch.Count);
-                for (int k = 0; k < batch.Count; k++)
-                    if (wrong[k]) flagged.Add(batch[k]);
+                var output = await _runner.CompleteAsync(checkSystem,
+                    SubtitleTranslationPrompt.CheckMessage(window.Select(i => prepared[i].Text).ToList(), shown.Select(i => translations[i]!).ToList(), noThinking),
+                    SubtitleTranslationPrompt.CheckGrammar(shown.Count, window.Count), 16 + shown.Count * 6, null, ct).ConfigureAwait(false);
+                var answers = SubtitleTranslationPrompt.ParseCheck(output, shown.Count, window.Count);
+                // The same number for every translation isn't an answer (a model that didn't follow the task).
+                if (shown.Count >= 4 && answers.All(a => a is not null) && answers.Distinct().Count() == 1)
+                {
+                    _log?.Detail("Translate", $"The check gave the same answer for all {shown.Count} lines from cue {cues[batch[0]].Index}; they are left as they are.");
+                    answers = new int?[shown.Count];
+                }
+                for (int k = 0; k < shown.Count; k++)
+                {
+                    if (answers[k] is not { } number) continue;
+                    int own = window.IndexOf(shown[k]), matched = number - 1;
+                    if (matched == own) continue;
+                    // Matched to another line: everything from the line before the earlier of the two to the
+                    // later one has probably slid (the earlier line usually took in its neighbour's words).
+                    for (int w = Math.Max(0, Math.Min(own, matched) - 1); w <= Math.Max(own, matched); w++)
+                        if (translations[window[w]] is not null) slid.Add(window[w]);
+                }
                 checkedCount += batch.Count;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _log?.Detail("Translate", $"Checking {batch.Count} lines failed ({ex.Message}); they are left as they are.");
             }
-            double share = flagged.Count > 0 ? 0.05 : 0.10;
-            progress?.Report(new EngineProgress(0.90 + share * Math.Min(1, (start + batch.Count) / (double)translated.Count),
+            progress?.Report(new EngineProgress(0.90 + 0.05 * Math.Min(1, (start + batch.Count) / (double)translated.Count),
                 $"Checking the translation on {device}... {Math.Min(translated.Count, start + batch.Count)} of {translated.Count}"));
         }
+
+        // The Review's own checks too: a line much longer than usual (it took in the next lines) or repeating the one before.
+        var reviewFlags = TranslationReview.CheckAll(todo.Select(i => (string?)prepared[i].Text).ToList(), todo.Select(i => translations[i] ?? string.Empty).ToList(), targetLanguage);
+        var odd = new HashSet<int>();
+        for (int p = 0; p < todo.Count; p++)
+            if (translations[todo[p]] is not null && reviewFlags[p]?.Kind is ReviewFlagKind.TooLong or ReviewFlagKind.Repeated && !slid.Contains(todo[p])) odd.Add(todo[p]);
+
+        var flagged = slid.Concat(odd).OrderBy(i => position[i]).ToList();
         if (flagged.Count == 0)
         {
             _log?.Info("Translate", $"Check: all {checkedCount} translations match their own lines.");
+            progress?.Report(new EngineProgress(1, $"Checking the translation on {device}... done"));
             return (checkedCount, 0, 0);
         }
-        _log?.Info("Translate", $"Check: {flagged.Count} translation{(flagged.Count == 1 ? "" : "s")} didn't match their own line (cue{(flagged.Count == 1 ? "" : "s")} "
-            + string.Join(", ", flagged.Select(i => cues[i].Index)) + "); translating them again one at a time.");
+        _log?.Info("Translate", $"Check: {flagged.Count} line{(flagged.Count == 1 ? "" : "s")} to translate again one at a time: "
+            + (slid.Count > 0 ? $"{slid.Count} matched another line's original or sit next to one that did (cue{(slid.Count == 1 ? "" : "s")} {string.Join(", ", slid.OrderBy(i => position[i]).Select(i => cues[i].Index))})" : string.Empty)
+            + (slid.Count > 0 && odd.Count > 0 ? "; " : string.Empty)
+            + (odd.Count > 0 ? $"{odd.Count} much longer than the original or repeating the line before (cue{(odd.Count == 1 ? "" : "s")} {string.Join(", ", odd.OrderBy(i => position[i]).Select(i => cues[i].Index))})" : string.Empty) + ".");
 
         // Each flagged line on its own: the accepted lines before it (with the ones fixed just now) and the next lines as context.
         int realigned = 0, n = 0;
-        var position = todo.Select((cue, pos) => (cue, pos)).ToDictionary(p => p.cue, p => p.pos);
         foreach (var i in flagged)
         {
             ct.ThrowIfCancellationRequested();
