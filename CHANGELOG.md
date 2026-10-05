@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.48] - 2026-10-05
+
+### Changed
+- Translate: build 47's pinning is taken out again. Making the model copy each original line before translating it took 15:56 on E03 instead of 5:05, and lines still slid: Whisper had split one sentence over cues 3 and 4, the model translated the whole sentence on line 3, and lines 4 to 15 each took the meaning of the next one. Copying the line didn't stop that, so it was only cost. Translation is back to the faster numbered lines.
+- Translate: the instructions now say plainly that a line can be only part of a sentence, and that each line's own words are translated on that line, even when that leaves half a sentence.
+
+### Added
+- Translate: a check after translating. The model reads each original line with its translation, 16 at a time, and answers only y or n: does this translation say what its own line says? A line marked n is translated again on its own, with the lines before it (including any just fixed) and the next three lines as context, and told it may be half a sentence. A slip like E03's cues 4 to 15 is caught line by line instead of carrying through the batch.
+  - The Log lists the cues that didn't match and each change ("Cue 4: ... → ..."), and the summary line says how many lines were checked and fixed.
+  - The check adds a short pass at the end of the progress bar. My estimate is about a quarter to a third more time than before build 47 (roughly 6½ to 7 minutes for E03), but my build-47 estimate was wrong, so the Log's time is the real answer.
+
 ## [1.0.0.47] - 2026-10-05
 
 ### Fixed
