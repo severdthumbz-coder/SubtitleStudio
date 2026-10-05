@@ -95,8 +95,9 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
             var lines = batch.Select(i => prepared[i].Text).ToList();
             var context = history.Skip(Math.Max(0, history.Count - ContextLines)).ToList();
             var user = SubtitleTranslationPrompt.UserMessage(context, lines, noThinking);
-            var grammar = SubtitleTranslationPrompt.Grammar(lines.Count);
-            int maxTokens = 32 + lines.Sum(l => Math.Max(48, l.Length * 3));
+            // Each answer starts with its own line copied (see PinnedGrammar): no translation slides into the next line.
+            var grammar = SubtitleTranslationPrompt.PinnedGrammar(lines);
+            int maxTokens = 32 + lines.Sum(l => Math.Max(48, l.Length * 3) + l.Length * 2 + 8);
             string output;
             try
             {
@@ -107,7 +108,7 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
                 _log?.Detail("Translate", $"A batch of {batch.Count} lines failed ({ex.Message}); trying in smaller pieces.");
                 output = string.Empty;
             }
-            var parsed = SubtitleTranslationPrompt.Parse(output, lines.Count);
+            var parsed = SubtitleTranslationPrompt.ParsePinned(output, lines);
             if (parsed.Any(p => p.Length == 0))
             {
                 if (batch.Count > 1)
@@ -133,7 +134,8 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
                     string again;
                     try
                     {
-                        again = SubtitleTranslationPrompt.Parse(await _runner.CompleteAsync(system, retryUser, SubtitleTranslationPrompt.Grammar(1), 32 + Math.Max(48, lines[k].Length * 3), null, ct).ConfigureAwait(false), 1)[0];
+                        var one = new[] { lines[k] };
+                        again = SubtitleTranslationPrompt.ParsePinned(await _runner.CompleteAsync(system, retryUser, SubtitleTranslationPrompt.PinnedGrammar(one), 40 + Math.Max(48, lines[k].Length * 3) + lines[k].Length * 2, null, ct).ConfigureAwait(false), one)[0];
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -213,12 +215,17 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         var output = await _runner.CompleteAsync(system, user, SubtitleTranslationPrompt.Grammar(count), 32 + count * Math.Max(64, prepared.Text.Length * 3), null, ct).ConfigureAwait(false);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<string>();
+        var leftovers = new List<string>();
         foreach (var line in SubtitleTranslationPrompt.Parse(output, count))
         {
             if (line.Length == 0) continue;
             var restored = SubtitleTranslationPrompt.Restore(prepared, line, MaxColumns);
-            if (seen.Add(restored)) result.Add(restored);
+            if (!seen.Add(restored)) continue;
+            // Words left in the original script ("Han 선생님") go last, and only when there aren't two clean ones.
+            if (SubtitleTranslationPrompt.HasLeftoverScript(restored, targetLanguage)) leftovers.Add(restored);
+            else result.Add(restored);
         }
+        if (result.Count < 2) result.AddRange(leftovers);
         _log?.Info("Translate", $"Suggestions for \"{prepared.Text}\"" + (string.IsNullOrWhiteSpace(hint) ? "" : $" (note: {hint.Trim()})") + ": "
             + string.Join(" | ", result.Select(r => r.Replace("\n", " "))));
         return result;

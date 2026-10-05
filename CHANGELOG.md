@@ -5,6 +5,16 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.47] - 2026-10-05
+
+### Fixed
+- Translate: a translation could slide one line along. On E03, cue 24 took in cue 25's "Boston", then cue 25 got cue 26's meaning ("I hear they won't announce it until next week") and cue 26 got a line from further on ("I did get things ready, just in case"). The grammar made sure every line got an answer, but not that the answer was for that line. Now each answer has to start with its own original line, copied exactly (the grammar forces the copy), before its translation: "25|금방 보스턴 갈 건데 뭐 하러. => I'm off to Boston soon, why bother?". A translation can't drift onto the next line any more.
+  - The cost is speed: the model also writes each original line out again. Expect about 7½ to 9 minutes for an hour-long episode, instead of about 5 (an estimate; the Log shows the real time).
+  - Lines asked again for leftover words use the same pinning.
+
+### Changed
+- Review translation: a suggestion that still has words in the original script ("Han 선생님 sent me a message.") is dropped when two clean ones came back, and otherwise shown last.
+
 ## [1.0.0.46] - 2026-10-04
 
 ### Fixed

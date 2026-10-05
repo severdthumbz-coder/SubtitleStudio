@@ -141,6 +141,7 @@ public static partial class SubtitleTranslationPrompt
         if (names is { Count: > 0 })
             sb.Append($"- Names in this show, always spelled exactly like this: {string.Join(", ", names.Take(60))}.\n");
         sb.Append("- Plain text only: no asterisks, quotes or other markup for emphasis.\n")
+          .Append("- Answer each numbered line as: its number, \"|\", the line copied exactly as given, \" => \", then its translation. Translate that line only; never move words to or from the lines next to it.\n")
           .Append("- \" / \" inside a line separates two speakers: keep it, with one part per speaker.\n")
           .Append("- Lines under \"Earlier lines\" were already translated: they are only there for context. Translate only the lines under \"Translate\".");
         return sb.ToString();
@@ -198,6 +199,56 @@ public static partial class SubtitleTranslationPrompt
         for (int i = 1; i <= count; i++) sb.Append('l').Append(i).Append(" ::= \"").Append(i).Append("|\" text \"\\n\"\n");
         sb.Append("text ::= [^|\\n] [^|\\n]{0,400}\n");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// GBNF that pins each answer to its line: "1|" then the original line copied exactly, then " => " and
+    /// the translation. Copying the line first keeps every translation with its own line (without it, a
+    /// model can slide a line's meaning into the one before and shift the rest of the batch by one).
+    /// </summary>
+    public static string PinnedGrammar(IReadOnlyList<string> sources)
+    {
+        var sb = new StringBuilder("root ::=");
+        for (int i = 1; i <= sources.Count; i++) sb.Append(" l").Append(i);
+        sb.Append('\n');
+        for (int i = 1; i <= sources.Count; i++)
+            sb.Append('l').Append(i).Append(" ::= \"").Append(i).Append('|').Append(GbnfEscape(sources[i - 1])).Append(" => \" text \"\\n\"\n");
+        sb.Append("text ::= [^|\\n] [^|\\n]{0,400}\n");
+        return sb.ToString();
+    }
+
+    private static string GbnfEscape(string text)
+    {
+        var sb = new StringBuilder(text.Length + 8);
+        foreach (var c in text)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': break;
+                case '\t': sb.Append("\\t"); break;
+                default: sb.Append(c); break;
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>The answer to a pinned request: the translation after each copied line (empty where a line is missing).</summary>
+    public static IReadOnlyList<string> ParsePinned(string output, IReadOnlyList<string> sources)
+    {
+        var raw = Parse(output, sources.Count);
+        var result = new string[sources.Count];
+        for (int i = 0; i < raw.Count; i++)
+        {
+            var line = raw[i];
+            var echo = sources[i].Trim() + " => ";
+            if (line.StartsWith(echo, StringComparison.Ordinal)) line = line[echo.Length..];
+            else if (line.IndexOf(" => ", StringComparison.Ordinal) is var at and >= 0 && at >= sources[i].Trim().Length - 1) line = line[(at + 4)..];
+            result[i] = line.Trim();
+        }
+        return result;
     }
 
     /// <summary>The model's answer as one translation per line (empty where a line is missing).</summary>
