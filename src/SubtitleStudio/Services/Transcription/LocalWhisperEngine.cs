@@ -205,7 +205,7 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
     {
         var o = SceneOptions;
         // The language was chosen: another language has to be very clear before it overrides that choice.
-        if (chosen is not null) o = o with { SureChunk = Math.Max(o.SureChunk, 0.95), SurePiece = Math.Max(o.SurePiece, 0.95) };
+        if (chosen is not null) o = o with { SwitchChunk = Math.Max(o.SwitchChunk, 0.95), SurePiece = Math.Max(o.SurePiece, 0.95) };
         progress?.Report(new EngineProgress(0.1, "Listening for the language of each scene..."));
         var clock = Stopwatch.StartNew();
         var perChunk = await _runner.DetectLanguagesAsync(chunks.Select(c => c.Audio).ToList(), run,
@@ -223,13 +223,16 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
             _log?.Info("Transcribe", $"Language detected: {WhisperLanguages.NameOf(main)} (most of the speech).");
 
         // Unsure chunks: each stretch long enough to judge, in one go.
-        var unsure = Enumerable.Range(0, chunks.Count).Where(i => SceneLanguages.IsUnsure(chunks[i], perChunk[i], o)).ToList();
+        var unsure = Enumerable.Range(0, chunks.Count).Where(i => SceneLanguages.IsUnsure(chunks[i], perChunk[i], main, o)).ToList();
         var stretches = unsure.SelectMany(i => SceneLanguages.JudgedPieces(chunks[i], o).Select(p => (Chunk: i, Piece: p))).ToList();
         var perStretch = stretches.Count == 0 ? Array.Empty<(string, float)?>()
             : await _runner.DetectLanguagesAsync(stretches.Select(s => SceneLanguages.Slice(chunks[s.Chunk], s.Piece, s.Piece).Audio).ToList(), run,
                 new InlineProgress<int>(i => progress?.Report(new EngineProgress(0.14 + 0.01 * i / stretches.Count, $"Listening for the language of each scene... {chunks.Count + i} of {chunks.Count + stretches.Count}"))), ct).ConfigureAwait(false)
               ?? Array.Empty<(string, float)?>();
 
+        if (stretches.Count > 0)
+            _log?.Detail("Transcribe", "Language of each stretch in the unclear chunks: " + string.Join("; ", stretches.Select((st, k) =>
+                $"{Format(SceneLanguages.Slice(chunks[st.Chunk], st.Piece, st.Piece).SourceStart)} " + (k < perStretch.Count && perStretch[k] is { } d ? $"{d.Code} {d.Probability:P0}" : "?"))));
         var result = new List<SceneChunk>();
         for (int i = 0; i < chunks.Count; i++)
         {

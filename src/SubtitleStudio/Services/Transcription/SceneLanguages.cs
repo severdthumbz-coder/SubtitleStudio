@@ -14,8 +14,15 @@ public static class SceneLanguages
 {
     public sealed record Options
     {
-        /// <summary>How sure Whisper must be to switch a whole chunk to another language.</summary>
+        /// <summary>How sure Whisper must be of the main language for a chunk to count as all in it.</summary>
         public double SureChunk { get; init; } = 0.8;
+
+        /// <summary>
+        /// How sure Whisper must be of another language to switch a whole chunk (of 5 seconds or more) to it.
+        /// Lower than <see cref="SureChunk"/>: on Hyper Knife E03 the Japanese scenes came out at 56–70%
+        /// Japanese and the English speech at 74% English, while no Korean chunk was ever heard as another language.
+        /// </summary>
+        public double SwitchChunk { get; init; } = 0.5;
 
         /// <summary>How sure for one stretch of speech (short, so harder to judge).</summary>
         public double SurePiece { get; init; } = 0.9;
@@ -41,10 +48,13 @@ public static class SceneLanguages
     }
 
     /// <summary>Chunks worth judging stretch by stretch: enough speech, more than one stretch, and Whisper not sure of the whole.</summary>
-    public static bool IsUnsure(SpeechChunk chunk, (string Code, float Probability)? detected, Options? options = null)
+    public static bool IsUnsure(SpeechChunk chunk, (string Code, float Probability)? detected, string main, Options? options = null)
     {
         options ??= new Options();
-        return chunk.Pieces.Count >= 2 && Speech(chunk) >= options.MinChunk && (detected is null || detected.Value.Probability < options.SureChunk);
+        if (chunk.Pieces.Count < 2 || Speech(chunk) < options.MinChunk) return false;
+        if (detected is not { } d) return true;
+        if (d.Code == main) return d.Probability < options.SureChunk;
+        return ChunkLanguage(chunk, detected, main, options) == main; // another language, but not clear enough to switch the whole chunk
     }
 
     /// <summary>The stretches of a chunk long enough to judge on their own.</summary>
@@ -55,14 +65,15 @@ public static class SceneLanguages
             if (Seconds(chunk.Pieces[p].Length) >= options.MinPiece) yield return p;
     }
 
-    /// <summary>A sure chunk: its language (the main language for very short chunks or when not sure; under 5 seconds it must be as sure as a stretch).</summary>
+    /// <summary>A chunk's language: another language when Whisper hears it clearly enough (<see cref="Options.SwitchChunk"/>; under 5 seconds as sure as a stretch), else the main one.</summary>
     public static string ChunkLanguage(SpeechChunk chunk, (string Code, float Probability)? detected, string main, Options? options = null)
     {
         options ??= new Options();
         var speech = Speech(chunk);
+        if (detected is not { } d || d.Code == main || speech < options.MinChunk) return main;
         // A short chunk is harder to judge: as sure as a single stretch has to be.
-        double sure = speech < TimeSpan.FromSeconds(5) ? Math.Max(options.SureChunk, options.SurePiece) : options.SureChunk;
-        return detected is { } d && d.Probability >= sure && speech >= options.MinChunk ? d.Code : main;
+        double sure = speech < TimeSpan.FromSeconds(5) ? Math.Max(options.SwitchChunk, options.SurePiece) : options.SwitchChunk;
+        return d.Probability >= sure ? d.Code : main;
     }
 
     /// <summary>

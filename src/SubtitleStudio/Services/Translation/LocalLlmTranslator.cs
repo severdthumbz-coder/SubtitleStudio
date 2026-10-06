@@ -262,6 +262,7 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
         var checkSystem = SubtitleTranslationPrompt.CheckSystemMessage(sourceName, targetName);
         var position = todo.Select((cue, pos) => (cue, pos)).ToDictionary(p => p.cue, p => p.pos);
         var slid = new HashSet<int>();
+        var misplaced = new List<(int Own, int Matched)>();
         int checkedCount = 0;
         int size = Math.Clamp(CheckBatchSize, 1, 24);
         for (int start = 0; start < translated.Count; start += size)
@@ -286,16 +287,10 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
                     _log?.Detail("Translate", $"The check gave the same answer for all {shown.Count} lines from cue {cues[batch[0]].Index}; they are left as they are.");
                     answers = new int?[shown.Count];
                 }
+                // Kept as positions in the whole list, so a slip that runs across two check questions is seen as one.
                 for (int k = 0; k < shown.Count; k++)
-                {
-                    if (answers[k] is not { } number) continue;
-                    int own = window.IndexOf(shown[k]), matched = number - 1;
-                    if (matched == own) continue;
-                    // Matched to another line: everything from the line before the earlier of the two to the
-                    // later one has probably slid (the earlier line usually took in its neighbour's words).
-                    for (int w = Math.Max(0, Math.Min(own, matched) - 1); w <= Math.Max(own, matched); w++)
-                        if (translations[window[w]] is not null) slid.Add(window[w]);
-                }
+                    if (answers[k] is { } number && number - 1 != window.IndexOf(shown[k]))
+                        misplaced.Add((position[shown[k]], position[window[number - 1]]));
                 checkedCount += batch.Count;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -305,6 +300,9 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
             progress?.Report(new EngineProgress(0.90 + 0.05 * Math.Min(1, (start + batch.Count) / (double)translated.Count),
                 $"Checking the translation on {device}... {Math.Min(translated.Count, start + batch.Count)} of {translated.Count}"));
         }
+
+        foreach (var p in SlidLines(misplaced, todo.Count))
+            if (translations[todo[p]] is not null) slid.Add(todo[p]);
 
         // The Review's own checks too: a line much longer than usual (it took in the next lines) or repeating the one before.
         var reviewFlags = TranslationReview.CheckAll(todo.Select(i => (string?)prepared[i].Text).ToList(), todo.Select(i => translations[i] ?? string.Empty).ToList(), targetLanguage);
@@ -361,6 +359,31 @@ public sealed class LocalLlmTranslator : ITranslationService, IDisposable
                 $"{prepared[i].Text}  →  {translations[i]}"));
         }
         return (checkedCount, flagged.Count, realigned);
+    }
+
+    /// <summary>
+    /// Which lines to translate again, from the check's mismatches (positions in the check's list of
+    /// originals). Two or more neighbouring lines each matched one line along the same way are a slip: the
+    /// whole run, the line before it (it usually took in its neighbour's words) and the line after it. A
+    /// mismatch on its own (often two short lines that say the same, "Yeah." and "Yeah, sure.") is only that line.
+    /// </summary>
+    public static IReadOnlyList<int> SlidLines(IReadOnlyList<(int Own, int Matched)> misplaced, int count)
+    {
+        var result = new SortedSet<int>();
+        var byOwn = misplaced.GroupBy(m => m.Own).ToDictionary(g => g.Key, g => g.First().Matched - g.Key);
+        foreach (var (own, matched) in misplaced)
+        {
+            int shift = matched - own;
+            bool inRun = byOwn.TryGetValue(own - 1, out var before) && before == shift || byOwn.TryGetValue(own + 1, out var after) && after == shift;
+            if (!inRun)
+            {
+                result.Add(own);
+                continue;
+            }
+            for (int w = Math.Min(own, matched) - 1; w <= Math.Max(own, matched) + 1; w++)
+                if (w >= 0 && w < count) result.Add(w);
+        }
+        return result.ToList();
     }
 
     private static string Format(TimeSpan t) => t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");

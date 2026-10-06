@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.52] - 2026-10-06
+
+### Changed
+- AI Transcribe: the scene check switches on the numbers E03 actually gave. Build 51's Log listed what Whisper heard in each chunk. Korean chunks came out at 95–100% Korean, and none was ever heard as another language. The Japanese scenes came out at only 56–70% Japanese (30:09–32:02 and 39:47–40:11) and the English speech at 74% English, below the 80% build 50 asked for, so most of the Japanese scenes stayed under Korean. Now a chunk of 5 seconds or more switches when another language is Whisper's top choice at 50% or more. Chunks under 5 seconds still need 90%. A chunk where the main language is unclear (E03's mixed chunks at 51–66% Korean), or where another language comes out under 50%, is still checked stretch by stretch.
+  - With a language chosen in the list instead of "Detect automatically", another language still has to be 95% sure to override the choice. In a real test, a synthesized Korean voice was heard as Thai at over 80%, and an explicit choice shouldn't lose to that. For mixed-language episodes like Hyper Knife, keep "Detect automatically".
+  - The Log's details also list the language of each stretch checked in the unclear chunks.
+- Translate: fewer lines are translated again after the check. Build 51 translated 135 lines again on E03 (8:42), because every mismatch took its neighbours along. Many were short lines that say the same thing ("Yeah." / "Yeah."), which the check confuses with each other. Now only a real slip takes neighbours: two or more lines next to each other, each matched one line along the same way. Then the run, the line before it and the line after it are translated again. A single mismatch on its own is translated again alone. A slip that runs across two check questions is still seen as one.
+
 ## [1.0.0.51] - 2026-10-05
 
 ### Added
