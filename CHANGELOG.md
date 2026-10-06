@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.51] - 2026-10-05
+
+### Added
+- AI Transcribe: lines that mix two scripts are written again. On E03 the scene check found the English award speech (43:46–47:10), and Whisper already writes the long Japanese scenes in Japanese. What was left were single lines where the language changed inside a stretch heard as Korean: "代사에 정보를 주장했습니다." (cue 454), "俺が 얼마나 찌그러졌나 확인하러 왔어?" (460), "韓 선생님 저예요。" (385), "市장 직장에서…" (337). A line with Korean letters together with Japanese letters or Chinese characters now has its own audio checked again, only between the languages its letters suggest (Korean, Japanese and, for Chinese characters alone, Chinese). If it sounds like another language, it is written again in that language at the same time. If it sounds like Korean after all, it is kept. The Log lists each line before and after.
+- AI Transcribe: the Log's details list the language Whisper heard in each chunk, with how sure it was, for tuning the scene check.
+
+### Fixed
+- Review translation: a line spoken in English in Korean subtitles (the award speech, cues 389–390), kept in English in the translation, was flagged "Not translated". When most of the originals are in Korean, Japanese or Chinese, a line without those letters isn't flagged as untranslated any more.
+
 ## [1.0.0.50] - 2026-10-05
 
 ### Added

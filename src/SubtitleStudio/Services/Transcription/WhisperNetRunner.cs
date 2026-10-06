@@ -159,7 +159,7 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
     }
 
     public async Task<IReadOnlyList<(string Code, float Probability)?>?> DetectLanguagesAsync(IReadOnlyList<ReadOnlyMemory<float>> audio, WhisperRunOptions options,
-        IProgress<int>? progress, CancellationToken ct)
+        IProgress<int>? progress, CancellationToken ct, IReadOnlyList<string>? candidates = null)
     {
         var factory = await Task.Run(() => FactoryFor(options), ct).ConfigureAwait(false);
         return await Task.Run(() =>
@@ -171,7 +171,9 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    var (code, probability) = processor.DetectLanguageWithProbability(audio[i].Span);
+                    var (code, probability) = candidates is { Count: > 0 }
+                        ? processor.DetectLanguageWithProbability(audio[i].Span, candidates.ToArray())
+                        : processor.DetectLanguageWithProbability(audio[i].Span);
                     if (!string.IsNullOrEmpty(code)) result[i] = (code, probability);
                 }
                 catch (Exception ex) when (ex is WhisperProcessingException or InvalidOperationException)

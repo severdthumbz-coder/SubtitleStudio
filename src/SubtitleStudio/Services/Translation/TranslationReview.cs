@@ -90,9 +90,15 @@ public static partial class TranslationReview
     {
         var flags = new ReviewFlag?[translations.Count];
         var ratios = new List<double>();
+        // Originals in Korean, Japanese or Chinese: a line without those letters was spoken in another language
+        // (an English speech in a Korean drama), and kept as it is when that's the language translated into.
+        var lettered = originals.Where(o => o is not null && o.Any(char.IsLetter)).Select(o => Plain(o!)).ToList();
+        bool cjkOriginal = lettered.Count(o => SubtitleTranslationPrompt.HasLeftoverScript(o, "en")) * 2 > lettered.Count;
         for (int i = 0; i < translations.Count; i++)
         {
             flags[i] = Check(originals[i], translations[i], i > 0 ? originals[i - 1] : null, i > 0 ? translations[i - 1] : null, targetLanguage);
+            if (flags[i]?.Kind == ReviewFlagKind.Unchanged && cjkOriginal && originals[i] is { } same && !SubtitleTranslationPrompt.HasLeftoverScript(Plain(same), "en"))
+                flags[i] = null;
             if (originals[i] is { } o && Letters(Plain(o)) >= 2 && Letters(Plain(translations[i])) >= 2)
                 ratios.Add(Letters(Plain(translations[i])) / (double)Letters(Plain(o)));
         }

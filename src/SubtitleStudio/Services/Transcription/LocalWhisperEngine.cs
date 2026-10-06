@@ -171,6 +171,11 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
         string? detected = sceneMain ?? _runner.DetectedLanguage?.Code ?? segments.Select(x => x.Language).FirstOrDefault(l => !string.IsNullOrEmpty(l));
         if (language is null && sceneMain is null && _runner.DetectedLanguage is { } runnerFound)
             _log?.Info("Transcribe", $"Language detected: {WhisperLanguages.NameOf(runnerFound.Code)} ({runnerFound.Probability:P0} sure).");
+        // 6. Lines that mix two scripts ("代사에 정보를 주장했습니다."): the language changed inside a stretch that was
+        //    heard in one language. That line's audio is checked again, only between the languages its letters suggest,
+        //    and written again in the language found.
+        if (DetectSceneLanguages && !translate && (sceneMain ?? language ?? detected) is { } lineMain)
+            await RedoMixedLinesAsync(segments, samples, run, lineMain, ct).ConfigureAwait(false);
         var transcribing = clock.Elapsed;
 
         var shaped = TranscriptShaper.Shape(segments, Shape, options.Start ?? TimeSpan.Zero, plan.Active);
@@ -206,6 +211,8 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
         var perChunk = await _runner.DetectLanguagesAsync(chunks.Select(c => c.Audio).ToList(), run,
             new InlineProgress<int>(i => progress?.Report(new EngineProgress(0.1 + 0.04 * i / chunks.Count, $"Listening for the language of each scene... {i} of {chunks.Count}"))), ct).ConfigureAwait(false);
         if (perChunk is null) return null;
+        _log?.Detail("Transcribe", "Language of each chunk: " + string.Join("; ", chunks.Select((c, i) =>
+            $"{Format(c.SourceStart)}–{Format(c.SourceEnd)} " + (perChunk[i] is { } d ? $"{d.Code} {d.Probability:P0}" : "?"))));
         var main = chosen ?? SceneLanguages.MainLanguage(chunks, perChunk, o);
         if (main is null)
         {
@@ -244,6 +251,45 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
                 : $"{WhisperLanguages.NameOf(main)}, with {others.Count} scene{(others.Count == 1 ? "" : "s")} in another language: "
                   + string.Join(", ", others.Select(x => $"{WhisperLanguages.NameOf(x.Language)} {Format(x.Start)}–{Format(x.End)}")) + "."));
         return (main, result);
+    }
+
+    private async Task RedoMixedLinesAsync(List<WhisperSegment> segments, float[] samples, WhisperRunOptions run, string main, CancellationToken ct)
+    {
+        int redone = 0, kept = 0;
+        for (int i = 0; i < segments.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var s = segments[i];
+            var heardIn = run.ChunkLanguages is { } langs && s.Chunk < langs.Count && langs[s.Chunk] is { } l ? l : run.Language ?? main;
+            if (SceneLanguages.MixedScriptCandidates(TranscriptShaper.Clean(s.Text), heardIn) is not { } candidates) continue;
+            long from = Math.Max(0, (long)((s.Start.TotalSeconds - 0.25) * AudioExtractor.SampleRate));
+            long to = Math.Min(samples.Length, (long)((s.End.TotalSeconds + 0.25) * AudioExtractor.SampleRate));
+            if (to - from < AudioExtractor.SampleRate / 2) continue;
+            var audio = new ReadOnlyMemory<float>(samples, (int)from, (int)(to - from));
+            var found = await _runner.DetectLanguagesAsync(new[] { audio }, run, null, ct, candidates).ConfigureAwait(false);
+            if (found is not [{ } f] || f.Code == heardIn)
+            {
+                kept++;
+                _log?.Detail("Transcribe", $"{Format(s.Start)}: \"{s.Text.Trim()}\" mixes scripts, but it sounds like {WhisperLanguages.NameOf(heardIn)}; kept.");
+                continue;
+            }
+            var piece = new SpeechChunk(audio, new[] { new AudioPiece(0, from, (int)(to - from)) });
+            var redo = new List<WhisperSegment>();
+            await foreach (var r in _runner.RunAsync(new[] { audio }, run with { Language = f.Code, ChunkLanguages = null }, null, ct).ConfigureAwait(false))
+                redo.Add(ToSource(r, piece) with { Chunk = s.Chunk });
+            if (!redo.Any(r => TranscriptShaper.Clean(r.Text).Any(char.IsLetter)))
+            {
+                kept++;
+                continue;
+            }
+            segments.RemoveAt(i);
+            segments.InsertRange(i, redo);
+            i += redo.Count - 1;
+            redone++;
+            _log?.Info("Transcribe", $"{Format(s.Start)}: \"{s.Text.Trim()}\" mixed two scripts; written again in {WhisperLanguages.NameOf(f.Code)}: \"{string.Join(" ", redo.Select(r => r.Text.Trim()))}\".");
+        }
+        if (redone + kept > 0)
+            _log?.Info("Transcribe", $"{redone + kept} line(s) mixed two scripts: {redone} written again in the language they sound like, {kept} kept.");
     }
 
     /// <summary>Segment and token times from chunk time to source time.</summary>

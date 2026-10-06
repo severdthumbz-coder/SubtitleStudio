@@ -54,8 +54,9 @@ public interface IWhisperRunner : IDisposable
     /// The language spoken in each piece of audio, and how sure (0..1), with the loaded model; null for a
     /// piece it couldn't judge. Null altogether when this runner can't detect languages.
     /// </summary>
+    /// <param name="candidates">Only these languages are considered (null: all).</param>
     Task<IReadOnlyList<(string Code, float Probability)?>?> DetectLanguagesAsync(IReadOnlyList<ReadOnlyMemory<float>> audio, WhisperRunOptions options,
-        IProgress<int>? progress, CancellationToken ct)
+        IProgress<int>? progress, CancellationToken ct, IReadOnlyList<string>? candidates = null)
         => Task.FromResult<IReadOnlyList<(string Code, float Probability)?>?>(null);
 
     /// <summary>Frees the loaded model (graphics memory) until the next run, e.g. before the translator loads its own.</summary>
