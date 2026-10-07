@@ -205,7 +205,7 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
     {
         var o = SceneOptions;
         // The language was chosen: another language has to be very clear before it overrides that choice.
-        if (chosen is not null) o = o with { SwitchChunk = Math.Max(o.SwitchChunk, 0.95), SurePiece = Math.Max(o.SurePiece, 0.95) };
+        if (chosen is not null) o = o with { SwitchChunk = Math.Max(o.SwitchChunk, 0.95), SurePiece = Math.Max(o.SurePiece, 0.95), SureShortChunk = Math.Max(o.SureShortChunk, 0.95) };
         progress?.Report(new EngineProgress(0.1, "Listening for the language of each scene..."));
         var clock = Stopwatch.StartNew();
         var perChunk = await _runner.DetectLanguagesAsync(chunks.Select(c => c.Audio).ToList(), run,

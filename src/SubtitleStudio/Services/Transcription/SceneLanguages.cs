@@ -24,8 +24,14 @@ public static class SceneLanguages
         /// </summary>
         public double SwitchChunk { get; init; } = 0.5;
 
-        /// <summary>How sure for one stretch of speech (short, so harder to judge).</summary>
-        public double SurePiece { get; init; } = 0.9;
+        /// <summary>
+        /// How sure for one stretch of speech in an unclear chunk: its top choice at 50% or more. On E03 the stretches
+        /// of Japanese came out at 55–93% Japanese, and Korean ones at 72–100% Korean.
+        /// </summary>
+        public double SurePiece { get; init; } = 0.5;
+
+        /// <summary>How sure for a whole chunk with under 5 seconds of speech (short, so harder to judge).</summary>
+        public double SureShortChunk { get; init; } = 0.9;
 
         /// <summary>Chunks with less speech than this stay in the main language.</summary>
         public TimeSpan MinChunk { get; init; } = TimeSpan.FromSeconds(2);
@@ -72,7 +78,7 @@ public static class SceneLanguages
         var speech = Speech(chunk);
         if (detected is not { } d || d.Code == main || speech < options.MinChunk) return main;
         // A short chunk is harder to judge: as sure as a single stretch has to be.
-        double sure = speech < TimeSpan.FromSeconds(5) ? Math.Max(options.SwitchChunk, options.SurePiece) : options.SwitchChunk;
+        double sure = speech < TimeSpan.FromSeconds(5) ? Math.Max(options.SwitchChunk, options.SureShortChunk) : options.SwitchChunk;
         return d.Probability >= sure ? d.Code : main;
     }
 

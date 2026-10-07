@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.53] - 2026-10-06
+
+### Changed
+- AI Transcribe: stretches in unclear chunks switch on the same rule as whole chunks. Build 52 switched four scenes on E03 (Japanese 30:09–32:02, 33:15–33:36 and 39:47–40:11, English 43:46–47:10), and the 30:09 scene now comes out as clean, short Japanese lines (cues 321–337). Inside unclear chunks, though, a stretch still needed 90%. The Japanese stretches there came out at 55–93% Japanese (28:03 at 56%, 41:08 at 88%, 53:34 at 87%), and the Korean stretches at 72–100% Korean. Now a stretch of 1.5 seconds or more switches when another language is its top choice at 50% or more. Whole chunks under 5 seconds still need 90%. With a language chosen in the list, it is still 95% throughout.
+  - Not fixed by this: some Japanese lines around 27:45–28:08 (cues 300–304, "아타시노 코토 오보에테 마스요네?") are written in Korean letters, and Whisper hears those stretches as Korean (75–90%). The translation still understands them ("Do you remember me?"), so the English is right; only the transcript looks odd.
+
+### Fixed
+- Review translation: "much longer than the original" is judged against lines in the same script. Kanji are far denser than Hangul, so a Japanese line in a Korean file looked too long against the Korean lines: cue 329, "5時間23分" → "Five hours, twenty-three minutes.", was flagged and translated again for nothing. Lines are now compared with others in the same script (Korean, Japanese or Chinese characters, other). A script with fewer than 20 lines isn't judged. Digits count with letters, since translations spell numbers out.
+
 ## [1.0.0.52] - 2026-10-06
 
 ### Changed

@@ -89,7 +89,7 @@ public static partial class TranslationReview
     public static ReviewFlag?[] CheckAll(IReadOnlyList<string?> originals, IReadOnlyList<string> translations, string targetLanguage)
     {
         var flags = new ReviewFlag?[translations.Count];
-        var ratios = new List<double>();
+        var ratios = new List<(int Script, double Ratio)>();
         // Originals in Korean, Japanese or Chinese: a line without those letters was spoken in another language
         // (an English speech in a Korean drama), and kept as it is when that's the language translated into.
         var lettered = originals.Where(o => o is not null && o.Any(char.IsLetter)).Select(o => Plain(o!)).ToList();
@@ -100,22 +100,38 @@ public static partial class TranslationReview
             if (flags[i]?.Kind == ReviewFlagKind.Unchanged && cjkOriginal && originals[i] is { } same && !SubtitleTranslationPrompt.HasLeftoverScript(Plain(same), "en"))
                 flags[i] = null;
             if (originals[i] is { } o && Letters(Plain(o)) >= 2 && Letters(Plain(translations[i])) >= 2)
-                ratios.Add(Letters(Plain(translations[i])) / (double)Letters(Plain(o)));
+                ratios.Add((ScriptOf(Plain(o)), Letters(Plain(translations[i])) / (double)Letters(Plain(o))));
         }
-        if (ratios.Count < 20) return flags; // too few lines to know what's usual
-        ratios.Sort();
-        double usual = ratios[ratios.Count / 2];
+        // The usual ratio for each script of the originals: Japanese written in kanji is far denser than Korean in
+        // Hangul ("5時間23分" is 3 letters, "Five hours, twenty-three minutes." 26), so a Japanese scene in a Korean
+        // file is judged against other Japanese lines. A script with too few lines to know what's usual isn't judged.
+        var usual = ratios.GroupBy(r => r.Script).Where(g => g.Count() >= 20)
+            .ToDictionary(g => g.Key, g => { var sorted = g.Select(r => r.Ratio).OrderBy(r => r).ToList(); return sorted[sorted.Count / 2]; });
+        if (usual.Count == 0) return flags;
         for (int i = 0; i < translations.Count; i++)
         {
-            if (flags[i] is not null || originals[i] is not { } o) continue;
+            if (flags[i] is not null || originals[i] is not { } o || !usual.TryGetValue(ScriptOf(Plain(o)), out var ratio)) continue;
             int source = Letters(Plain(o)), target = Letters(Plain(translations[i]));
-            if (source >= 2 && target >= 25 && target > source * usual * 3)
+            if (source >= 2 && target >= 25 && target > source * ratio * 3)
                 flags[i] = new ReviewFlag(ReviewFlagKind.TooLong, "Much longer than the original: it may have taken words from the lines around it.");
         }
         return flags;
     }
 
-    private static int Letters(string text) => text.Count(char.IsLetter);
+    /// <summary>Letters and digits ("5時間23分" counts 6: the translation spells the numbers out).</summary>
+    private static int Letters(string text) => text.Count(char.IsLetterOrDigit);
+
+    /// <summary>0: mostly Hangul; 1: Japanese or Chinese characters; 2: anything else.</summary>
+    private static int ScriptOf(string text)
+    {
+        int hangul = 0, cjk = 0;
+        foreach (var c in text)
+        {
+            if (c is >= '가' and <= '힣') hangul++;
+            else if (c is >= '぀' and <= 'ヿ' or >= '一' and <= '鿿') cjk++;
+        }
+        return hangul > cjk ? 0 : cjk > 0 ? 1 : 2;
+    }
 
     private static bool IsQuestion(string text)
     {
