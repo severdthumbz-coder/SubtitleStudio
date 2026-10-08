@@ -1,0 +1,106 @@
+using SubtitleStudio.Models;
+
+namespace SubtitleStudio.Services.Subtitles;
+
+/// <summary>How the two languages are placed.</summary>
+public enum BilingualLayout
+{
+    /// <summary>One block at the bottom: the original line above the translation (SRT; plays everywhere).</summary>
+    Stacked,
+
+    /// <summary>The original at the top of the screen, the translation at the bottom (ASS styles).</summary>
+    TopAndBottom,
+}
+
+/// <summary>
+/// Subtitles in two languages at once, for learning a language or watching with someone who reads the
+/// other one. Built from a translation and its original paired line by line (as Review translation pairs
+/// them). The original is shown in a softer colour so the eye goes to the translation first.
+/// </summary>
+public static class BilingualSubtitles
+{
+    /// <summary>Soft grey-yellow for the original: readable on dark and light pictures, clearly second.</summary>
+    public const string OriginalHtmlColour = "#E8E0B0";
+
+    /// <summary>The same colour in ASS order (&amp;HAABBGGRR).</summary>
+    public const string OriginalAssColour = "&H00B0E0E8";
+
+    public static string FormatOf(BilingualLayout layout) => layout == BilingualLayout.TopAndBottom ? "ass" : "srt";
+
+    /// <param name="translation">The translated cues (text in <paramref name="translationFormat"/>'s dialect).</param>
+    /// <param name="originals">The original text for each translated cue (plain, lines kept; null where there is none).</param>
+    /// <param name="maxColumns">An original of up to this many characters is put on one line.</param>
+    public static SubtitleDocument Build(IReadOnlyList<SubtitleCue> translation, string translationFormat, IReadOnlyList<string?> originals,
+        BilingualLayout layout, string? language, int maxColumns = 42)
+    {
+        var dialect = SubtitleText.DialectOf(translationFormat);
+        var doc = new SubtitleDocument { Language = language, Format = FormatOf(layout) };
+        if (layout == BilingualLayout.TopAndBottom) doc.FormatHeader = AssHeader();
+        var events = new List<SubtitleCue>();
+        for (int i = 0; i < translation.Count; i++)
+        {
+            var cue = translation[i];
+            var html = SubtitleText.Convert(cue.Text, dialect, TextDialect.Html).Replace("\r", string.Empty);
+            var original = i < originals.Count ? Tidy(originals[i], maxColumns) : null;
+            if (layout == BilingualLayout.Stacked)
+            {
+                // A position override ({\an8}) must stay at the very start to work.
+                var prefix = html.StartsWith("{\\an", StringComparison.Ordinal) && html.IndexOf('}') is var close and > 0 ? html[..(close + 1)] : string.Empty;
+                var body = html[prefix.Length..];
+                var text = original is null ? html : $"{prefix}<font color=\"{OriginalHtmlColour}\">{Escape(original)}</font>\n{body}";
+                events.Add(new SubtitleCue { Start = cue.Start, End = cue.End, Text = text });
+            }
+            else
+            {
+                if (original is not null)
+                    events.Add(AssEvent(cue, "Original", original.Replace("{", "(").Replace("}", ")")));
+                events.Add(AssEvent(cue, "Translation", SubtitleText.HtmlToAss(html).Replace("\\N", "\n")));
+            }
+        }
+        doc.Cues.AddRange(events.OrderBy(e => e.Start).ThenBy(e => e.Extra?["Style"] == "Translation" ? 1 : 0));
+        CueOperations.Renumber(doc.Cues);
+        return doc;
+    }
+
+    /// <summary>The original's text: tags gone, empty lines dropped, joined on one line when short enough.</summary>
+    private static string? Tidy(string? original, int maxColumns)
+    {
+        if (original is null) return null;
+        var lines = SubtitleText.StripTags(original).Replace("\r", string.Empty).Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        if (lines.Count == 0) return null;
+        var joined = string.Join(" ", lines);
+        bool twoSpeakers = lines.Count >= 2 && lines.All(l => l.StartsWith('-'));
+        return !twoSpeakers && joined.Length <= maxColumns ? joined : string.Join("\n", lines);
+    }
+
+    private static string Escape(string text) => text.Replace("<", "‹").Replace(">", "›");
+
+    private static SubtitleCue AssEvent(SubtitleCue cue, string style, string text) => new()
+    {
+        Start = cue.Start,
+        End = cue.End,
+        Text = text,
+        Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Layer"] = "0", ["Style"] = style, ["Name"] = string.Empty, ["MarginL"] = "0", ["MarginR"] = "0", ["MarginV"] = "0", ["Effect"] = string.Empty,
+        },
+    };
+
+    /// <summary>Two styles: the translation at the bottom (white), the original at the top (smaller, softer colour).</summary>
+    public static string AssHeader() => string.Join("\n",
+        "[Script Info]",
+        "; Script generated by Subtitle Studio: two languages, the original at the top",
+        "ScriptType: v4.00+",
+        "PlayResX: 1920",
+        "PlayResY: 1080",
+        "WrapStyle: 0",
+        "ScaledBorderAndShadow: yes",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        "Style: Translation,Arial,64,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,2,40,40,50,1",
+        $"Style: Original,Arial,54,{OriginalAssColour},&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,8,40,40,40,1",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text");
+}

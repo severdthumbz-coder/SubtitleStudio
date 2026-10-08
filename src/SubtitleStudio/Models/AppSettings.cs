@@ -23,6 +23,14 @@ public sealed class AppSettings
     /// <summary>"auto" or a Whisper language code such as "ko".</summary>
     public string TranscribeLanguage { get; set; } = "auto";
     public bool TranscribeTranslate { get; set; }
+
+    // Subtitles: checks and bilingual files
+    /// <summary>Warn about lines too fast to read.</summary>
+    public bool CheckReadingSpeed { get; set; } = true;
+    /// <summary>Characters a second; 0 = by language (English 20, Korean 12, Chinese 9, Japanese 4, others 17).</summary>
+    public double ReadingSpeedLimit { get; set; }
+    /// <summary>"stacked" (original above the translation, SRT) or "topbottom" (original at the top, ASS).</summary>
+    public string BilingualLayout { get; set; } = "stacked";
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

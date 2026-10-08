@@ -366,6 +366,17 @@
                                     <Button Tag="&#xE72A;" Content="Next to check" Command="{Binding NextToCheckCommand}" Margin="0,0,8,6" ToolTip="F9" />
                                     <Button Style="{StaticResource GhostButton}" Content="Hide original" Command="{Binding HideOriginalCommand}" Margin="0,0,8,6" />
                                 </WrapPanel>
+                                <Separator Margin="0,8,0,8" />
+                                <DockPanel>
+                                    <ctl:HintMarker DockPanel.Dock="Right"
+                                                    Text="Saves a new file with each translated line and its original together, for learning a language or watching with someone who reads the other one. The open subtitles aren't changed. The original is shown in a softer colour so the translation is read first." />
+                                    <TextBlock Text="Both languages in one file" FontWeight="SemiBold" />
+                                </DockPanel>
+                                <ComboBox ItemsSource="{Binding BilingualLayouts}" SelectedItem="{Binding SelectedBilingualLayout, Mode=TwoWay}" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding SelectedBilingualLayout.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Tag="&#xE74E;" Content="Save with both languages..." Command="{Binding SaveBilingualCommand}" Margin="0,0,8,6" />
+                                </WrapPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -390,13 +401,17 @@
                                 </TextBlock>
                                 <StackPanel>
                                     <TextBlock Text="Checks" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding IssueSummary}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0" />
+                                    <TextBlock Text="{Binding IssueSummary}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                    <TextBlock Text="{Binding ReadingSpeedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                 </StackPanel>
                             </DockPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                <Button Tag="&#xE72A;" Content="Next problem" Command="{Binding NextIssueCommand}" ToolTip="F8" />
-                                <Button Tag="&#xE8CB;" Content="Sort by time" Command="{Binding SortCuesCommand}" Margin="8,0,0,0" />
-                            </StackPanel>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Tag="&#xE72A;" Content="Next problem" Command="{Binding NextIssueCommand}" ToolTip="F8" Margin="0,0,8,6" />
+                                <Button Tag="&#xE8CB;" Content="Sort by time" Command="{Binding SortCuesCommand}" Margin="0,0,8,6" />
+                                <Button Tag="&#xE916;" Content="Fix reading speed" Command="{Binding FixReadingSpeedCommand}" Margin="0,0,8,6"
+                                        Visibility="{Binding HasTooFast, Converter={StaticResource Vis}}"
+                                        ToolTip="Lengthens the lines that are too fast into the free time around them (never into the next line, never past 7 seconds). One undo puts them back." />
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 

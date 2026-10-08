@@ -103,7 +103,10 @@ public sealed partial class MainViewModel
         set
         {
             if (SetProperty(ref _editorLanguage, (value ?? string.Empty).Trim().ToLowerInvariant()))
+            {
                 OnPropertyChanged(nameof(SuggestedFileName));
+                Revalidate(); // the reading-speed limit depends on the language
+            }
         }
     }
 
@@ -194,7 +197,8 @@ public sealed partial class MainViewModel
 
     public string IssueSummary => IssueCount == 0
         ? "No problems found."
-        : $"{IssueCount} cue{(IssueCount == 1 ? "" : "s")} need attention ({ErrorCount} error{(ErrorCount == 1 ? "" : "s")}, {IssueCount - ErrorCount} warning{(IssueCount - ErrorCount == 1 ? "" : "s")}).";
+        : $"{IssueCount} cue{(IssueCount == 1 ? "" : "s")} need attention ({ErrorCount} error{(ErrorCount == 1 ? "" : "s")}, {IssueCount - ErrorCount} warning{(IssueCount - ErrorCount == 1 ? "" : "s")})"
+          + (TooFastCount > 0 ? $"; {TooFastCount} too fast to read." : ".");
 
     // ---------------- Commands ----------------
 
@@ -640,11 +644,16 @@ public sealed partial class MainViewModel
         if (_doc is null)
         {
             IssueCount = ErrorCount = 0;
+            TooFastCount = 0;
             return;
         }
 
         var checkOverlaps = SubtitleText.DialectOf(_doc.Format) != TextDialect.Ass;
-        var issues = SubtitleValidator.Validate(Cues.Select(r => r.Cue).ToList(), checkOverlaps);
+        var cues = Cues.Select(r => r.Cue).ToList();
+        var readingLanguage = ReadingLanguage;
+        double? limit = _s.Config.CheckReadingSpeed ? ReadingLimit : null;
+        var issues = SubtitleValidator.Validate(cues, checkOverlaps, limit, readingLanguage);
+        TooFastCount = limit is { } l ? cues.Count(c => c.End > c.Start && ReadingSpeed.Cps(c, readingLanguage) > l) : 0;
         int errors = 0;
         foreach (var row in Cues)
         {
@@ -653,6 +662,7 @@ public sealed partial class MainViewModel
         }
         IssueCount = issues.Count;
         ErrorCount = errors;
+        OnPropertyChanged(nameof(ReadingSpeedText));
         RefreshReview();
     }
 }

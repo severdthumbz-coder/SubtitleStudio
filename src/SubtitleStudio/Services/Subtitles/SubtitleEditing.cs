@@ -17,7 +17,9 @@ public static class SubtitleValidator
     /// <param name="checkOverlaps">
     /// False for ASS/SSA, where overlapping lines (signs, multiple layers) are normal.
     /// </param>
-    public static IReadOnlyDictionary<SubtitleCue, CueIssue> Validate(IReadOnlyList<SubtitleCue> cues, bool checkOverlaps)
+    /// <param name="readingLimit">Characters a second above which a line is too fast to read (null: not checked).</param>
+    /// <param name="language">The subtitles' language, for counting characters (Japanese half-width ones count half).</param>
+    public static IReadOnlyDictionary<SubtitleCue, CueIssue> Validate(IReadOnlyList<SubtitleCue> cues, bool checkOverlaps, double? readingLimit = null, string? language = null)
     {
         var issues = new Dictionary<SubtitleCue, CueIssue>();
         for (int i = 0; i < cues.Count; i++)
@@ -44,6 +46,9 @@ public static class SubtitleValidator
 
             if (checkOverlaps && i + 1 < cues.Count && cue.End > cues[i + 1].Start && cues[i + 1].Start >= cue.Start)
                 Add(CueIssueSeverity.Warning, $"Overlaps the next cue (#{i + 2}) by {(cue.End - cues[i + 1].Start).TotalMilliseconds:0} ms.");
+
+            if (readingLimit is { } limit && cue.End > cue.Start && ReadingSpeed.Cps(cue, language) is var cps && cps > limit)
+                Add(CueIssueSeverity.Warning, $"Too fast to read: {cps:0} characters a second (limit {limit:0.#}). Lengthen it, shorten the text, or use Fix reading speed.");
 
             if (messages.Count > 0) issues[cue] = new CueIssue(severity, string.Join(" ", messages));
         }

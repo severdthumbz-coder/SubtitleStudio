@@ -216,6 +216,22 @@
                     <Border Style="{StaticResource Card}" Margin="0,12,0,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Subtitle checks" Style="{StaticResource Text.H2}" />
+                                <ctl:HintMarker Margin="8,0,0,0"
+                                                Text="Reading speed is counted in characters a second, spaces included. The limits by language are the adult figures of Netflix's subtitle style guides (Japanese counts half-width characters as half). Lines that are too fast are listed in the Subtitles tab's Checks, where Fix reading speed lengthens them into the free time around them." />
+                            </StackPanel>
+                            <CheckBox IsChecked="{Binding CheckReadingSpeed, Mode=TwoWay}" Margin="0,10,0,0">
+                                <TextBlock Text="Warn about lines too fast to read" TextWrapping="Wrap" />
+                            </CheckBox>
+                            <TextBlock Text="Reading speed limit" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                            <ComboBox ItemsSource="{Binding ReadingLimitOptions}" SelectedItem="{Binding SelectedReadingLimit, Mode=TwoWay}" Width="480" HorizontalAlignment="Left"
+                                      IsEnabled="{Binding CheckReadingSpeed}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Translate (language model)" Style="{StaticResource Text.H2}" />
                                 <ctl:HintMarker Margin="8,0,0,0"
                                                 Text="llama.cpp runs inside the app: no other program is needed. It uses the same graphics card as AI Transcribe (above). Models are downloaded in the Translate tab and kept in models\llm next to the app." />

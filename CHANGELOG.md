@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.55] - 2026-10-07
+
+### Added
+- Subtitles tab, Review translation: "Both languages in one file". It saves the translation with its original, line by line, as a new file. The open subtitles aren't changed. Two layouts, remembered between runs:
+  - Original above the translation (SRT, the default). Both lines are in one subtitle at the bottom, with the original first in a softer colour (#E8E0B0) so the translation is read first. Plays everywhere: VLC, Plex, Jellyfin, TVs. Players that ignore colours show both in white. A short original split over two lines is put on one, to keep the block low.
+  - Original at the top of the screen, translation at the bottom (ASS). The original is smaller and softer at the top; the translation stays at the bottom. This keeps long lines readable and the middle of the picture clear. It needs ASS: VLC, mpv, MPC-HC and Jellyfin show it as intended, while some TVs and Plex apps convert or ignore the positions.
+  - The suggested name puts the translation's language first, then both: "Episode 3.en.ko-en.srt".
+- Subtitles tab, Checks: lines too fast to read. The limits are characters a second, spaces included, with tags and line breaks left out. By language they follow the adult figures of Netflix's Timed Text Style Guides: English 20, Korean 12, Chinese 9, Japanese 4 (half-width characters count half). Other languages use 17, a common default. The Checks card says which limit applies, the line's warning gives its speed, and "Next problem" (F8) goes to it.
+  - "Fix reading speed" lengthens the lines that are too fast into the free time around them: first later, up to a small gap before the next line, then earlier, down to the previous one. Never past 7 seconds. Lines with no room left stay listed, to shorten or merge by hand. One undo puts everything back.
+- Settings, Subtitle checks: turn the reading-speed warnings off, or choose one limit for every language (12, 15, 17, 20 or 25 characters a second) instead of the one by language.
+
 ## [1.0.0.54] - 2026-10-07
 
 ### Added
