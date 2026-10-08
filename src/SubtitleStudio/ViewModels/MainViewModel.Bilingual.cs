@@ -73,8 +73,17 @@ public sealed partial class MainViewModel
     private void FixReadingSpeed()
     {
         if (_doc is null || TooFastCount == 0) return;
-        PushUndo();
         var ordered = CueOperations.SortedByTime(Cues.Select(r => r.Cue));
+        // A try on copies first: when no line has free time to grow into, nothing changes (no undo step, not marked changed).
+        var copies = ordered.Select(c => c.Clone()).ToList();
+        ReadingSpeed.Fix(copies, ReadingLanguage, ReadingLimit);
+        if (copies.Zip(ordered).All(p => p.First.Start == p.Second.Start && p.First.End == p.Second.End))
+        {
+            SetStatus($"{TooFastCount} line{(TooFastCount == 1 ? " is" : "s are")} still too fast, and none has free time around it to grow into: shorten the text or merge with a neighbour (Next problem finds them).",
+                StatusKind.Warning);
+            return;
+        }
+        PushUndo();
         var result = ReadingSpeed.Fix(ordered, ReadingLanguage, ReadingLimit);
         AfterTimingChange();
         var left = result.Improved + result.NoRoom;

@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.56] - 2026-10-08
+
+### Fixed
+- Subtitles tab, Fix reading speed: pressing it again when no line has room left did nothing useful. It said "Lengthened 0 lines… 0 now read in time", yet still added an undo step and marked the subtitles as changed. On E03 the first press lengthened 76 lines (74 now read in time) and left 15 with no free time around them; the next three presses changed nothing. Now Fix tries on copies first. When nothing can change, it says how many lines are still too fast and that none has free time around it, and leaves the subtitles, undo and the unsaved mark alone.
+
 ## [1.0.0.55] - 2026-10-07
 
 ### Added
