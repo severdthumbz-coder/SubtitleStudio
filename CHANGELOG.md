@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.54] - 2026-10-07
+
+### Added
+- The script checks now cover 24 writing systems instead of three. Until now they only knew Korean, Japanese and Chinese characters; now they also know Cyrillic, Greek, Arabic, Hebrew, Thai, Devanagari, Bengali, Gurmukhi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Sinhala, Georgian, Armenian, Khmer, Lao, Myanmar, Ethiopic and Tibetan. Latin-alphabet languages stay out of these checks: English words turn up in every language, and Spanish, French and German share an alphabet, so letters can't tell them apart. For those, the scene check and the line check after translating do the work.
+  - Translate: words left in the original script are caught for any pair of languages and asked again, for example "Дмитрий said no." in an English translation, or Thai left in a Russian one. Latin letters are always allowed (names, brands).
+  - Translate: when "From" contradicts the letters (Korean chosen for Greek subtitles), the letters win as before. For Cyrillic, Arabic and Devanagari, which several languages share, the model is told to translate from the language the text is in, rather than guessing which one. Japanese and Korean may contain Chinese characters without counting as a contradiction.
+  - AI Transcribe: lines that mix two non-Latin scripts are listened to again for any pair (Cyrillic with Arabic, Hebrew with Greek...), not only Korean with Japanese or Chinese.
+  - Review translation: questions ending in the Arabic, Persian and Urdu "؟", the Greek ";" or the Armenian "՞" are recognised, and a Greek translation may end in ";". Lengths are compared within each script. An English line kept in English inside Russian, Arabic or other non-Latin subtitles isn't flagged as untranslated.
+
 ## [1.0.0.53] - 2026-10-06
 
 ### Changed

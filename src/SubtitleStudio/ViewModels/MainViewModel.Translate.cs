@@ -329,11 +329,23 @@ public sealed partial class MainViewModel
         var source = ResolveTranslateSource();
         // A "From" language that the letters plainly contradict (Assamese chosen, Korean text): the letters win.
         var written = SubtitleTranslationPrompt.ScriptLanguage(Cues.Select(c => c.Cue.Text));
-        if (written is not null && source is not null && source != written && !(written == "zh" && source is "yue" or "ja"))
+        var writtenScript = SubtitleTranslationPrompt.WrittenScript(Cues.Select(c => c.Cue.Text));
+        // The letters contradict "From" when "From" isn't written in them (Japanese and Chinese share characters with each other and with Korean).
+        if (source is not null && writtenScript is { } script && !Scripts.Of(source).Contains(script))
         {
-            _s.Log.Warning("Translate", $"\"From\" was {WhisperLanguages.NameOf(source)}, but the subtitles are written in {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.");
-            SetStatus($"\"From\" says {WhisperLanguages.NameOf(source)}, but the text is {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.", StatusKind.Warning);
-            source = written;
+            if (written is not null)
+            {
+                _s.Log.Warning("Translate", $"\"From\" was {WhisperLanguages.NameOf(source)}, but the subtitles are written in {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.");
+                SetStatus($"\"From\" says {WhisperLanguages.NameOf(source)}, but the text is {WhisperLanguages.NameOf(written)}: translating from {WhisperLanguages.NameOf(written)}.", StatusKind.Warning);
+                source = written;
+            }
+            else
+            {
+                // Cyrillic, Arabic or Devanagari: several languages use them, so the model is told to translate from the language the text is in.
+                _s.Log.Warning("Translate", $"\"From\" was {WhisperLanguages.NameOf(source)}, but the subtitles are written in {script} letters: translating from the language they are in.");
+                SetStatus($"\"From\" says {WhisperLanguages.NameOf(source)}, but the text is in {script} letters: translating from the language it is in.", StatusKind.Warning);
+                source = null;
+            }
         }
         else if (source is null && written is not null)
             source = written;

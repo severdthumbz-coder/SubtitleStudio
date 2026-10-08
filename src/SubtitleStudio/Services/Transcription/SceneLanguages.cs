@@ -139,25 +139,17 @@ public static class SceneLanguages
     }
 
     /// <summary>
-    /// A line that mixes Korean letters with Japanese ones, or with Chinese characters (Latin is left out:
-    /// English words are common in any language). The languages it could be: <paramref name="heardIn"/>
-    /// and those the letters suggest. Null for a line in one script.
+    /// A line that mixes two non-Latin scripts: Korean letters with Japanese ones or Chinese characters, Cyrillic
+    /// with Arabic, and so on (Latin is left out: English words are common in any language). The languages it
+    /// could be: <paramref name="heardIn"/> and those the scripts suggest. Null for a line in one script.
     /// </summary>
     public static IReadOnlyList<string>? MixedScriptCandidates(string text, string heardIn)
     {
-        int hangul = 0, kana = 0, han = 0;
-        foreach (var c in text)
-        {
-            if (c is >= '가' and <= '힣' or >= 'ᄀ' and <= 'ᇿ' or >= '㄰' and <= '㆏') hangul++;
-            else if (c is >= '぀' and <= 'ヿ') kana++;
-            else if (c is >= '一' and <= '鿿') han++;
-        }
-        bool korean = hangul > 0, japanese = kana > 0, chinese = han > 0 && kana == 0;
-        if ((korean ? 1 : 0) + (japanese || chinese ? 1 : 0) < 2) return null;
+        var groups = Scripts.NonLatinGroups(text);
+        if (groups.Count < 2) return null;
         var result = new List<string> { heardIn };
-        if (korean) result.Add("ko");
-        if (japanese || chinese) result.Add("ja");
-        if (chinese) result.Add("zh");
+        foreach (var g in groups)
+            result.AddRange(g == Script.Hangul ? new[] { "ko" } : Scripts.CandidatesFor(g));
         return result.Distinct().ToList();
     }
 

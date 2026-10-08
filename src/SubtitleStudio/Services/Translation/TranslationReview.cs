@@ -76,7 +76,7 @@ public static partial class TranslationReview
         if (previousOriginal is not null && previousTranslation is not null && Words(t) >= 4
             && Key(t) == Key(Plain(previousTranslation)) && Key(o) != Key(Plain(previousOriginal)))
             return new ReviewFlag(ReviewFlagKind.Repeated, "The same as the line before, though the originals differ.");
-        if (IsQuestion(o) && !t.Contains('?') && !t.Contains('？'))
+        if (IsQuestion(o) && !HasQuestionMark(t, targetLanguage))
             return new ReviewFlag(ReviewFlagKind.Question, "The original is a question; the translation isn't.");
         return null;
     }
@@ -89,15 +89,16 @@ public static partial class TranslationReview
     public static ReviewFlag?[] CheckAll(IReadOnlyList<string?> originals, IReadOnlyList<string> translations, string targetLanguage)
     {
         var flags = new ReviewFlag?[translations.Count];
-        var ratios = new List<(int Script, double Ratio)>();
-        // Originals in Korean, Japanese or Chinese: a line without those letters was spoken in another language
-        // (an English speech in a Korean drama), and kept as it is when that's the language translated into.
+        var ratios = new List<(Script Script, double Ratio)>();
+        // Originals mostly in a non-Latin script (Korean, Japanese, Russian, Arabic...): a line without those letters was
+        // spoken in another language (an English speech in a Korean drama), and kept as it is when that's the language
+        // translated into.
         var lettered = originals.Where(o => o is not null && o.Any(char.IsLetter)).Select(o => Plain(o!)).ToList();
-        bool cjkOriginal = lettered.Count(o => SubtitleTranslationPrompt.HasLeftoverScript(o, "en")) * 2 > lettered.Count;
+        bool nonLatinOriginal = lettered.Count(o => Scripts.HasForeignLetters(o, "en")) * 2 > lettered.Count;
         for (int i = 0; i < translations.Count; i++)
         {
             flags[i] = Check(originals[i], translations[i], i > 0 ? originals[i - 1] : null, i > 0 ? translations[i - 1] : null, targetLanguage);
-            if (flags[i]?.Kind == ReviewFlagKind.Unchanged && cjkOriginal && originals[i] is { } same && !SubtitleTranslationPrompt.HasLeftoverScript(Plain(same), "en"))
+            if (flags[i]?.Kind == ReviewFlagKind.Unchanged && nonLatinOriginal && originals[i] is { } same && !Scripts.HasForeignLetters(Plain(same), "en"))
                 flags[i] = null;
             if (originals[i] is { } o && Letters(Plain(o)) >= 2 && Letters(Plain(translations[i])) >= 2)
                 ratios.Add((ScriptOf(Plain(o)), Letters(Plain(translations[i])) / (double)Letters(Plain(o))));
@@ -121,23 +122,24 @@ public static partial class TranslationReview
     /// <summary>Letters and digits ("5時間23分" counts 6: the translation spells the numbers out).</summary>
     private static int Letters(string text) => text.Count(char.IsLetterOrDigit);
 
-    /// <summary>0: mostly Hangul; 1: Japanese or Chinese characters; 2: anything else.</summary>
-    private static int ScriptOf(string text)
-    {
-        int hangul = 0, cjk = 0;
-        foreach (var c in text)
-        {
-            if (c is >= '가' and <= '힣') hangul++;
-            else if (c is >= '぀' and <= 'ヿ' or >= '一' and <= '鿿') cjk++;
-        }
-        return hangul > cjk ? 0 : cjk > 0 ? 1 : 2;
-    }
+    /// <summary>The kind of writing, for comparing lengths: its main script, with Chinese characters counted with Japanese (both dense).</summary>
+    private static Script ScriptOf(string text) => Scripts.Dominant(text) is var s && s == Script.Han ? Script.Kana : s;
+
+    /// <summary>Question marks of the world: ? ？ (full width) ؟ (Arabic, Persian, Urdu) ՞ (Armenian) ፧ (Ethiopic); Greek uses ";".</summary>
+    private static readonly char[] QuestionMarks = { '?', '？', '؟', '՞', '፧', '\u037E' };
 
     private static bool IsQuestion(string text)
     {
-        var trimmed = text.TrimEnd(' ', '.', '"', '\'', '」', '』', ')', '-');
-        return trimmed.EndsWith('?') || trimmed.EndsWith('？');
+        var trimmed = text.TrimEnd(' ', '.', '"', '\'', '」', '』', ')', '-', '»', '«');
+        if (trimmed.Length == 0) return false;
+        if (QuestionMarks.Contains(trimmed[^1])) return true;
+        // Armenian puts its mark on the word asked about, not at the end.
+        if (trimmed.Contains('՞')) return true;
+        return trimmed[^1] == ';' && Scripts.Dominant(trimmed) == Script.Greek;
     }
+
+    private static bool HasQuestionMark(string translation, string targetLanguage)
+        => translation.IndexOfAny(QuestionMarks) >= 0 || (Scripts.Of(targetLanguage).Contains(Script.Greek) && translation.Contains(';'));
 
     private static string Key(string text) => new string(text.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 

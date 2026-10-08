@@ -82,43 +82,51 @@ public static partial class SubtitleTranslationPrompt
     }
 
     /// <summary>
-    /// Letters of Korean, Japanese or Chinese left in a translation into a language that doesn't use
-    /// them (names or words the model didn't translate, e.g. "Han 선생님").
+    /// Letters of a script the target language doesn't use, left in a translation: names or words the model
+    /// didn't translate ("Han 선생님", "Дмитрий said"). Latin letters are always allowed (names, brands, English words).
     /// </summary>
-    public static bool HasLeftoverScript(string? translated, string targetLanguage)
-    {
-        if (string.IsNullOrEmpty(translated)) return false;
-        bool allowHangul = targetLanguage == "ko", allowKana = targetLanguage == "ja", allowHan = targetLanguage is "ja" or "zh" or "yue" or "ko";
-        foreach (var c in translated)
-        {
-            if (!allowHangul && (c is >= '가' and <= '힣' || c is >= 'ᄀ' and <= 'ᇿ' || c is >= '㄰' and <= '㆏')) return true;
-            if (!allowKana && c is >= '぀' and <= 'ヿ') return true;
-            if (!allowHan && c is >= '一' and <= '鿿') return true;
-        }
-        return false;
-    }
+    public static bool HasLeftoverScript(string? translated, string targetLanguage) => Scripts.HasForeignLetters(translated, targetLanguage);
 
     /// <summary>
-    /// The language the text is written in, judged by its letters, for the scripts that say it clearly:
-    /// Korean (Hangul), Japanese (kana), Chinese (Han characters only). Null for anything else.
+    /// The language the text is written in, judged by its letters, for the scripts that say it clearly (Korean,
+    /// Japanese, Chinese characters, Greek, Hebrew, Thai, Georgian, Armenian, the Indian scripts...). Null for
+    /// Latin, and for scripts several languages share (Cyrillic, Arabic, Devanagari): see <see cref="WrittenScript"/>.
     /// </summary>
     public static string? ScriptLanguage(IEnumerable<string> texts)
     {
-        int letters = 0, hangul = 0, kana = 0, han = 0;
-        foreach (var text in texts)
-            foreach (var c in text)
-            {
-                if (!char.IsLetter(c)) continue;
-                letters++;
-                if (c is >= '가' and <= '힣') hangul++;
-                else if (c is >= '぀' and <= 'ヿ') kana++;
-                else if (c is >= '一' and <= '鿿') han++;
-            }
+        var (counts, letters) = CountScripts(texts);
         if (letters < 8) return null;
-        if (hangul > letters * 0.4) return "ko";
-        if (kana > letters * 0.2) return "ja";
-        if (han > letters * 0.6) return "zh";
-        return null;
+        if (counts.GetValueOrDefault(Script.Hangul) > letters * 0.4) return "ko";
+        if (counts.GetValueOrDefault(Script.Kana) > letters * 0.2) return "ja";
+        if (counts.GetValueOrDefault(Script.Han) > letters * 0.6) return "zh";
+        return WrittenScript(counts, letters) is { } script and not (Script.Hangul or Script.Kana or Script.Han) ? Scripts.LanguageOf(script) : null;
+    }
+
+    /// <summary>The non-Latin script most of the letters are in (null: mostly Latin, or too little text).</summary>
+    public static Script? WrittenScript(IEnumerable<string> texts)
+    {
+        var (counts, letters) = CountScripts(texts);
+        return letters < 8 ? null : WrittenScript(counts, letters);
+    }
+
+    private static Script? WrittenScript(Dictionary<Script, int> counts, int letters)
+    {
+        if (counts.GetValueOrDefault(Script.Kana) > letters * 0.2) return Script.Kana;
+        var top = counts.Where(c => c.Key != Script.Latin).OrderByDescending(c => c.Value).FirstOrDefault();
+        return top.Value > letters * 0.4 ? top.Key : null;
+    }
+
+    private static (Dictionary<Script, int> Counts, int Letters) CountScripts(IEnumerable<string> texts)
+    {
+        var counts = new Dictionary<Script, int>();
+        int letters = 0;
+        foreach (var text in texts)
+            foreach (var (script, n) in Scripts.Count(text))
+            {
+                counts[script] = counts.GetValueOrDefault(script) + n;
+                letters += n;
+            }
+        return (counts, letters);
     }
 
     /// <summary>Added to the question when a line came back with words left in the original script.</summary>
