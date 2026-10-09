@@ -96,7 +96,7 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE767;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Dubbing" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                   Text="English AI voices (Kokoro, in the app) and a voice track from the subtitles. Fitting, mixing into the video and a voice per speaker come next." />
+                                   Text="English AI voices (Kokoro, in the app), fitted to each line's time and mixed over the original sound as an extra English track. A voice per speaker comes next." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

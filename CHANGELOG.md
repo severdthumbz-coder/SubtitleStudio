@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.61] - 2026-10-09
+
+### Added
+- Dubbing, fitting: a line too long for the time before the next one is said faster, up to 30% faster than the chosen speed. That sounds like someone speaking quickly, not like a sped-up recording. If it still doesn't fit, it is also made up to 15% shorter with its pitch kept (WSOLA time-stretch, in the app). A line that needs more than that is reported, and the next line waits for it as before. On a test of 30 lines given only 1.8 seconds each, lines running late went from 21 to 7, and the most a line was pushed back went from 15.6 s to 2.1 s. Whisper still understood every line. "Fit lines into their time" is on by default and can be turned off.
+- Dubbing, into the video: "Make the dubbed video" speaks the lines, mixes the voice over the video's first audio track and saves a copy with the mix as a new English audio track ("English (AI voice-over)", AAC stereo, language eng). The original is turned down while the voice speaks and comes back up between lines. There are three levels, measured under Kokoro speech: a little lower (about 8 dB), lower (about 12 dB, the default), much lower (about 15 dB). Between lines the original sound is unchanged (within 0.1 dB in the test). The new track can be made the default one players start with (on by default). Picture, the original audio tracks and the subtitles are copied as they are, and the original video is never changed. The copy is named "Episode 3 (English dub).mkv" (MP4 stays MP4) and is checked before it takes its name. "Voice track only (WAV)" is still there for mixing elsewhere.
+  - The mix is made in its own FFmpeg run, then copied in. When the two were done in one run, FFmpeg 6 ended the new track where the subtitle track first paused: 1.1 s into a 12 s test video.
+
+### Changed
+- Dubbing: the graphics card and the processor now speak at the same time, one line on the card and four on the processor. On the RX 6850M XT they measured 2.5 and 2.6 times real time, so together they should be about 5 times; this is estimated, not yet measured. The card is used whenever it is faster than real time. Lines are still placed in order. If the card fails on a line, the processor says that line and takes over from then on. The speed test runs once more on first load, as the remembered choice has changed.
+- Dubbing, Preview: a single line goes to the graphics card, which is quicker for one line than the processor's share of two threads. At the card's measured 2.5 times real time, 2.4 s of speech should take about 1 s, against 2.3 s in 1.0.0.60 (not yet measured).
+
 ## [1.0.0.60] - 2026-10-08
 
 ### Changed

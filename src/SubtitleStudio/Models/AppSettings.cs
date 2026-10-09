@@ -35,6 +35,12 @@ public sealed class AppSettings
     public string DubbingVoice { get; set; } = "af_heart";
     /// <summary>Dubbing: speaking speed, 1 = normal.</summary>
     public double DubbingSpeed { get; set; } = 1.0;
+    /// <summary>Dubbing: say lines faster (and, a little, time-stretch them) to fit the time before the next line.</summary>
+    public bool DubbingFit { get; set; } = true;
+    /// <summary>Dubbing: the original sound under the voice: "little", "lower" or "much".</summary>
+    public string DubbingDuck { get; set; } = "lower";
+    /// <summary>Dubbing: the English voice-over track is the one players start with.</summary>
+    public bool DubbingDefaultTrack { get; set; } = true;
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

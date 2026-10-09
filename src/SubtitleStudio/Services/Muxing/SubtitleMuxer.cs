@@ -378,7 +378,7 @@ public sealed class SubtitleMuxer
         return $"{TrackLanguages.NameOf(t.Language)}{(flags.Count > 0 ? " " + string.Join("/", flags) : "")} from {Path.GetFileName(t.Path)}";
     }
 
-    private static async Task RunFfmpegAsync(string ffmpeg, IReadOnlyList<string> args, TimeSpan? duration, IProgress<double>? progress, CancellationToken ct)
+    internal static async Task RunFfmpegAsync(string ffmpeg, IReadOnlyList<string> args, TimeSpan? duration, IProgress<double>? progress, CancellationToken ct)
     {
         var psi = new ProcessStartInfo(ffmpeg)
         {

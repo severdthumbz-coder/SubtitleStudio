@@ -17,7 +17,7 @@
         <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Dubbing" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
             <ctl:HintMarker Margin="8,2,0,0"
-                            Text="Speaks English subtitles with an AI voice (Kokoro) running inside the app: nothing is uploaded and no other program is needed. This first dubbing build makes one English voice track, a WAV file with each line spoken when its subtitle appears. Fitting long lines into their time, mixing the voice over the original sound and adding it to the video come in the next builds." />
+                            Text="Speaks English subtitles with an AI voice (Kokoro) running inside the app: nothing is uploaded and no other program is needed. Each line is spoken when its subtitle appears and fitted into its time; the voice is then mixed over the original sound, turned down while it speaks, and added to a copy of the video as an extra English audio track. The original video is never changed. A voice per speaker and a full dub (original voices removed) come in the next builds." />
         </StackPanel>
 
         <!-- ================= Left: steps ================= -->
@@ -67,18 +67,39 @@
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource Card}">
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Text="3. Voice track" Style="{StaticResource Text.H2}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="3. What to speak" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="Every line is spoken and placed when its subtitle appears. Sound labels like [door closes] and song lines are left out. A line that takes longer than the time before the next one is said faster, up to 30% faster than the chosen speed; if that isn't enough it is also made up to 15% shorter, with its pitch kept. A line that still doesn't fit is reported, and the line after waits for it rather than being spoken over it." />
+                        </StackPanel>
                         <TextBlock Text="{Binding DubbingSourceText}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,8,0,0" />
                         <TextBlock Text="{Binding DubbingLanguageWarning}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
                                    Foreground="{DynamicResource Brush.Warning}" Visibility="{Binding HasDubbingLanguageWarning, Converter={StaticResource Vis}}" />
-                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,8,0,10"
-                                   Text="Every line is spoken in the chosen voice and placed when its subtitle appears, as one WAV file as long as the video. Sound labels like [door closes] and song lines are left out. A line that takes longer than the time before the next one is reported, and the next line waits for it." />
+                        <CheckBox Content="Fit lines into their time" IsChecked="{Binding DubbingFit, Mode=TwoWay}" Margin="0,10,0,0"
+                                  ToolTip="Lines too long for the time before the next one are said faster (and, if needed, a little shorter)" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="4. Into the video" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="The voice is laid over the video's first audio track, which is turned down while the voice speaks and comes back up between lines. The mix is added as a new English audio track (AAC, stereo) to a copy of the video; picture, the original audio and the subtitles are copied as they are. Needs ffmpeg (Settings > Engines &amp; tools)." />
+                        </StackPanel>
+                        <TextBlock Text="Original sound under the voice" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{Binding DubbingDuckOptions}" SelectedItem="{Binding SelectedDubbingDuck, Mode=TwoWay}" />
+                        <CheckBox Content="Make the English voice-over the default audio track" IsChecked="{Binding DubbingDefaultTrack, Mode=TwoWay}" Margin="0,10,0,10"
+                                  ToolTip="Players start with it; the original sound stays one click away. Off: the original stays the default." />
                         <WrapPanel>
-                            <Button Style="{StaticResource AccentButton}" Tag="&#xE720;" Content="Make the voice track..." Command="{Binding MakeVoiceTrackCommand}" Margin="0,0,8,6" />
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE714;" Content="Make the dubbed video..." Command="{Binding MakeDubbedVideoCommand}" Margin="0,0,8,6"
+                                    ToolTip="Speaks every line, mixes it over the original sound and saves a copy of the video with the extra English track" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE720;" Content="Voice track only (WAV)..." Command="{Binding MakeVoiceTrackCommand}" Margin="0,0,0,6"
+                                    ToolTip="Just the spoken lines, as a WAV as long as the video, to mix elsewhere" />
                         </WrapPanel>
-                        <TextBlock Text="{Binding DubbingBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DubbedVideoBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -104,7 +125,7 @@
                 <StackPanel>
                     <TextBlock Text="Coming in the next dubbing builds" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
-                               Text="Fitting: each line sped up or shortened to fit its time, and lines that can't be flagged. Mixing: the original sound turned down under the voice, and the result added to the video as an extra English audio track. Speakers: a different voice for each person, matching their gender, remembered across a season. Full dub: the original voices removed, the music and effects kept." />
+                               Text="Speakers: a different voice for each person, matching their gender, remembered across a season. Full dub: the original voices removed, the music and effects kept." />
                 </StackPanel>
             </Border>
         </StackPanel>

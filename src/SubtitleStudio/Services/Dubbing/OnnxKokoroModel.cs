@@ -23,17 +23,17 @@ public interface IKokoroModel : IDisposable
 
 /// <summary>
 /// Kokoro v1.0 (82 million parameters, Apache-2.0) through ONNX Runtime, inside the app, on the graphics
-/// card with DirectML (the card GpuDetector chose; the model patched in memory by KokoroDmlPatcher) or
-/// on the processor, whichever is faster on this PC: both are timed on the same lines the first time and
-/// the choice is remembered. The processor runs the model as it is, several lines at a time.
+/// card with DirectML (the card GpuDetector chose; the model patched in memory by KokoroDmlPatcher) and
+/// the processor together (SharedKokoroModel), or the processor alone when the card is too slow to help.
+/// The processor runs the model as it is, several lines at a time.
 /// </summary>
 public sealed class OnnxKokoroModel : IKokoroModel
 {
     public const int SampleRate = 24000;
 
-    /// <summary>Remembers which was faster (models\tts\voice-device.txt; delete it to measure again).</summary>
+    /// <summary>Remembers whether the card helps (models\tts\voice-device.txt: "both" or "cpu"; delete it to measure again).</summary>
     public const string ChoiceFileName = "voice-device.txt";
-    private const string ChoiceVersion = "1";
+    private const string ChoiceVersion = "2";
 
     /// <summary>Lines timed to choose the device: different lengths, as in a real episode.</summary>
     private static readonly string[] Benchmark =
@@ -73,11 +73,11 @@ public sealed class OnnxKokoroModel : IKokoroModel
     }
 
     /// <summary>
-    /// Loads the model. With a graphics card, the first time on a PC both the card and the processor are
-    /// loaded, checked with a test word, and timed on the same four lines; the faster is kept and
-    /// remembered. <paramref name="styleFor"/>: a voice's style for a given number of phonemes.
+    /// Loads the model. With a graphics card, the card and the processor are both used, together, unless
+    /// the card is too slow to help: the first time on a PC both are timed on the same four lines and the
+    /// choice is remembered. <paramref name="styleFor"/>: a voice's style for a given number of phonemes.
     /// </summary>
-    public static OnnxKokoroModel Load(string modelPath, Func<int, float[]> styleFor, GpuInfo? gpu, Action<string>? log = null)
+    public static IKokoroModel Load(string modelPath, Func<int, float[]> styleFor, GpuInfo? gpu, Action<string>? log = null)
     {
         var folder = Path.GetDirectoryName(Path.GetFullPath(modelPath))!;
         if (gpu?.Primary is not { IsSoftware: false } adapter || gpu.Backend == AiBackend.Cpu) return LoadCpu(modelPath, log);
@@ -85,7 +85,7 @@ public sealed class OnnxKokoroModel : IKokoroModel
         var remembered = ReadChoice(folder, adapter.Name);
         if (remembered == "cpu")
         {
-            log?.Invoke($"Using the processor for the voices: measured faster than the graphics card on this PC (delete models\\tts\\{ChoiceFileName} to measure again).");
+            log?.Invoke($"Using the processor only for the voices: the graphics card was measured too slow to help on this PC (delete models\\tts\\{ChoiceFileName} to measure again).");
             return LoadCpu(modelPath, log);
         }
 
@@ -100,21 +100,26 @@ public sealed class OnnxKokoroModel : IKokoroModel
             WriteChoice(folder, adapter.Name, "cpu");
             return LoadCpu(modelPath, log);
         }
-        if (remembered == "dml")
+        var cpu = LoadCpu(modelPath, log);
+        if (remembered == "both")
         {
-            log?.Invoke($"Using the graphics card for the voices: measured faster than the processor on this PC (delete models\\tts\\{ChoiceFileName} to measure again).");
-            return dml;
+            log?.Invoke($"Voices on the graphics card and the processor together, one line on the card and {cpu.Concurrency} on the processor (delete models\\tts\\{ChoiceFileName} to measure again).");
+            return new SharedKokoroModel(new IKokoroModel[] { dml, cpu }, log);
         }
 
         // First time on this PC: time both on the same lines. The card runs one line at a time, the processor several.
-        var cpu = LoadCpu(modelPath, log);
         double gpuRate = Measure(dml, styleFor), cpuRate = Measure(cpu, styleFor);
-        bool useGpu = gpuRate > cpuRate;
-        log?.Invoke($"Voice speed measured: graphics card {gpuRate:0.0}x real time, processor {cpuRate:0.0}x ({cpu.Concurrency} lines at a time). Using the {(useGpu ? "graphics card" : "processor")}.");
-        WriteChoice(folder, adapter.Name, useGpu ? "dml" : "cpu");
-        (useGpu ? cpu : dml).Dispose();
-        return useGpu ? dml : cpu;
+        bool together = gpuRate >= MinUsefulRate;
+        log?.Invoke($"Voice speed measured: graphics card {gpuRate:0.0}x real time, processor {cpuRate:0.0}x ({cpu.Concurrency} lines at a time). "
+            + (together ? $"Using both together (about {gpuRate + cpuRate:0.0}x)." : "The card is too slow to help: using the processor."));
+        WriteChoice(folder, adapter.Name, together ? "both" : "cpu");
+        if (together) return new SharedKokoroModel(new IKokoroModel[] { dml, cpu }, log);
+        dml.Dispose();
+        return cpu;
     }
+
+    /// <summary>The graphics card is used alongside the processor when it makes speech at least this fast (times real time).</summary>
+    public const double MinUsefulRate = 1.0;
 
     private static OnnxKokoroModel LoadCpu(string modelPath, Action<string>? log)
     {
@@ -181,7 +186,7 @@ public sealed class OnnxKokoroModel : IKokoroModel
             var path = Path.Combine(folder, ChoiceFileName);
             if (!File.Exists(path)) return null;
             var parts = File.ReadAllText(path).Trim().Split('\t');
-            return parts.Length == 2 && parts[0] == ChoiceKey(adapterName) && parts[1] is "cpu" or "dml" ? parts[1] : null;
+            return parts.Length == 2 && parts[0] == ChoiceKey(adapterName) && parts[1] is "cpu" or "both" ? parts[1] : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
