@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.60] - 2026-10-08
+
+### Changed
+- Dubbing: the voices run on whichever is faster on this PC, the graphics card or the processor. Build 59 got the voice model onto the RX 6850M XT, but it was slower there. The preview took 1.7 s for 2.4 s of speech, against 1.2 s on the processor, and E03's voice track (535 lines, 14.7 min of speech) took 9.2 min, 1.6 times real time. Every line has a different length, and DirectML prepares its work again for each new size, so the card's speed doesn't help with short lines like these. The first time the model is loaded on a PC, both are now loaded and timed on the same four lines. The faster is kept, and the choice is remembered in models\tts\voice-device.txt; delete that file to measure again. The Log gives both speeds.
+- Dubbing, processor: several lines are spoken at the same time, in about one thread per core (half the logical processors): 4 lines of 2 threads each on 16 logical processors. Kokoro's steps are small, so one line at a time can't keep 8 cores busy. The lines are still placed in order, and the track is byte for byte the same as one line at a time.
+
 ## [1.0.0.59] - 2026-10-08
 
 ### Fixed

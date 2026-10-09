@@ -71,7 +71,7 @@ public partial class App : Application
             Playback = new VlcPlaybackService(),
             CreatePlayer = () => new VlcPlaybackService(),
             LoadInpaintModel = (path, gpu, batch) => OnnxInpaintModel.Load(path, gpu, batch, m => log.Info("AI", m)),
-            LoadKokoroModel = (path, style, gpu) => Services.Dubbing.OnnxKokoroModel.Load(path, style, gpu, m => log.Info("Dubbing", m)),
+            LoadKokoroModel = (path, styleFor, gpu) => Services.Dubbing.OnnxKokoroModel.Load(path, styleFor, gpu, m => log.Info("Dubbing", m)),
             AudioPreview = new Services.Dubbing.WindowsAudioPreview(),
             Log = log,
             Session = new SessionStore(Path.Combine(AppPaths.ExeDirectory, SessionStore.FileName)),

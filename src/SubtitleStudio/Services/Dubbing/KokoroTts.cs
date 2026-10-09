@@ -33,6 +33,9 @@ public sealed class KokoroTts : ITtsService, IDisposable
     public string? ApiKeyProviderId => null;
     public string DeviceLabel => _model.DeviceLabel;
 
+    /// <summary>Lines best spoken at the same time on the device the model runs on.</summary>
+    public int Concurrency => _model.Concurrency;
+
     /// <summary>The English voices the voices file has.</summary>
     public IReadOnlyList<KokoroVoiceInfo> Voices => KokoroVoices.English.Where(v => _voices.Contains(v.Id)).ToList();
 

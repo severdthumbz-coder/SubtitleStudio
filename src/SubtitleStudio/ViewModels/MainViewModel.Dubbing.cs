@@ -114,7 +114,7 @@ public sealed partial class MainViewModel
         {
             var voices = KokoroVoices.Load(voicesPath);
             _ = EnglishG2P.Shared; // the pronunciation dictionary, loaded once
-            return new KokoroTts(load(modelPath, voices.Style(KokoroVoices.English[0].Id, 5), gpu), voices);
+            return new KokoroTts(load(modelPath, n => voices.Style(KokoroVoices.English[0].Id, n), gpu), voices);
         });
         _kokoro = tts;
         _s.Log.Info("Dubbing", $"Voice model ready in {(DateTime.UtcNow - started).TotalSeconds:0.0} s ({tts.DeviceLabel}).");
@@ -342,7 +342,7 @@ public sealed partial class MainViewModel
         {
             var tts = await EnsureKokoroAsync();
             var started = DateTime.UtcNow;
-            _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, voice {voice.Id}, speed {speed:0.0#}, on {tts.DeviceLabel} → {Path.GetFileName(path)}.");
+            _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, voice {voice.Id}, speed {speed:0.0#}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
             bool finished = false;
             var progress = new Progress<EngineProgress>(p =>
             {
@@ -352,7 +352,7 @@ public sealed partial class MainViewModel
                 var eta = p.Fraction > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - p.Fraction) / p.Fraction) : (TimeSpan?)null;
                 DubbingStatus = $"Speaking {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
             });
-            var result = await VoiceTrack.BuildAsync(cues, text => tts.Speak(text, voice.Id, speed), path, length, progress, ct);
+            var result = await VoiceTrack.BuildAsync(cues, text => tts.Speak(text, voice.Id, speed), path, length, progress, ct, tts.Concurrency);
             finished = true; // progress reported late must not overwrite the result
             var took = DateTime.UtcNow - started;
             DubbingStatus = $"Voice track saved: {Path.GetFileName(path)} ({MediaItemLength(result.Length)}), {result.Spoken} lines spoken in {FormatEta(took)}.";

@@ -25,8 +25,9 @@ public static class VoiceTrack
 
     /// <param name="speak">Speech for a line's text (24 kHz samples; empty: nothing to say).</param>
     /// <param name="length">The video's length, so the track is as long as it (null: ends after the last line).</param>
+    /// <param name="concurrency">Lines spoken at the same time (they are still placed in order).</param>
     public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<string, float[]> speak, string outputPath,
-        TimeSpan? length, IProgress<EngineProgress>? progress, CancellationToken ct)
+        TimeSpan? length, IProgress<EngineProgress>? progress, CancellationToken ct, int concurrency = 1)
     {
         const int rate = KokoroTts.SampleRate;
         var ordered = cues.Where(c => c.End > c.Start).OrderBy(c => c.Start).ThenBy(c => c.Index).ToList();
@@ -36,6 +37,22 @@ public static class VoiceTrack
         long minPause = (long)(MinPause.TotalSeconds * rate);
         var tmp = outputPath + ".part";
         VoiceTrackResult result;
+        // Lines are spoken ahead, up to `concurrency` at once, and written in order as each is ready.
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var ahead = new Queue<Task<float[]>>();
+        int started = 0;
+        void Fill()
+        {
+            while (ahead.Count < Math.Max(1, concurrency) && started < ordered.Count)
+            {
+                var text = ordered[started++].Text;
+                ahead.Enqueue(Task.Run(() =>
+                {
+                    stop.Token.ThrowIfCancellationRequested();
+                    return speak(text);
+                }, stop.Token));
+            }
+        }
         try
         {
             using (var wav = new WavWriter(tmp, rate))
@@ -44,7 +61,8 @@ public static class VoiceTrack
                 {
                     ct.ThrowIfCancellationRequested();
                     var cue = ordered[i];
-                    var samples = await Task.Run(() => speak(cue.Text), ct).ConfigureAwait(false);
+                    Fill();
+                    var samples = await ahead.Dequeue().ConfigureAwait(false);
                     progress?.Report(new EngineProgress((i + 1) / (double)ordered.Count, $"Line {i + 1} of {ordered.Count}", cue.Text));
                     if (samples.Length == 0) { silent++; continue; }
                     spoken++;
@@ -72,6 +90,9 @@ public static class VoiceTrack
         }
         finally
         {
+            // Stopped early (cancelled or failed): let the lines still being spoken finish before cleaning up.
+            stop.Cancel();
+            if (ahead.Count > 0) await Task.WhenAll(ahead).ContinueWith(_ => { }, TaskScheduler.Default).ConfigureAwait(false);
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }

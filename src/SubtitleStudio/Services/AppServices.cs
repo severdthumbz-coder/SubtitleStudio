@@ -38,8 +38,8 @@ public sealed class AppServices
     /// <summary>The dubbing voice model (models\tts next to the EXE).</summary>
     public Dubbing.TtsModelStore TtsModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts"));
 
-    /// <summary>Loads the Kokoro voice model on the given graphics card, tested with a voice style (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
-    public Func<string, float[], Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
+    /// <summary>Loads the Kokoro voice model on the given graphics card, tested and timed with a voice style for a given number of phonemes (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
+    public Func<string, Func<int, float[]>, Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
 
     /// <summary>Plays voice previews (Windows sound playback in the app; silent in tests).</summary>
     public Dubbing.IAudioPreview AudioPreview { get; init; } = new Dubbing.SilentAudioPreview();
