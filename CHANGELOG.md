@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.59] - 2026-10-08
+
+### Fixed
+- Dubbing: the voice model now runs on the graphics card. On an RX 6850M XT, DirectML stopped at Kokoro's first transposed convolution ("Non-zero status code returned while running ConvTranspose node /encoder/F0.1/pool/ConvTranspose"), and the app fell back to the processor, at about twice real time (2.4 s of speech in 1.2 s). The model has six such steps: three grouped ones that double the length, two in the generator that make it 10 and 6 times longer, and one in the inverse STFT. When the model is loaded for DirectML, each is rewritten in memory as the identical plain convolution: zeros are put between the input steps, the ends are padded, and the kernel is flipped. On the processor the rewritten model gives the same sound as the original, to within 0.0000014. The file on disk isn't changed, and the processor still runs the original.
+- Dubbing, Log: when the graphics card can't run the voice model, the Log now gives DirectML's whole message, which was cut off before.
+
 ## [1.0.0.58] - 2026-10-08
 
 ### Fixed

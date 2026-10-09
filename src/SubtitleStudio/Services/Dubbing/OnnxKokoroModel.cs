@@ -19,8 +19,9 @@ public interface IKokoroModel : IDisposable
 
 /// <summary>
 /// Kokoro v1.0 (82 million parameters, Apache-2.0) through ONNX Runtime, inside the app. Runs on the
-/// graphics card with DirectML (the card GpuDetector chose) and falls back to the processor if the card
-/// can't run it (or its test phrase comes out wrong).
+/// graphics card with DirectML (the card GpuDetector chose; the model patched in memory by
+/// KokoroDmlPatcher) and falls back to the processor if the card can't run it (or its test word comes
+/// out wrong). The processor runs the model as it is.
 /// </summary>
 public sealed class OnnxKokoroModel : IKokoroModel
 {
@@ -59,7 +60,10 @@ public sealed class OnnxKokoroModel : IKokoroModel
                     LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
                 };
                 options.AppendExecutionProvider_DML(Math.Max(0, adapter.AdapterIndex));
-                session = new InferenceSession(modelPath, options);
+                // DirectML can't run Kokoro's transposed convolutions: rewritten as plain ones, in memory.
+                var patched = KokoroDmlPatcher.Patch(File.ReadAllBytes(modelPath), out int rewritten);
+                log?.Invoke($"Voice model prepared for DirectML: {rewritten} transposed convolutions rewritten as plain ones.");
+                session = new InferenceSession(patched, options);
                 var model = new OnnxKokoroModel(session, $"DirectML on {adapter.Name}");
                 model.SelfTest(testStyle);
                 log?.Invoke($"Voice model loaded on the graphics card ({adapter.Name}, DirectML).");
@@ -68,7 +72,7 @@ public sealed class OnnxKokoroModel : IKokoroModel
             catch (Exception ex) when (ex is OnnxRuntimeException or DllNotFoundException or EntryPointNotFoundException or InvalidOperationException)
             {
                 session?.Dispose();
-                log?.Invoke("The graphics card couldn't run the voice model (" + FirstLine(ex.Message) + "); using the processor.");
+                log?.Invoke("The graphics card couldn't run the voice model; using the processor. What DirectML said: " + ex.Message.Replace('\r', ' ').Replace('\n', ' ').Trim());
             }
         }
 
@@ -108,12 +112,6 @@ public sealed class OnnxKokoroModel : IKokoroModel
             using var results = _session.Run(inputs);
             return results.First().AsEnumerable<float>().ToArray();
         }
-    }
-
-    private static string FirstLine(string s)
-    {
-        var line = s.Split('\n')[0].Trim();
-        return line.Length > 200 ? line[..200] + "..." : line;
     }
 
     public void Dispose() => _session.Dispose();
