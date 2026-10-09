@@ -5,7 +5,7 @@
     Version / AssemblyVersion / FileVersion / InformationalVersion all derive from it.
   -->
   <PropertyGroup>
-    <FullVersion>1.0.0.56</FullVersion>
+    <FullVersion>1.0.0.57</FullVersion>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -130,6 +130,8 @@
     <EmbeddedResource Include="..\..\CHANGELOG.md" Link="CHANGELOG.md" LogicalName="SubtitleStudio.CHANGELOG.md" />
     <!-- Silero VAD (MIT, see Assets\Models\ggml-silero-v6.2.0.LICENSE.txt): finds the speech for AI Transcribe. -->
     <EmbeddedResource Include="Assets\Models\ggml-silero-v6.2.0.bin" LogicalName="SubtitleStudio.ggml-silero-v6.2.0.bin" />
+    <!-- English pronunciation dictionary for dubbing, from misaki (Apache-2.0, see Assets\Dubbing\misaki-LICENSE.txt). -->
+    <EmbeddedResource Include="Assets\Dubbing\en-us-lexicon.tsv.gz" LogicalName="SubtitleStudio.en-us-lexicon.tsv.gz" />
   </ItemGroup>
 
 </Project>

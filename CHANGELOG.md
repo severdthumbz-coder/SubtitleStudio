@@ -5,6 +5,18 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.57] - 2026-10-08
+
+### Added
+- Dubbing tab, first of the four dubbing builds: English voices inside the app. It replaces the "coming soon" page.
+  - Voice model: Kokoro v1.0 (82 million parameters, Apache-2.0) and its voices, 337 MB in models\tts. Downloaded once from the kokoro-onnx release on GitHub and checked against sizes and SHA-256 written into the app; an interrupted download continues. It runs with the ONNX Runtime already in the app: on the graphics card with DirectML, or on the processor if the card can't run it (a test word is spoken when it loads, and anything wrong falls back to the processor). The smaller int8 model in the same release isn't offered: with the app's ONNX Runtime it was three times slower on the processor and its speech came out broken.
+  - Voices: 27 English voices, female and male, American and British, best first. Heart, Bella, Michael, Fenrir, Puck, Emma and George are marked recommended. Speed from 0.9 to 1.3. Preview speaks the line selected in the Subtitles tab, or anything typed, and plays it.
+  - Voice track: every line of the open English subtitles is spoken and placed when its subtitle appears, as one 24 kHz WAV as long as the video ("Episode 3.en.voice.wav"). Sound labels like [door closes], (sighs) and song lines with ♪ are left out. A line that takes longer than the time before the next one is reported, and the next line waits for it rather than being spoken over it. Korean or other non-Latin subtitles are refused with "translate them into English first".
+- Text to phonemes for the voices, in the app (no espeak or other program): a C# port of misaki, the phonemizer Kokoro was trained with, with its 183,000-word US dictionary embedded (1.4 MB). It handles plural, past and -ing forms, "the", "a" and "to" before vowels, numbers, years, ordinals, money, times, percent, and Dr./Mr./Mrs. Romanized Korean names are read by syllable ("Myeong-jin", "Seo-yeon", "Ji-hoon"), with Kim, Lim and Shin said the English way. Words found nowhere are read by spelling rules. On 16 test lines the output matches misaki's exactly.
+
+### Not yet
+- Fitting lines into their time, mixing the voice over the original sound, adding it to the video, and a voice per speaker come in the next three builds. British voices use American pronunciations for now.
+
 ## [1.0.0.56] - 2026-10-08
 
 ### Fixed

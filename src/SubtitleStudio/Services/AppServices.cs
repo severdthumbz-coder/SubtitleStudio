@@ -35,6 +35,15 @@ public sealed class AppServices
     /// <summary>Whisper models for AI Transcribe (models\whisper next to the EXE).</summary>
     public Transcription.WhisperModelStore WhisperModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "whisper"));
 
+    /// <summary>The dubbing voice model (models\tts next to the EXE).</summary>
+    public Dubbing.TtsModelStore TtsModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts"));
+
+    /// <summary>Loads the Kokoro voice model on the given graphics card, tested with a voice style (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
+    public Func<string, float[], Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
+
+    /// <summary>Plays voice previews (Windows sound playback in the app; silent in tests).</summary>
+    public Dubbing.IAudioPreview AudioPreview { get; init; } = new Dubbing.SilentAudioPreview();
+
     /// <summary>Language models for Translate (models\llm next to the EXE).</summary>
     public Translation.TranslationModelStore TranslationModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "llm"));
 

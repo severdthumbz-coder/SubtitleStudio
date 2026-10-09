@@ -1,0 +1,5 @@
+en-us-lexicon.tsv.gz: the US English pronunciation dictionaries (us_gold.json and us_silver.json)
+of misaki 0.9.4 by hexgrad (https://github.com/hexgrad/misaki), licensed under the Apache License 2.0
+(see misaki-LICENSE.txt). Repacked by Subtitle Studio as one tab-separated list, compressed:
+"g" or "s" (gold or silver), the word, its pronunciation in misaki's phoneme set (for words with a
+pronunciation per part of speech, the default one).

@@ -31,6 +31,10 @@ public sealed class AppSettings
     public double ReadingSpeedLimit { get; set; }
     /// <summary>"stacked" (original above the translation, SRT) or "topbottom" (original at the top, ASS).</summary>
     public string BilingualLayout { get; set; } = "stacked";
+    /// <summary>Dubbing: the Kokoro voice (af_heart, am_michael...).</summary>
+    public string DubbingVoice { get; set; } = "af_heart";
+    /// <summary>Dubbing: speaking speed, 1 = normal.</summary>
+    public double DubbingSpeed { get; set; } = 1.0;
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

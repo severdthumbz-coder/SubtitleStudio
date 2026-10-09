@@ -7,3 +7,4 @@
 *.png binary
 *.bin binary
 *.onnx binary
+*.gz binary

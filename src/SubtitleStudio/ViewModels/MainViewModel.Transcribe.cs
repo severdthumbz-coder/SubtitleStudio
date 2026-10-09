@@ -624,6 +624,7 @@ public sealed partial class MainViewModel
     {
         if (tab == Tabs.Transcribe || tab == Tabs.Translate || tab == Tabs.Settings) EnsureVulkanListed();
         if (tab == Tabs.Translate) RaiseTranslateSource();
+        if (tab == Tabs.Dubbing) { RefreshTtsModels(); RaiseDubbingSource(); }
     }
 
     private void InitTranscribe()

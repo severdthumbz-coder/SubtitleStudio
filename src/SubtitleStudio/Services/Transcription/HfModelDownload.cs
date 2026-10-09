@@ -32,6 +32,17 @@ public static class HfModelDownload
             throw new InvalidOperationException($"Couldn't reach Hugging Face ({ex.Message}). Check the internet connection, or download {fileName} in a browser and use \"Use a model file\".", ex);
         }
 
+        return await FetchKnownAsync(downloadUrl, pointer.Size, pointer.Sha256, partial, http, progress, ct, "Hugging Face").ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Downloads into <paramref name="partial"/> and checks it against a size and SHA-256 known in advance
+    /// (files hosted elsewhere than Hugging Face, whose checksums are written into the app's catalogue).
+    /// </summary>
+    public static async Task<string> FetchKnownAsync(string downloadUrl, long size, string sha256, string partial,
+        HttpClient http, IProgress<ModelDownloadProgress>? progress, CancellationToken ct, string publisher = "the app's catalogue")
+    {
+        var pointer = new LfsPointer(sha256, size);
         long have = File.Exists(partial) ? new FileInfo(partial).Length : 0;
         if (have > pointer.Size) { File.Delete(partial); have = 0; }
 
@@ -56,7 +67,7 @@ public static class HfModelDownload
         if (!string.Equals(hash, pointer.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(partial);
-            throw new InvalidOperationException("The downloaded model is damaged (its SHA-256 doesn't match the one Hugging Face publishes). It was deleted; press Download to try again.");
+            throw new InvalidOperationException($"The downloaded model is damaged (its SHA-256 doesn't match the one {publisher} publishes). It was deleted; press Download to try again.");
         }
 
         return partial;
