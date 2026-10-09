@@ -1,3 +1,4 @@
+using System.Net.Http;
 using SubtitleStudio.Services.Transcription;
 
 namespace SubtitleStudio.Services.Dubbing;

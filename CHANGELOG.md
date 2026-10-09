@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.58] - 2026-10-08
+
+### Fixed
+- 1.0.0.57 didn't compile: the voice model download used HttpClient without importing System.Net.Http, which WPF projects leave out of their automatic imports. The test project now leaves it out too, so the same mistake fails there first. Otherwise this build is 1.0.0.57 unchanged (dubbing voices).
+
 ## [1.0.0.57] - 2026-10-08
 
 ### Added
