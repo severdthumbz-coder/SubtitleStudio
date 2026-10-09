@@ -1,7 +1,10 @@
 <UserControl x:Class="SubtitleStudio.Views.Tabs.DubbingTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls">
+             xmlns:ctl="clr-namespace:SubtitleStudio.Views.Controls"
+             xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+             Loaded="OnLoaded"
+             Unloaded="OnUnloaded">
     <!-- Dubbing. Logic: MainViewModel.Dubbing.cs + Services/Dubbing (Kokoro in the app). -->
     <Grid Margin="20,16,20,16">
         <Grid.RowDefinitions>
@@ -105,8 +108,13 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- ================= Right: progress and the result ================= -->
-        <StackPanel Grid.Row="1" Grid.Column="2">
+        <!-- ================= Right: progress, the preview player, what's next ================= -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                 <StackPanel>
                     <DockPanel>
@@ -121,13 +129,53 @@
                                Visibility="{Binding HasDubbingReport, Converter={StaticResource Vis}}" />
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource Card}">
+
+            <!-- Hear the dub: a stretch spoken, mixed and played here, nothing saved -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" MinHeight="200" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Hear the dub" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="Speaks only the lines in a short stretch, with the voice, speed, fitting and level chosen on the left, mixes them over the original sound exactly as the dubbed video will be, and plays the result here with the picture. Nothing is saved. Change something and preview again to compare." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding DubPreviewStartText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,8" />
+                        <WrapPanel>
+                            <ComboBox ItemsSource="{Binding DubPreviewLengths}" SelectedItem="{Binding SelectedDubPreviewLength, Mode=TwoWay}" MinWidth="130" Margin="0,0,8,6" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE768;" Content="Preview the dub" Command="{Binding PreviewDubCommand}" Margin="0,0,0,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding DubbedVideoBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DubPreviewText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,6"
+                                   Visibility="{Binding HasDubPreview, Converter={StaticResource Vis}}" />
+                    </StackPanel>
+                    <Border Grid.Row="1" Background="#FF000000" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                            Visibility="{Binding HasDubPreview, Converter={StaticResource Vis}}">
+                        <vlc:VideoView x:Name="PreviewView" />
+                    </Border>
+                    <DockPanel Grid.Row="2" Margin="0,8,0,0" DataContext="{Binding DubPlayer}"
+                               Visibility="{Binding DataContext.HasDubPreview, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Vis}}">
+                        <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE892;" Command="{Binding BackCommand}" ToolTip="2 s back" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Tag="{Binding PlayPauseGlyph}" Command="{Binding PlayPauseCommand}" Margin="4,0" ToolTip="Play / pause" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE893;" Command="{Binding ForwardCommand}" ToolTip="2 s forward" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Tag="&#xE72C;" Command="{Binding RestartCommand}" Margin="4,0,0,0" ToolTip="From the start of the stretch" />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding PositionText}" FontFamily="{StaticResource Font.Mono}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        <Slider Minimum="0" Maximum="{Binding LengthSeconds}" Value="{Binding PositionSeconds, Mode=TwoWay}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </DockPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="Coming in the next dubbing builds" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
                                Text="Speakers: a different voice for each person, matching their gender, remembered across a season. Full dub: the original voices removed, the music and effects kept." />
                 </StackPanel>
             </Border>
-        </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

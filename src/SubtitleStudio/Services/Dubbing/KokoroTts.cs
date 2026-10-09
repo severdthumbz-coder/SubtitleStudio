@@ -36,6 +36,9 @@ public sealed class KokoroTts : ITtsService, IDisposable
     /// <summary>Lines best spoken at the same time on the device the model runs on.</summary>
     public int Concurrency => _model.Concurrency;
 
+    /// <summary>With the card and the processor together: how many pieces each spoke since last asked (null otherwise).</summary>
+    public string? TakeUsage() => (_model as SharedKokoroModel)?.TakeUsage();
+
     /// <summary>The English voices the voices file has.</summary>
     public IReadOnlyList<KokoroVoiceInfo> Voices => KokoroVoices.English.Where(v => _voices.Contains(v.Id)).ToList();
 

@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.62] - 2026-10-09
+
+### Added
+- Dubbing, "Hear the dub": a player in the tab, under the progress, for hearing a stretch of the dub before making the whole video. Choose 30 seconds, 1 minute or 2 minutes. It starts a second before the line selected in the Subtitles tab, or at the first line.
+  - Only the lines in the stretch are spoken, with the voice, speed, fitting and level chosen on the left. They are mixed over the original sound exactly as the dubbed video will be, and rendered with the picture to a temporary clip: at most 720 lines high, quickly, with the graphics card's encoder when it has one.
+  - It plays in the tab with play/pause, 2-second steps, back to the start of the stretch, and a slider. Times are shown in the video's own time.
+  - Nothing is saved next to the video: the clip is in the temporary folder and is replaced by the next preview. Change the voice, speed or level and preview again to compare.
+
+### Changed
+- Dubbing, Log: after a voice track with the card and the processor together, the Log says how many lines each spoke and how long each took a line. On E03 the two together made 14.5 min of speech in 5.7 min, about 2.5 times real time. Measured one at a time they were 2.5 and 2.6 times real time, so together should have been about 5 times. These numbers should show whether the card got its share of lines, or whether the two slowed each other down.
+
 ## [1.0.0.61] - 2026-10-09
 
 ### Added

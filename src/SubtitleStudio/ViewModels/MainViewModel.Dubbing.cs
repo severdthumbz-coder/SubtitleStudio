@@ -463,6 +463,7 @@ public sealed partial class MainViewModel
             var eta = p.Fraction > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - p.Fraction) / p.Fraction) : (TimeSpan?)null;
             DubbingStatus = $"Speaking {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
         });
+        tts.TakeUsage(); // count from here
         var result = await VoiceTrack.BuildAsync(cues, (text, s) => tts.Speak(text, voice.Id, s), options, path, progress, ct);
         finished = true; // progress reported late must not overwrite the result
         var took = DateTime.UtcNow - started;
@@ -471,6 +472,7 @@ public sealed partial class MainViewModel
             + (options.Fit ? $"; {result.SpedUp} said faster and {result.Stretched} also shortened to fit" : string.Empty)
             + $"; {result.Silent} without words; {result.TooLong.Count} still longer than their time"
             + (result.LongestDelay > TimeSpan.Zero ? $", the most a line was pushed back {result.LongestDelay.TotalSeconds:0.0} s." : "."));
+        if (tts.TakeUsage() is { } usage) _s.Log.Info("Dubbing", "Spoken: " + usage + ".");
         foreach (var l in result.TooLong.Take(50))
             _s.Log.Detail("Dubbing", $"Line {l.Number}: {l.Speech.TotalSeconds:0.0} s of speech in {l.Slot.TotalSeconds:0.0} s (over by {l.Over.TotalSeconds:0.0} s).");
         return (result, took);
@@ -554,6 +556,7 @@ public sealed partial class MainViewModel
         MakeDubbedVideoCommand = new AsyncRelayCommand(MakeDubbedVideoAsync, () => CanMakeDubbedVideo);
         CancelDubbingCommand = new RelayCommand(() => _dubbingCts?.Cancel(), () => DubbingBusy);
         _previewText = "Hello. This is how I sound when I read your subtitles.";
+        InitDubbingPreview();
 
         Cues.CollectionChanged += (_, _) => RaiseDubbingSource();
         PropertyChanged += (_, e) =>

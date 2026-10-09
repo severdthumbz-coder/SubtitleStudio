@@ -13,6 +13,8 @@ public sealed class SharedKokoroModel : IKokoroModel
         public IKokoroModel Model { get; } = model;
         public SemaphoreSlim Free { get; } = new(model.Concurrency, model.Concurrency);
         public volatile bool Failed;
+        public int Pieces;
+        public long Ticks;
     }
 
     private readonly Device[] _devices;
@@ -45,7 +47,11 @@ public sealed class SharedKokoroModel : IKokoroModel
                     if (d.Failed || !d.Free.Wait(0)) continue;
                     try
                     {
-                        return d.Model.Speak(tokens, style, speed);
+                        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                        var audio = d.Model.Speak(tokens, style, speed);
+                        Interlocked.Increment(ref d.Pieces);
+                        Interlocked.Add(ref d.Ticks, System.Diagnostics.Stopwatch.GetTimestamp() - started);
+                        return audio;
                     }
                     catch (Exception ex) when (d != _devices[^1] && ex is not OperationCanceledException and not OutOfMemoryException)
                     {
@@ -65,6 +71,19 @@ public sealed class SharedKokoroModel : IKokoroModel
         {
             _any.Release();
         }
+    }
+
+    /// <summary>"312 lines on DirectML on … (0.9 s each), 268 on the processor (1.6 s each)", then counting again from zero.</summary>
+    public string TakeUsage()
+    {
+        var parts = _devices.Select(d =>
+        {
+            int n = Interlocked.Exchange(ref d.Pieces, 0);
+            long t = Interlocked.Exchange(ref d.Ticks, 0);
+            double each = n == 0 ? 0 : t / (double)System.Diagnostics.Stopwatch.Frequency / n;
+            return $"{n} on {d.Model.DeviceLabel}" + (n > 0 ? $" ({each:0.00} s each)" : string.Empty);
+        });
+        return string.Join(", ", parts);
     }
 
     public void Dispose()
