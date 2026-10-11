@@ -77,6 +77,9 @@ public static class VoiceTrack
     /// <summary>Shortest pause kept between two lines that had to be pushed back.</summary>
     public static readonly TimeSpan MinPause = TimeSpan.FromMilliseconds(100);
 
+    /// <summary>How many times as many lines as are spoken at once are queued ahead.</summary>
+    public const int Lookahead = 4;
+
     /// <summary>A line is fitted to end this much before the next one starts.</summary>
     public static readonly TimeSpan FitGap = TimeSpan.FromMilliseconds(80);
 
@@ -96,23 +99,36 @@ public static class VoiceTrack
 
         var tmp = outputPath + ".part";
         VoiceTrackResult result;
-        // Lines are spoken ahead, up to `Concurrency` at once, and written in order as each is ready.
+        // Lines are spoken ahead, up to `Concurrency` at once, and written in order as each is ready. The
+        // queue reaches further ahead than that (Lookahead lines): a slow line at its head must not leave the
+        // others idle. On E03 the card spoke a line in 1.3 s, the processor in 3.3 s: with the queue only as
+        // long as the lines at work, the card waited for the processor's line before starting another.
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        int concurrency = Math.Max(1, options.Concurrency);
+        using var working = new SemaphoreSlim(concurrency, concurrency);
         var ahead = new Queue<Task<FittedLine>>();
         int started = 0;
         void Fill()
         {
-            while (ahead.Count < Math.Max(1, options.Concurrency) && started < ordered.Count)
+            while (ahead.Count < concurrency * Lookahead && started < ordered.Count)
             {
                 int index = started++;
                 var text = ordered[index].Text;
                 var slot = Slot(index);
-                ahead.Enqueue(Task.Run(() =>
+                ahead.Enqueue(Task.Run(async () =>
                 {
-                    stop.Token.ThrowIfCancellationRequested();
-                    if (!options.Fit || slot == TimeSpan.MaxValue)
-                        return new FittedLine(speak(text, options.Speed), options.Speed, 1, FitKind.Natural);
-                    return LineFitter.Fit(s => speak(text, s), options.Speed, (slot - FitGap).TotalSeconds);
+                    await working.WaitAsync(stop.Token).ConfigureAwait(false);
+                    try
+                    {
+                        stop.Token.ThrowIfCancellationRequested();
+                        if (!options.Fit || slot == TimeSpan.MaxValue)
+                            return new FittedLine(speak(text, options.Speed), options.Speed, 1, FitKind.Natural);
+                        return LineFitter.Fit(s => speak(text, s), options.Speed, (slot - FitGap).TotalSeconds);
+                    }
+                    finally
+                    {
+                        working.Release();
+                    }
                 }, stop.Token));
             }
         }

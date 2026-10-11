@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.63] - 2026-10-11
+
+### Fixed
+- Dubbing: the graphics card no longer waits for the processor. On E03 (1.0.0.62, 535 lines) the card spoke 178 lines at 1.28 s each and the processor 357 at 3.25 s each, four at a time. The card took a third of the lines, its fair share, but the whole track still took 5.8 min, about 3 times real time. Each device alone would have managed about 1.5 and 2.4 times, so nearly 4 together. The cause: lines were queued only as far ahead as there were lines at work (5), and written in order. A processor line at the head of the queue, taking 3.3 s, held back the next lines, so the card finished its line and sat idle. The queue now reaches four times further ahead (20 lines), with no more lines at work at once than before; lines are still written in order. Expected: about 4.4 min for E03 instead of 5.8 (estimated, not yet measured).
+  - Also seen: on the card a line took 1.28 s with the processor busy, against about 0.8 s when the card was timed alone. The card's own work on the processor competes with the four processor lines. The next Log will show whether that changes now the card is kept busy.
+
 ## [1.0.0.62] - 2026-10-09
 
 ### Added
