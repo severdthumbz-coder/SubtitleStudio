@@ -95,7 +95,8 @@ public sealed partial class MainViewModel
             DubbingStatus = $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
             var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency);
             var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = p.Fraction * 70; });
-            var result = await VoiceTrack.BuildAsync(lines, (text, s) => tts.Speak(text, voice.Id, s), options, voicePath, progress, ct);
+            var lineVoices = LineVoices();
+            var result = await VoiceTrack.BuildAsync(lines, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, voicePath, progress, ct);
 
             DubbingStatus = "Mixing the voice over the original sound...";
             var encoder = await EncoderAsync(ff.FfmpegPath!, ct);
@@ -109,7 +110,7 @@ public sealed partial class MainViewModel
             var first = inStretch.FirstOrDefault();
             var last = inStretch.LastOrDefault();
             DubPreviewText = (first is null ? "No lines in this stretch" : first == last ? $"Line {first.Index}" : $"Lines {first.Index}–{last!.Index}")
-                + $" ({ClockText(start)}–{ClockText(start + length)}), {voice.Name}'s voice, original sound {duck.Id switch { "little" => "a little lower", "much" => "much lower", _ => "lower" }}"
+                + $" ({ClockText(start)}–{ClockText(start + length)}), {(UsingSpeakers ? "each speaker in their own voice" : voice.Name + "'s voice")}, original sound {duck.Id switch { "little" => "a little lower", "much" => "much lower", _ => "lower" }}"
                 + (fit && result.SpedUp + result.Stretched > 0 ? $"; {result.SpedUp + result.Stretched} said faster to fit" : string.Empty)
                 + ". Change the voice, speed or level and preview again to compare.";
             if (_dubPlayer is { } player && player.Load(clip, start, length))

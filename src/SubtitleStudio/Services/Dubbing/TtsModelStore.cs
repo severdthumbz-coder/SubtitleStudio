@@ -4,13 +4,13 @@ using SubtitleStudio.Services.Transcription;
 namespace SubtitleStudio.Services.Dubbing;
 
 /// <summary>A Kokoro model the app can download, with the size and SHA-256 it is checked against.</summary>
-public sealed record TtsCatalogEntry(string Id, string Title, string FileName, long Size, string Sha256, string Description)
+public sealed record TtsCatalogEntry(string Id, string Title, string FileName, long Size, string Sha256, string Description, string? Url = null)
 {
     public string SizeText => $"{Size / (1024.0 * 1024):0} MB";
 
     public string Label => $"{Title}  ·  {SizeText}";
 
-    public string DownloadUrl => TtsModelStore.ReleaseUrl + FileName;
+    public string DownloadUrl => Url ?? TtsModelStore.ReleaseUrl + FileName;
 
     public override string ToString() => Label;
 }
@@ -37,7 +37,29 @@ public sealed class TtsModelStore
         "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
         "The voices (downloaded with the model).");
 
+    /// <summary>
+    /// The voiceprint model for telling speakers apart: WeSpeaker ResNet34-LM trained on VoxCeleb (CC BY 4.0),
+    /// the ONNX export published by the sherpa-onnx project on GitHub.
+    /// </summary>
+    public static TtsCatalogEntry VoiceprintModel { get; } = new("voiceprint", "WeSpeaker ResNet34-LM (voiceprints)", "wespeaker_en_voxceleb_resnet34_LM.onnx", 26_530_550,
+        "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
+        "Tells speakers apart by their voices. WeSpeaker (VoxCeleb, CC BY 4.0), from the sherpa-onnx project.",
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx");
+
     public TtsModelStore(string folder) => Folder = folder;
+
+    public string VoiceprintPath => PathFor(VoiceprintModel);
+
+    public bool HasVoiceprint => Has(VoiceprintModel);
+
+    /// <summary>Downloads the voiceprint model (26 MB), checked.</summary>
+    public async Task DownloadVoiceprintAsync(HttpClient http, IProgress<ModelDownloadProgress>? progress, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Folder);
+        var e = VoiceprintModel;
+        var partial = await HfModelDownload.FetchKnownAsync(e.DownloadUrl, e.Size, e.Sha256, PathFor(e) + PartialSuffix, http, progress, ct, "the sherpa-onnx release").ConfigureAwait(false);
+        File.Move(partial, PathFor(e), overwrite: true);
+    }
 
     public string Folder { get; }
 

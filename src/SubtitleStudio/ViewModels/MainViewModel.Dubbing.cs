@@ -453,7 +453,7 @@ public sealed partial class MainViewModel
         var tts = await EnsureKokoroAsync();
         options = options with { Concurrency = tts.Concurrency };
         var started = DateTime.UtcNow;
-        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, voice {voice.Id}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
+        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
         bool finished = false;
         var progress = new Progress<EngineProgress>(p =>
         {
@@ -464,7 +464,8 @@ public sealed partial class MainViewModel
             DubbingStatus = $"Speaking {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
         });
         tts.TakeUsage(); // count from here
-        var result = await VoiceTrack.BuildAsync(cues, (text, s) => tts.Speak(text, voice.Id, s), options, path, progress, ct);
+        var lineVoices = LineVoices();
+        var result = await VoiceTrack.BuildAsync(cues, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, path, progress, ct);
         finished = true; // progress reported late must not overwrite the result
         var took = DateTime.UtcNow - started;
         DubbingReport = VoiceTrackReport(result, options.Fit);
@@ -473,6 +474,7 @@ public sealed partial class MainViewModel
             + $"; {result.Silent} without words; {result.TooLong.Count} still longer than their time"
             + (result.LongestDelay > TimeSpan.Zero ? $", the most a line was pushed back {result.LongestDelay.TotalSeconds:0.0} s." : "."));
         if (tts.TakeUsage() is { } usage) _s.Log.Info("Dubbing", "Spoken: " + usage + ".");
+        RememberSpeakers();
         foreach (var l in result.TooLong.Take(50))
             _s.Log.Detail("Dubbing", $"Line {l.Number}: {l.Speech.TotalSeconds:0.0} s of speech in {l.Slot.TotalSeconds:0.0} s (over by {l.Over.TotalSeconds:0.0} s).");
         return (result, took);
@@ -557,6 +559,7 @@ public sealed partial class MainViewModel
         CancelDubbingCommand = new RelayCommand(() => _dubbingCts?.Cancel(), () => DubbingBusy);
         _previewText = "Hello. This is how I sound when I read your subtitles.";
         InitDubbingPreview();
+        InitSpeakers();
 
         Cues.CollectionChanged += (_, _) => RaiseDubbingSource();
         PropertyChanged += (_, e) =>

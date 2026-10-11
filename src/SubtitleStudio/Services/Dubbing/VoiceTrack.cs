@@ -83,8 +83,8 @@ public static class VoiceTrack
     /// <summary>A line is fitted to end this much before the next one starts.</summary>
     public static readonly TimeSpan FitGap = TimeSpan.FromMilliseconds(80);
 
-    /// <param name="speak">Speech for a line's text at a Kokoro speed (24 kHz samples; empty: nothing to say).</param>
-    public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<string, float, float[]> speak, VoiceTrackOptions options,
+    /// <param name="speak">Speech for a line at a Kokoro speed (24 kHz samples; empty: nothing to say).</param>
+    public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<SubtitleCue, float, float[]> speak, VoiceTrackOptions options,
         string outputPath, IProgress<EngineProgress>? progress, CancellationToken ct)
     {
         const int rate = KokoroTts.SampleRate;
@@ -113,7 +113,7 @@ public static class VoiceTrack
             while (ahead.Count < concurrency * Lookahead && started < ordered.Count)
             {
                 int index = started++;
-                var text = ordered[index].Text;
+                var line = ordered[index];
                 var slot = Slot(index);
                 ahead.Enqueue(Task.Run(async () =>
                 {
@@ -122,8 +122,8 @@ public static class VoiceTrack
                     {
                         stop.Token.ThrowIfCancellationRequested();
                         if (!options.Fit || slot == TimeSpan.MaxValue)
-                            return new FittedLine(speak(text, options.Speed), options.Speed, 1, FitKind.Natural);
-                        return LineFitter.Fit(s => speak(text, s), options.Speed, (slot - FitGap).TotalSeconds);
+                            return new FittedLine(speak(line, options.Speed), options.Speed, 1, FitKind.Natural);
+                        return LineFitter.Fit(s => speak(line, s), options.Speed, (slot - FitGap).TotalSeconds);
                     }
                     finally
                     {

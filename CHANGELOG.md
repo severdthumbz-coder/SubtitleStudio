@@ -5,6 +5,19 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.64] - 2026-10-11
+
+### Added
+- Dubbing, Speakers: a voice for each person, matching their gender. "Find the speakers" listens to the paired video and works out who says each line:
+  - A voiceprint of each line's sound (WeSpeaker ResNet34-LM, trained on VoxCeleb, CC BY 4.0). It is 26 MB, downloaded once from the sherpa-onnx project on GitHub and checked against its SHA-256, and runs inside the app on the processor. The sound features it needs are computed in the app and match kaldi-native-fbank to within 0.0004.
+  - Lines that sound alike are grouped. Lines under half a second, or without words, go to the speaker of the nearest line.
+  - Male or female comes from the median pitch of each person's lines, split at 160 Hz.
+  - Each person gets a different voice of their gender, the best voices to whoever speaks most.
+  - On a real four-person recording (sherpa-onnx's diarization test, compared with its published answer), all 10 stretches went to the right person. On a test with six Kokoro voices, 5 groups came out, each a single person, except that two similar-sounding male voices were joined into one.
+- Speakers list, to check and correct: rename a person; change their gender, which brings a voice of that gender; choose their voice; hear their longest line from the video ("Original") or one of their lines in their dub voice; join two speakers that are the same person ("Same as"); and change who speaks the line selected in the Subtitles tab.
+- "A voice for each speaker" (on once speakers are found) is used by the voice track, the dubbed video and "Hear the dub". Off: everyone in the voice of step 2, as before.
+- The people are remembered for the show (speakers\<show>.json next to the app), saved when a voice track or dubbed video is made. In the next episode, someone whose voice matches gets the same name and voice. People with fewer than 5 lines are only kept when they have been given a name.
+
 ## [1.0.0.63] - 2026-10-11
 
 ### Fixed

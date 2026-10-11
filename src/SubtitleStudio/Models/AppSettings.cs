@@ -41,6 +41,8 @@ public sealed class AppSettings
     public string DubbingDuck { get; set; } = "lower";
     /// <summary>Dubbing: the English voice-over track is the one players start with.</summary>
     public bool DubbingDefaultTrack { get; set; } = true;
+    /// <summary>Dubbing: each speaker found in their own voice (when speakers have been found).</summary>
+    public bool DubbingPerSpeaker { get; set; } = true;
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>
