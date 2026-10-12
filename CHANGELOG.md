@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.66] - 2026-10-12
+
+### Fixed
+- Dubbing, Speakers: men no longer get women's voices from memory. E03 with 1.0.0.65 found 10 speakers, 7 of them recognised from the people 1.0.0.64 had remembered. Those kept the voice remembered from the old, over-split result, whatever their pitch said now. Two men (151 Hz and 130 Hz) were spoken by bf_isabella and bf_alice, and two women shared af_heart. A remembered voice of the other gender, or one already used by someone who speaks more, is now replaced with a fitting voice. A voice chosen by hand in the Speakers list is still kept, and remembered as chosen by hand.
+- Dubbing, Speakers: lines go to someone of the same gender. Every line from a small group went to the character it sounded most like, whatever the pitch, so E03's first line, a male driver's, was spoken by the lead woman. A small group, or a short line, now goes to the most alike speaker of its own gender. Gender is used only when the pitch can tell (at least 5 readings).
+- Dubbing, Speakers: minor speakers keep their own voice. E03 has about 27 speakers, but 1.0.0.65 kept 10: groups under 5 lines and 12 s were all folded into the main characters. A smaller group with at least 2 lines and 3 s of speech is now a speaker of its own when it sounds like none of the characters (voiceprints under 0.4 alike). A group that sounds like one of them (0.4 or more) is that character. At most 24 speakers in all (was 16). The Log's grouping line shows the main and minor counts separately.
+- Dubbing, pronunciation: "LA" and "L.A." are read as "L A", not as the note "la" or as "L" plus the article "a". Also spelled out: "ER", "ID", "PM", "TV", "DC", "NY" and "AI" written in capitals in a line that isn't all capitals; "the US"; "7 AM"; and dotted initials such as "U.S." or "a.m.". "it's about US" and shouted lines keep the word.
+
 ## [1.0.0.65] - 2026-10-11
 
 ### Fixed

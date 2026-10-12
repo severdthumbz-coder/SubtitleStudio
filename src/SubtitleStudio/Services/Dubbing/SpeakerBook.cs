@@ -9,6 +9,7 @@ public sealed class RememberedSpeaker
     public string? Gender { get; set; }
     public bool GenderSetByHand { get; set; }
     public string Voice { get; set; } = string.Empty;
+    public bool VoiceSetByHand { get; set; }
     public float[] Voiceprint { get; set; } = Array.Empty<float>();
     /// <summary>Episodes they were found in (to keep the regulars when the book is full).</summary>
     public int Episodes { get; set; }
@@ -57,7 +58,8 @@ public sealed class SpeakerBook
     }
 
     /// <summary>
-    /// Gives the speakers that match someone remembered their name, voice and (if set by hand) gender,
+    /// Gives the speakers that match someone remembered their name, voice and (if set by hand) gender
+    /// (SpeakerFinder.AssignVoices then replaces a remembered voice that no longer fits),
     /// most alike pairs first, each person at most once. Returns how many were recognised.
     /// </summary>
     public int Recognise(IReadOnlyList<Speaker> speakers)
@@ -78,6 +80,7 @@ public sealed class SpeakerBook
             used.Add(p);
             s.Name = p.Name;
             s.Voice = p.Voice;
+            s.VoiceSetByHand = p.VoiceSetByHand;
             if (p.GenderSetByHand || s.Gender is null) { s.Gender = p.Gender; s.GenderSetByHand = p.GenderSetByHand; }
             s.Remembered = true;
         }
@@ -119,6 +122,7 @@ public sealed class SpeakerBook
             }
             person.Name = s.Name;
             person.Voice = s.Voice;
+            person.VoiceSetByHand = s.VoiceSetByHand;
             person.Gender = s.Gender;
             person.GenderSetByHand = s.GenderSetByHand;
             person.Episodes++;

@@ -22,6 +22,9 @@ public sealed class Speaker
     /// <summary>The Kokoro voice the speaker is dubbed with.</summary>
     public string Voice { get; set; } = string.Empty;
 
+    /// <summary>Voice chosen by hand (kept even when it's of the other gender or another speaker has it).</summary>
+    public bool VoiceSetByHand { get; set; }
+
     /// <summary>The speaker's lines (the subtitles' own cue objects).</summary>
     public List<SubtitleCue> Lines { get; } = new();
 
@@ -58,12 +61,22 @@ public static class SpeakerFinder
 
     /// <summary>
     /// A group is a character from this many lines, or this much speech (less in short videos: 1% of the lines,
-    /// 2% of the speech); smaller ones are given to the most alike character.
+    /// 2% of the speech).
     /// </summary>
     public const int CharacterLines = 5;
 
+    /// <summary>A smaller group this alike a character (average voiceprints) is that character.</summary>
+    public const double SameCharacter = 0.4;
+
+    /// <summary>
+    /// A smaller group like no character, with at least this many lines and this much speech, is a minor speaker
+    /// of its own (the driver with two lines); smaller still, it goes to the most alike character of its gender.
+    /// </summary>
+    public const int MinorLines = 2;
+    public static readonly TimeSpan MinorSpeech = TimeSpan.FromSeconds(3);
+
     /// <summary>At most this many speakers: the ones who speak least are given to the most alike of these.</summary>
-    public const int MostSpeakers = 16;
+    public const int MostSpeakers = 24;
     public static readonly TimeSpan CharacterSpeech = TimeSpan.FromSeconds(12);
 
     public static readonly TimeSpan ShortestLine = TimeSpan.FromSeconds(0.5);
@@ -115,8 +128,10 @@ public static class SpeakerFinder
         int clustered = groups.Count;
         groups = MergeAlike(groups, prints, pitches);
         int merged = groups.Count;
-        groups = KeepCharacters(groups, measured, lines, prints);
-        var steps = $"{reliable.Count} lines of 1.2 s or more grouped into {clustered}; {merged} after joining groups that sound alike; {groups.Count} big enough to be characters (at most {MostSpeakers}), the other lines given to the character they sound most like";
+        groups = KeepCharacters(groups, measured, lines, prints, pitches, out int main, out int minor);
+        var steps = $"{reliable.Count} lines of 1.2 s or more grouped into {clustered}; {merged} after joining groups that sound alike; "
+            + $"{main} big enough to be characters, {minor} minor speaker{(minor == 1 ? "" : "s")} (at most {MostSpeakers} in all), "
+            + "the other lines given to the speaker of their gender they sound most like";
         progress?.Report(0.95);
 
         // Lines without a voiceprint: the speaker of the nearest measured line in time.
@@ -253,42 +268,96 @@ public static class SpeakerFinder
     }
 
     /// <summary>
-    /// Groups with enough lines or speech are the characters; every other measured line (small groups, short
-    /// lines) goes to the character whose voice it is most like.
+    /// Groups with enough lines or speech are the characters. A smaller group joins the character it sounds like
+    /// (of the same gender); one like nobody, with a few lines, is a minor speaker of its own; the rest, and the
+    /// short lines, go to the most alike speaker of their gender. (Build 65 gave every small group to the most
+    /// alike character whatever the pitch: E03's driver, a man, was spoken by the lead woman.)
     /// </summary>
-    private static List<List<int>> KeepCharacters(List<List<int>> groups, List<int> measured, List<SubtitleCue> lines, float[]?[] prints)
+    private static List<List<int>> KeepCharacters(List<List<int>> groups, List<int> measured, List<SubtitleCue> lines, float[]?[] prints,
+        List<double>?[] pitches, out int main, out int minor)
     {
         TimeSpan Speech(List<int> g) => TimeSpan.FromTicks(g.Sum(i => (lines[i].End - lines[i].Start).Ticks));
+        string? GenderOf(IEnumerable<int> g)
+        {
+            var hz = g.Where(i => pitches[i] is not null).SelectMany(i => pitches[i]!).ToList();
+            return hz.Count >= MinPitchFrames ? Pitch.GenderOf(Pitch.Median(hz)) : null;
+        }
         // Short videos have fewer lines per person: the bar is 1% of the lines (2 to 5), or 2% of the speech (4 to 12 s).
         int minLines = Math.Clamp((int)Math.Round(measured.Count * 0.01), 2, CharacterLines);
         var minSpeech = TimeSpan.FromTicks(Math.Clamp((long)(Speech(measured).Ticks * 0.02), TimeSpan.FromSeconds(4).Ticks, CharacterSpeech.Ticks));
-        var characters = groups.Where(g => g.Count >= minLines || Speech(g) >= minSpeech)
-            .OrderByDescending(g => Speech(g)).Take(MostSpeakers).Select(g => new List<int>(g)).ToList();
-        if (characters.Count == 0) characters = groups.Select(g => new List<int>(g)).ToList();
-        if (characters.Count == 0) return characters;
+        var ordered = groups.OrderByDescending(Speech).ToList();
+        var characters = ordered.Where(g => g.Count >= minLines || Speech(g) >= minSpeech).Take(MostSpeakers).Select(g => new List<int>(g)).ToList();
+        main = characters.Count;
+        minor = 0;
+        if (characters.Count == 0)
+        {
+            main = groups.Count;
+            return groups.Select(g => new List<int>(g)).ToList();
+        }
         var centroids = characters.Select(g => Voiceprints.Mean(g.Select(i => prints[i]!))).ToList();
+        var genders = characters.Select(GenderOf).ToList();
+
+        // The most alike speaker of the same gender (any gender when none matches or the pitch can't tell).
+        (int Best, double Sim) Nearest(float[] print, string? gender)
+        {
+            int best = -1, anyBest = -1;
+            double b = double.NegativeInfinity, anyB = double.NegativeInfinity;
+            for (int k = 0; k < centroids.Count; k++)
+            {
+                var sim = Voiceprints.Similarity(print, centroids[k]);
+                if (sim > anyB) { anyB = sim; anyBest = k; }
+                if ((gender is null || genders[k] is null || genders[k] == gender) && sim > b) { b = sim; best = k; }
+            }
+            return best >= 0 ? (best, b) : (anyBest, anyB);
+        }
+
         var placed = new HashSet<int>(characters.SelectMany(g => g));
+        foreach (var g in ordered.Where(g => !g.Any(placed.Contains)))
+        {
+            var centroid = Voiceprints.Mean(g.Select(i => prints[i]!));
+            var gender = GenderOf(g);
+            var (best, sim) = Nearest(centroid, gender);
+            if (sim < SameCharacter && characters.Count < MostSpeakers && g.Count >= MinorLines && Speech(g) >= MinorSpeech)
+            {
+                characters.Add(new List<int>(g));
+                centroids.Add(centroid);
+                genders.Add(gender);
+                minor++;
+            }
+            else characters[best].AddRange(g);
+            foreach (var i in g) placed.Add(i);
+        }
         foreach (var i in measured)
         {
             if (placed.Contains(i)) continue;
-            int best = 0;
-            double b = double.NegativeInfinity;
-            for (int k = 0; k < centroids.Count; k++)
-            {
-                var sim = Voiceprints.Similarity(prints[i]!, centroids[k]);
-                if (sim > b) { b = sim; best = k; }
-            }
-            characters[best].Add(i);
+            characters[Nearest(prints[i]!, GenderOf(new[] { i })).Best].Add(i);
         }
         return characters;
     }
 
+    /// <summary>Pitch readings (30 ms apart) needed before a line or group is taken as male or female.</summary>
+    private const int MinPitchFrames = 5;
+
+    /// <summary>"male" for am_/bm_ voices, "female" for af_/bf_.</summary>
+    public static string VoiceGender(string voice) => voice.Length > 1 && voice[1] == 'm' ? "male" : "female";
+
     /// <summary>
     /// A voice for each speaker without one: of their gender (female when unknown and the pitch is missing),
-    /// best voices to the most talkative, no voice used twice until all of that gender are used.
+    /// best voices to the most talkative, no voice used twice until all of that gender are used. A remembered
+    /// voice of the other gender, or one a more talkative speaker has, is replaced (unless chosen by hand).
     /// </summary>
     public static void AssignVoices(IReadOnlyList<Speaker> speakers)
     {
+        var kept = new HashSet<string>();
+        foreach (var s in speakers.Where(s => s.Voice.Length > 0).OrderByDescending(s => s.VoiceSetByHand).ThenByDescending(s => s.Lines.Count))
+        {
+            if (s.VoiceSetByHand) { kept.Add(s.Voice); continue; }
+            var pool = s.Gender == "male" ? MaleVoices : FemaleVoices;
+            bool wrongGender = s.Gender is not null && VoiceGender(s.Voice) != s.Gender;
+            bool taken = kept.Contains(s.Voice) && pool.Any(v => !kept.Contains(v));
+            if (wrongGender || taken) s.Voice = string.Empty;
+            else kept.Add(s.Voice);
+        }
         var used = new HashSet<string>(speakers.Where(s => s.Voice.Length > 0).Select(s => s.Voice));
         foreach (var s in speakers.Where(s => s.Voice.Length == 0).OrderByDescending(s => s.Lines.Count))
         {

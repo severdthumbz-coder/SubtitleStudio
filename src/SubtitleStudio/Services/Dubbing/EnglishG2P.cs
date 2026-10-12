@@ -100,6 +100,19 @@ public sealed partial class EnglishG2P
         ["Sr"] = "Senior", ["vs"] = "versus", ["Vs"] = "versus", ["Lt"] = "Lieutenant", ["Sgt"] = "Sergeant", ["Capt"] = "Captain",
     };
 
+    /// <summary>
+    /// Initials the dictionary has as words ("LA" as the note la, "US" as us, "ER" as er): read letter by letter
+    /// when written in capitals in a line that isn't all capitals (a shouted "LET US GO" keeps "us"). "US" only after
+    /// "the" ("it's about US" is emphasis), "AM" only after a number ("7 AM"). Words often capitalised for emphasis ("IT", "OR", "AM") aren't here.
+    /// </summary>
+    private static readonly HashSet<string> Initials = new(StringComparer.Ordinal)
+    {
+        "LA", "ER", "ID", "PM", "TV", "DC", "NY", "AI",
+    };
+
+    [GeneratedRegex(@"(?<![A-Za-z.])((?:[A-Za-z]\.){2,})(?=[^A-Za-z]|$)")]
+    private static partial Regex DottedInitials();
+
     private sealed record Token(string Text, string Kind, bool SpaceAfter)
     {
         public string? Phonemes { get; set; }
@@ -116,6 +129,15 @@ public sealed partial class EnglishG2P
         var clean = NotSpoken().Replace(spoken, " ");
         clean = clean.Replace('’', '\'').Replace('‘', '\'').Replace("...", "…").Replace("--", "—").Replace('\n', ' ');
         clean = Regex.Replace(clean, @"(^|\s)-\s*", "$1"); // "- Where?" speaker dashes
+        // "L.A." and "U.S." are initials: read as letters (not "L", then "a" the article).
+        var dotted = new HashSet<string>(StringComparer.Ordinal);
+        clean = DottedInitials().Replace(clean, m =>
+        {
+            var letters = m.Value.Replace(".", string.Empty).ToUpperInvariant();
+            dotted.Add(letters);
+            return letters;
+        });
+        bool shouted = !clean.Any(char.IsLower);
         var tokens = new List<Token>();
         foreach (Match m in Tokens().Matches(clean))
         {
@@ -149,6 +171,9 @@ public sealed partial class EnglishG2P
                 "dash" => i > 0 && !tokens[i - 1].SpaceAfter && i + 1 < tokens.Count && !t.SpaceAfter ? string.Empty : "—",
                 "sym" => Symbol(t.Text, futureVowel),
                 "num" => Number(t.Text),
+                _ when dotted.Contains(t.Text) || !shouted && (Initials.Contains(t.Text) || t.Text == "US" && i > 0 && tokens[i - 1].Text is "the" or "The"
+                    || t.Text == "AM" && i > 0 && tokens[i - 1].Kind == "num")
+                    => Letters(t.Text) ?? Word(t.Text, futureVowel, futureTo),
                 _ => Word(t.Text, futureVowel, futureTo),
             };
             if (!string.IsNullOrEmpty(t.Phonemes))

@@ -80,6 +80,7 @@ public sealed class SpeakerRowViewModel : ObservableObject
         {
             if (value is null || value.Id == Speaker.Voice) return;
             Speaker.Voice = value.Id;
+            Speaker.VoiceSetByHand = true;
             OnPropertyChanged();
             _changed(this);
         }

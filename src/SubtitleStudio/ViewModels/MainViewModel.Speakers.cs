@@ -186,7 +186,10 @@ public sealed partial class MainViewModel
         // A gender corrected by hand: a voice of that gender, unless one was chosen already.
         var pool = row.Speaker.Gender == "male" ? SpeakerFinder.MaleVoices : SpeakerFinder.FemaleVoices;
         if (row.Speaker.GenderSetByHand && !pool.Contains(row.Speaker.Voice))
+        {
             row.Speaker.Voice = SpeakerFinder.VoiceForGender(row.Speaker.Gender ?? "female", SpeakerRows.Select(r => r.Speaker).ToList(), row.Speaker);
+            row.Speaker.VoiceSetByHand = false;
+        }
         row.Refresh();
         foreach (var r in SpeakerRows) r.SetOthers(SpeakerRows);
     }
