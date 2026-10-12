@@ -35,7 +35,8 @@ public sealed class Speaker
 }
 
 /// <summary>What Find speakers did.</summary>
-public sealed record SpeakerResult(List<Speaker> Speakers, int Measured, int ByNeighbour, int Remembered);
+/// <param name="Steps">How the grouping went, for the Log: "212 reliable lines → 31 groups → 24 after joining alike → 12 characters".</param>
+public sealed record SpeakerResult(List<Speaker> Speakers, int Measured, int ByNeighbour, int Remembered, string Steps = "");
 
 /// <summary>
 /// Who speaks each line: a voiceprint of each line's audio (WeSpeaker), lines grouped by how alike they
@@ -48,8 +49,22 @@ public static class SpeakerFinder
     /// <summary>Two groups of lines this alike (cosine) are taken for the same person.</summary>
     public const double SameSpeaker = 0.36;
 
-    /// <summary>A group of fewer than 3 lines joins the most alike bigger group when at least this alike.</summary>
-    public const double SmallGroupJoins = 0.33;
+    /// <summary>Lines at least this long have voiceprints reliable enough to form the groups.</summary>
+    public static readonly TimeSpan ReliableLine = TimeSpan.FromSeconds(1.2);
+
+    /// <summary>Two groups whose average voiceprints are this alike, with pitch this close, are joined.</summary>
+    public const double SameGroup = 0.5;
+    public const double SamePitchHz = 40;
+
+    /// <summary>
+    /// A group is a character from this many lines, or this much speech (less in short videos: 1% of the lines,
+    /// 2% of the speech); smaller ones are given to the most alike character.
+    /// </summary>
+    public const int CharacterLines = 5;
+
+    /// <summary>At most this many speakers: the ones who speak least are given to the most alike of these.</summary>
+    public const int MostSpeakers = 16;
+    public static readonly TimeSpan CharacterSpeech = TimeSpan.FromSeconds(12);
 
     public static readonly TimeSpan ShortestLine = TimeSpan.FromSeconds(0.5);
     public static readonly TimeSpan LongestPiece = TimeSpan.FromSeconds(10);
@@ -89,11 +104,19 @@ public static class SpeakerFinder
             progress?.Report(Interlocked.Increment(ref done) / (double)lines.Count * 0.9);
         });
 
-        // Group the measured lines.
+        // Group the lines whose voiceprints are reliable (1.2 s or more), join groups that are clearly the same
+        // person, keep the groups big enough to be a character, and give every other measured line to the most
+        // alike of those. (On E03, grouping every line alone gave 47 speakers, 15 of them with a single line.)
         var measured = Enumerable.Range(0, lines.Count).Where(i => prints[i] is not null).ToList();
-        var groups = Cluster(measured.Select(i => prints[i]!).ToList(), SameSpeaker)
-            .Select(g => g.Select(k => measured[k]).ToList()).ToList();
-        groups = JoinSmall(groups, prints);
+        var reliable = measured.Where(i => lines[i].End - lines[i].Start >= ReliableLine).ToList();
+        if (reliable.Count < 3) reliable = measured;
+        var groups = Cluster(reliable.Select(i => prints[i]!).ToList(), SameSpeaker)
+            .Select(g => g.Select(k => reliable[k]).ToList()).ToList();
+        int clustered = groups.Count;
+        groups = MergeAlike(groups, prints, pitches);
+        int merged = groups.Count;
+        groups = KeepCharacters(groups, measured, lines, prints);
+        var steps = $"{reliable.Count} lines of 1.2 s or more grouped into {clustered}; {merged} after joining groups that sound alike; {groups.Count} big enough to be characters (at most {MostSpeakers}), the other lines given to the character they sound most like";
         progress?.Report(0.95);
 
         // Lines without a voiceprint: the speaker of the nearest measured line in time.
@@ -137,7 +160,7 @@ public static class SpeakerFinder
         int remembered = book?.Recognise(speakers) ?? 0;
         AssignVoices(speakers);
         progress?.Report(1);
-        return new SpeakerResult(speakers, measured.Count, byNeighbour, remembered);
+        return new SpeakerResult(speakers, measured.Count, byNeighbour, remembered, steps);
     }
 
     private static Speaker Renumber(Speaker s, int id)
@@ -203,27 +226,61 @@ public static class SpeakerFinder
         return alive.Select(i => groups[i]).ToList();
     }
 
-    /// <summary>Groups of fewer than 3 lines join the most alike group of 3 or more, when alike enough.</summary>
-    private static List<List<int>> JoinSmall(List<List<int>> groups, float[]?[] prints)
+    /// <summary>
+    /// Joins groups whose average voiceprints are this alike and whose pitch is close: the same person split
+    /// in two (their voice in a quiet scene and over music, say).
+    /// </summary>
+    private static List<List<int>> MergeAlike(List<List<int>> groups, float[]?[] prints, List<double>?[] pitches)
     {
-        var big = groups.Where(g => g.Count >= 3).ToList();
-        if (big.Count == 0) return groups;
-        var centroids = big.Select(g => Voiceprints.Mean(g.Select(i => prints[i]!))).ToList();
-        var result = big.Select(g => new List<int>(g)).ToList();
-        foreach (var small in groups.Where(g => g.Count < 3))
+        var result = groups.Select(g => new List<int>(g)).ToList();
+        while (true)
         {
-            var c = Voiceprints.Mean(small.Select(i => prints[i]!));
-            int best = -1;
+            var centroids = result.Select(g => Voiceprints.Mean(g.Select(i => prints[i]!))).ToList();
+            var hz = result.Select(g => Pitch.Median(g.Where(i => pitches[i] is not null).SelectMany(i => pitches[i]!).ToList())).ToList();
+            int a = -1, b = -1;
+            double best = SameGroup;
+            for (int x = 0; x < result.Count; x++)
+                for (int y = x + 1; y < result.Count; y++)
+                {
+                    if (hz[x] is { } px && hz[y] is { } py && Math.Abs(px - py) > SamePitchHz) continue;
+                    var sim = Voiceprints.Similarity(centroids[x], centroids[y]);
+                    if (sim >= best) { best = sim; a = x; b = y; }
+                }
+            if (a < 0) return result;
+            result[a].AddRange(result[b]);
+            result.RemoveAt(b);
+        }
+    }
+
+    /// <summary>
+    /// Groups with enough lines or speech are the characters; every other measured line (small groups, short
+    /// lines) goes to the character whose voice it is most like.
+    /// </summary>
+    private static List<List<int>> KeepCharacters(List<List<int>> groups, List<int> measured, List<SubtitleCue> lines, float[]?[] prints)
+    {
+        TimeSpan Speech(List<int> g) => TimeSpan.FromTicks(g.Sum(i => (lines[i].End - lines[i].Start).Ticks));
+        // Short videos have fewer lines per person: the bar is 1% of the lines (2 to 5), or 2% of the speech (4 to 12 s).
+        int minLines = Math.Clamp((int)Math.Round(measured.Count * 0.01), 2, CharacterLines);
+        var minSpeech = TimeSpan.FromTicks(Math.Clamp((long)(Speech(measured).Ticks * 0.02), TimeSpan.FromSeconds(4).Ticks, CharacterSpeech.Ticks));
+        var characters = groups.Where(g => g.Count >= minLines || Speech(g) >= minSpeech)
+            .OrderByDescending(g => Speech(g)).Take(MostSpeakers).Select(g => new List<int>(g)).ToList();
+        if (characters.Count == 0) characters = groups.Select(g => new List<int>(g)).ToList();
+        if (characters.Count == 0) return characters;
+        var centroids = characters.Select(g => Voiceprints.Mean(g.Select(i => prints[i]!))).ToList();
+        var placed = new HashSet<int>(characters.SelectMany(g => g));
+        foreach (var i in measured)
+        {
+            if (placed.Contains(i)) continue;
+            int best = 0;
             double b = double.NegativeInfinity;
             for (int k = 0; k < centroids.Count; k++)
             {
-                var s = Voiceprints.Similarity(c, centroids[k]);
-                if (s > b) { b = s; best = k; }
+                var sim = Voiceprints.Similarity(prints[i]!, centroids[k]);
+                if (sim > b) { b = sim; best = k; }
             }
-            if (best >= 0 && b >= SmallGroupJoins) result[best].AddRange(small);
-            else result.Add(new List<int>(small));
+            characters[best].Add(i);
         }
-        return result;
+        return characters;
     }
 
     /// <summary>

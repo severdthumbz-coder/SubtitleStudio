@@ -51,6 +51,29 @@ public sealed partial class MainViewModel
 
     public AsyncRelayCommand FindSpeakersCommand { get; private set; } = null!;
 
+    /// <summary>Clears the people remembered for this show (their names and voices start again).</summary>
+    public RelayCommand ForgetShowSpeakersCommand { get; private set; } = null!;
+
+    private string SpeakerFolder => Path.Combine(AppPaths.ExeDirectory, "speakers");
+
+    private void ForgetShowSpeakers()
+    {
+        var show = NameConsistency.ShowOf(PairedVideo?.Name ?? _doc?.SourcePath);
+        var book = SpeakerBook.Open(SpeakerFolder, show);
+        if (book.People.Count == 0)
+        {
+            SpeakersStatus = $"Nobody is remembered for {(show.Length > 0 ? show : "this show")} yet.";
+            return;
+        }
+        if (!_s.Dialogs.Confirm("Forget the speakers", $"Forget the {book.People.Count} people remembered for {show}? Their names and voices start again with the next episode you find speakers in.")) return;
+        try { File.Delete(book.Path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        if (_speakerBook?.Path == book.Path) _speakerBook = SpeakerBook.Open(SpeakerFolder, show);
+        foreach (var r in SpeakerRows) r.Speaker.Remembered = false;
+        RefreshSpeakerRows();
+        SpeakersStatus = $"The people remembered for {show} are forgotten.";
+        _s.Log.Info("Dubbing", $"Speakers remembered for {show} forgotten ({book.Path}).");
+    }
+
     /// <summary>The selected line's speaker (the line selected in the Subtitles tab), to correct it.</summary>
     public SpeakerRowViewModel? SelectedLineSpeaker
     {
@@ -99,7 +122,7 @@ public sealed partial class MainViewModel
             var audio = await AudioExtractor.ReadAsync(ff.FfmpegPath!, video.FullPath, 0, null, null, video.Duration, read, ct);
 
             DubbingStatus = $"Telling the voices apart in {cues.Count} lines...";
-            var book = SpeakerBook.Open(Path.Combine(AppPaths.ExeDirectory, "speakers"), NameConsistency.ShowOf(video.Name));
+            var book = SpeakerBook.Open(SpeakerFolder, NameConsistency.ShowOf(video.Name));
             var find = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 40 + f * 60; });
             var result = await Task.Run(() => SpeakerFinder.Find(audio, cues, _voiceprints, book, find, ct), ct);
             _speakerBook = book;
@@ -112,6 +135,7 @@ public sealed partial class MainViewModel
                 + ". Check the names and voices, and say when two are the same person.";
             DubbingStatus = $"Found {result.Speakers.Count} speakers in {FormatEta(took)}.";
             _s.Log.Success("Dubbing", $"Speakers of {video.Name}: {result.Speakers.Count} found in {took.TotalSeconds:0} s; {result.Measured} lines measured, {result.ByNeighbour} too short (given the speaker of the line next to them); {result.Remembered} remembered from {book.Path}.");
+            _s.Log.Detail("Dubbing", "Grouping: " + result.Steps + ".");
             foreach (var s in result.Speakers)
                 _s.Log.Detail("Dubbing", $"{s.Name}: {s.Lines.Count} lines, {s.SpeechTime.TotalMinutes:0.0} min, pitch {(s.PitchHz is { } hz ? $"{hz:0} Hz" : "unknown")} ({s.Gender ?? "unknown"}), voice {s.Voice}{(s.Remembered ? ", remembered" : "")}.");
             DubbingPerSpeaker = true;
@@ -243,6 +267,7 @@ public sealed partial class MainViewModel
     private void InitSpeakers()
     {
         FindSpeakersCommand = new AsyncRelayCommand(FindSpeakersAsync, () => CanFindSpeakers);
+        ForgetShowSpeakersCommand = new RelayCommand(ForgetShowSpeakers, () => !DubbingBusy && (PairedVideo is not null || _doc is not null));
         SpeakerRows.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasSpeakers));
         PropertyChanged += (_, e) =>
         {

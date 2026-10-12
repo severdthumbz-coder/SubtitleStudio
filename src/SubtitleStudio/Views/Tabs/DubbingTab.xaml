@@ -96,8 +96,10 @@
                         <WrapPanel Margin="0,10,0,0">
                             <Button Style="{StaticResource AccentButton}" Tag="&#xE716;" Content="Find the speakers" Command="{Binding FindSpeakersCommand}" Margin="0,0,8,6"
                                     ToolTip="Listens to the paired video (a minute or two for an episode)" />
-                            <CheckBox Content="A voice for each speaker" IsChecked="{Binding DubbingPerSpeaker, Mode=TwoWay}" IsEnabled="{Binding HasSpeakers}" VerticalAlignment="Center" Margin="0,0,0,6"
+                            <CheckBox Content="A voice for each speaker" IsChecked="{Binding DubbingPerSpeaker, Mode=TwoWay}" IsEnabled="{Binding HasSpeakers}" VerticalAlignment="Center" Margin="0,0,8,6"
                                       ToolTip="Off: everyone is dubbed in the voice chosen in step 2" />
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE74D;" Content="Forget the show's speakers" Command="{Binding ForgetShowSpeakersCommand}" Margin="0,0,0,6"
+                                    ToolTip="Clears the names and voices remembered for this show" />
                         </WrapPanel>
                         <TextBlock Text="{Binding SpeakersStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,6" />
                         <ItemsControl ItemsSource="{Binding SpeakerRows}" Visibility="{Binding HasSpeakers, Converter={StaticResource Vis}}">

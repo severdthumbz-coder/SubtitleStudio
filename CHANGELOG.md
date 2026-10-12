@@ -5,6 +5,19 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.65] - 2026-10-11
+
+### Fixed
+- Dubbing, Speakers: far fewer speakers. On E03 (535 lines), 1.0.0.64 found 47: 15 of them with a single line and 26 with 5 or more, many with similar pitch. That is far more than the episode has, so main characters were split into several "speakers". Grouping now works in three steps:
+  - Only lines of 1.2 s or more form the groups. Shorter lines give less reliable voiceprints.
+  - Groups whose average voiceprints are clearly alike (0.5 or more) and whose pitch is within 40 Hz are joined: the same person split in two, for example in a quiet scene and over music.
+  - Groups with at least 5 lines or 12 s of speech are kept as characters (fewer in short videos), at most 16. Every other line, from small groups or short lines, goes to the character it sounds most like.
+  The Log now shows each step, for example "212 lines of 1.2 s or more grouped into 31; 24 after joining groups that sound alike; 12 big enough to be characters". On the four-person test recording all 10 stretches still go to the right person.
+- Dubbing, Log: the preview line says whether each speaker had their own voice and whether lines were fitted (it always named the voice of step 2).
+
+### Added
+- Dubbing, Speakers: "Forget the show's speakers" clears the names and voices remembered for the show, after asking. 1.0.0.64 remembered 10 people from E03's over-split result; clear them before finding speakers again.
+
 ## [1.0.0.64] - 2026-10-11
 
 ### Added

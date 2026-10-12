@@ -119,7 +119,7 @@ public sealed partial class MainViewModel
                 DubbingStatus = "Preview ready: press play.";
             }
             else DubbingStatus = $"Preview made, but the player isn't available here. The clip is {clip}.";
-            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {voice.Id}, speed {speed:0.0#}, {duck.Id}.");
+            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {(UsingSpeakers ? "each speaker in their own voice" : voice.Id)}, speed {speed:0.0#}, {(fit ? "fitted" : "not fitted")}, {duck.Id}.");
         });
     }
 
