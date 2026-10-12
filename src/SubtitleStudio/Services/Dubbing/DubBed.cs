@@ -323,13 +323,28 @@ public static class DubBed
         private readonly long _fade;
         private int _at;
 
-        public Removal(IEnumerable<(TimeSpan Start, TimeSpan End)> covered, TimeSpan offset, int rate = SampleRate)
+        /// <param name="activity">
+        /// Where the original voices are speaking (from the separated voices, in the same timeline as the lines less
+        /// <paramref name="offset"/>): a removal is stretched to cover a voice that starts before the line's subtitle,
+        /// or carries on after it (at most GrowBefore and GrowAfter). Null: the subtitle times and margins alone.
+        /// </param>
+        public Removal(IEnumerable<(TimeSpan Start, TimeSpan End)> covered, TimeSpan offset, int rate = SampleRate, VoiceActivity? activity = null)
         {
             _fade = Math.Max(1, (long)(Fade.TotalSeconds * rate));
             long bridge = (long)(Bridge.TotalSeconds * rate);
             foreach (var (s, e) in covered.OrderBy(c => c.Start))
             {
-                long start = (long)((s - Before - offset).TotalSeconds * rate), end = (long)((e + After - offset).TotalSeconds * rate);
+                var from = s - Before - offset;
+                var to = e + After - offset;
+                if (activity is not null)
+                {
+                    var (grownFrom, grownTo) = activity.Grow(from, to);
+                    if (grownFrom < from) { Extended++; ExtendedBefore += from - grownFrom; }
+                    if (grownTo > to) { Extended++; ExtendedAfter += grownTo - to; }
+                    from = grownFrom;
+                    to = grownTo;
+                }
+                long start = (long)(from.TotalSeconds * rate), end = (long)(to.TotalSeconds * rate);
                 if (end <= start) continue;
                 if (_spans.Count > 0 && start - _spans[^1].End <= bridge) _spans[^1] = (_spans[^1].Start, Math.Max(_spans[^1].End, end));
                 else _spans.Add((start, end));
@@ -337,6 +352,11 @@ public static class DubBed
         }
 
         public IReadOnlyList<(long Start, long End)> Spans => _spans;
+
+        /// <summary>Line ends stretched to the original voice (before or after), and by how much in all.</summary>
+        public int Extended { get; private set; }
+        public TimeSpan ExtendedBefore { get; private set; }
+        public TimeSpan ExtendedAfter { get; private set; }
 
         /// <summary>The share of the voices removed at a frame. Frames must be asked in increasing order (it moves forward).</summary>
         public float At(long frame)
@@ -348,6 +368,91 @@ public static class DubBed
             if (frame < start) return 1 - (start - frame) / (float)_fade;
             if (frame <= end) return 1;
             return 1 - (frame - end) / (float)_fade;
+        }
+    }
+
+    /// <summary>
+    /// Where the separated voices are speaking, in 10 ms steps: louder than the usual speaking level less 20 dB,
+    /// with dips under 80 ms bridged (the gaps between syllables). Lets the removal follow the voice rather than the
+    /// subtitle times: Whisper's subtitles often start after the speaker does (a breath, an "uh", a quiet first
+    /// word), and on E03 (1.0.0.67) those first moments of Korean came through.
+    /// </summary>
+    public sealed class VoiceActivity
+    {
+        public const int PerSecond = 100;
+        public const double BelowUsual = 20;
+
+        /// <summary>The furthest a removal is stretched before a line, and after it.</summary>
+        public static readonly TimeSpan GrowBefore = TimeSpan.FromSeconds(1.5), GrowAfter = TimeSpan.FromSeconds(1.0);
+
+        private readonly bool[] _active;
+
+        /// <param name="levels">Level of each 10 ms step, dB (Levels).</param>
+        /// <param name="usual">The usual level of the voices in lines (VoicePlacement.Usual).</param>
+        public VoiceActivity(float[] levels, double usual)
+        {
+            double threshold = Math.Max(usual - BelowUsual, -60);
+            var raw = levels.Select(l => l > threshold).ToArray();
+            _active = (bool[])raw.Clone();
+            // Bridge short dips: inactive runs under 80 ms between active steps.
+            const int gap = 8;
+            int last = -1;
+            for (int i = 0; i < raw.Length; i++)
+            {
+                if (!raw[i]) continue;
+                if (last >= 0 && i - last > 1 && i - last <= gap) for (int k = last + 1; k < i; k++) _active[k] = true;
+                last = i;
+            }
+        }
+
+        public bool Active(TimeSpan t)
+        {
+            long i = (long)Math.Floor(t.TotalSeconds * PerSecond);
+            return i >= 0 && i < _active.Length && _active[i];
+        }
+
+        /// <summary>A removal span stretched over the voice that runs into it at either end (at most GrowBefore and GrowAfter).</summary>
+        public (TimeSpan From, TimeSpan To) Grow(TimeSpan from, TimeSpan to)
+        {
+            var step = TimeSpan.FromSeconds(1.0 / PerSecond);
+            var f = from;
+            while (from - f < GrowBefore && Active(f - step)) f -= step;
+            var t = to;
+            while (t - to < GrowAfter && Active(t)) t += step;
+            return (f, t);
+        }
+
+        /// <summary>The level of each 10 ms step of stereo sound, dB (−120 for silence).</summary>
+        public static float[] Levels(ReadOnlySpan<float> left, ReadOnlySpan<float> right, int rate = SampleRate)
+        {
+            int step = rate / PerSecond, count = left.Length / step;
+            var levels = new float[count];
+            for (int f = 0; f < count; f++)
+            {
+                double sum = 0;
+                for (int i = f * step; i < (f + 1) * step; i++) sum += (left[i] * (double)left[i] + right[i] * (double)right[i]) / 2;
+                double p = sum / step;
+                levels[f] = p <= 1e-12 ? -120 : (float)(10 * Math.Log10(p));
+            }
+            return levels;
+        }
+
+        /// <summary>The levels of a separated-voices file (an episode: one pass, a few seconds).</summary>
+        public static float[] Levels(string voicesPath)
+        {
+            using var wav = new WavReader(voicesPath);
+            int step = wav.SampleRate / PerSecond;
+            var levels = new float[(int)(wav.Frames / step)];
+            const int chunk = PerSecond * 60; // a minute at a time
+            var l = new float[chunk * step];
+            var r = new float[chunk * step];
+            for (int f = 0; f < levels.Length; f += chunk)
+            {
+                int n = Math.Min(chunk, levels.Length - f);
+                wav.Read((long)f * step, l.AsSpan(0, n * step), r.AsSpan(0, n * step));
+                Levels(l.AsSpan(0, n * step), r.AsSpan(0, n * step), wav.SampleRate).CopyTo(levels, f);
+            }
+            return levels;
         }
     }
 

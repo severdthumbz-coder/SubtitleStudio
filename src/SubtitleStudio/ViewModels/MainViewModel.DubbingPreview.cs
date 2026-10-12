@@ -113,7 +113,8 @@ public sealed partial class MainViewModel
             {
                 DubbingStatus = "Taking the original voices out under the English lines...";
                 bedPath = Path.Combine(folder, $"dub-{stamp}.sound.wav");
-                var removal = new DubBed.Removal(result.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero);
+                var activity = new DubBed.VoiceActivity(DubBed.VoiceActivity.Levels(sound2.VL, sound2.VR), placement!.Usual);
+                var removal = new DubBed.Removal(result.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero, DubBed.SampleRate, activity);
                 var (bl, br) = DubBed.Bed(sound2.L, sound2.R, sound2.VL, sound2.VR, removal);
                 var path = bedPath;
                 await Task.Run(() =>

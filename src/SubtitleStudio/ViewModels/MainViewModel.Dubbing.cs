@@ -443,10 +443,11 @@ public sealed partial class MainViewModel
                     _s.Log.Info("Dubbing", "Lines placed like the original voices: " + placement.Describe() + ".");
                     var (track, _) = await BuildVoiceTrackAsync(voicePath, 0.5, ct, from: 40, placement: placement);
                     DubbingStatus = "Taking the original voices out under the English lines...";
-                    var removal = new DubBed.Removal(track.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero);
+                    var activity = new DubBed.VoiceActivity(await Task.Run(() => DubBed.VoiceActivity.Levels(voices), ct), placement.Usual);
+                    var removal = new DubBed.Removal(track.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero, DubBed.SampleRate, activity);
                     var bedProgress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 90 + f * 5; });
                     await DubBed.WriteBedAsync(ff.FfmpegPath!, video.FullPath, 0, voices, removal, bedPath, video.Duration, bedProgress, ct);
-                    _s.Log.Info("Dubbing", $"Original voices taken out in {removal.Spans.Count} stretches under the English lines ({TimeSpan.FromSeconds(removal.Spans.Sum(x => x.End - x.Start) / (double)DubBed.SampleRate).TotalMinutes:0.0} min); the rest of the sound is as it was.");
+                    _s.Log.Info("Dubbing", $"Original voices taken out in {removal.Spans.Count} stretches under the English lines ({TimeSpan.FromSeconds(removal.Spans.Sum(x => x.End - x.Start) / (double)DubBed.SampleRate).TotalMinutes:0.0} min); the rest of the sound is as it was. {removal.Extended} line ends stretched to follow the original voice ({removal.ExtendedBefore.TotalSeconds:0} s before lines, {removal.ExtendedAfter.TotalSeconds:0} s after, in all).");
                     request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault, BedPath: bedPath);
                 }
                 else

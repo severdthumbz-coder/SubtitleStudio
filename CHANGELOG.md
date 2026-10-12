@@ -5,6 +5,18 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.68] - 2026-10-12
+
+### Fixed
+- Dubbing, full dub: Korean no longer comes through at the start of lines. On E03 (1.0.0.67) the original voices were taken out from 0.12 s before each subtitle, but Whisper's subtitles often start after the speaker does: a breath, an "uh", a quiet first word. Those first moments of Korean were left in. The removal now follows the separated voice itself:
+  - If the original voice is already speaking just before a line, the removal starts where it starts, up to 1.5 s earlier.
+  - If it carries on after the line, the removal runs on, up to 1 s.
+  - A voice counts as speaking when it's within 20 dB of the usual speaking level, with dips under 80 ms (between syllables) bridged.
+  - Voices further from any line, such as background chatter with no subtitle, are still left as they were.
+  - The Log says how many line ends were stretched and by how much in all. "Hear the dub" does the same.
+  - Test: a voice starting 0.6 s before its subtitle is now gone from its first moment (−14 → −97 dB); with 1.0.0.67 that 0.6 s stayed.
+- The English line still starts at its subtitle's time. Starting it where the original voice starts is part of the coming timing work.
+
 ## [1.0.0.67] - 2026-10-12
 
 ### Added
