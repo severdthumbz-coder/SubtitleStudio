@@ -46,6 +46,29 @@ public sealed class TtsModelStore
         "Tells speakers apart by their voices. WeSpeaker (VoxCeleb, CC BY 4.0), from the sherpa-onnx project.",
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx");
 
+    /// <summary>
+    /// The voice separation model, for taking the original voices out and keeping the music and effects:
+    /// UVR-MDX-NET Inst HQ 5 from the Ultimate Vocal Remover project (by Anjok07 and aufr33; the UVR code is MIT),
+    /// in the ONNX form published by the sherpa-onnx project on GitHub.
+    /// </summary>
+    public static TtsCatalogEntry SeparationModel { get; } = new("separation", "UVR-MDX-NET Inst HQ 5 (voice separation)", "UVR-MDX-NET-Inst_HQ_5.onnx", 59_074_650,
+        "487e35ae87ed9af9914c85c357e60800c07b8196949e274fe884c18a0c620dbb",
+        "Takes the original voices out, keeping the music and effects. MDX-Net by the Ultimate Vocal Remover project (Anjok07 and aufr33), from the sherpa-onnx project.",
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR-MDX-NET-Inst_HQ_5.onnx");
+
+    public string SeparationPath => PathFor(SeparationModel);
+
+    public bool HasSeparation => Has(SeparationModel);
+
+    /// <summary>Downloads the voice separation model (56 MB), checked.</summary>
+    public async Task DownloadSeparationAsync(HttpClient http, IProgress<ModelDownloadProgress>? progress, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Folder);
+        var e = SeparationModel;
+        var partial = await HfModelDownload.FetchKnownAsync(e.DownloadUrl, e.Size, e.Sha256, PathFor(e) + PartialSuffix, http, progress, ct, "the sherpa-onnx release").ConfigureAwait(false);
+        File.Move(partial, PathFor(e), overwrite: true);
+    }
+
     public TtsModelStore(string folder) => Folder = folder;
 
     public string VoiceprintPath => PathFor(VoiceprintModel);

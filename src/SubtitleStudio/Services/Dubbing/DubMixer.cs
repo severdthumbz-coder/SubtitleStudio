@@ -3,13 +3,17 @@ using SubtitleStudio.Services.Muxing;
 
 namespace SubtitleStudio.Services.Dubbing;
 
-/// <summary>How far the original sound goes down while the voice speaks.</summary>
-public enum DuckLevel { Little, Lower, Much }
+/// <summary>
+/// What happens to the original voices: taken out (Removed: music and effects kept, DubBed), or the whole
+/// original sound turned down while the English voice speaks, by a little, more, or much.
+/// </summary>
+public enum DuckLevel { Little, Lower, Much, Removed }
 
 /// <param name="AudioTrack">Which of the video's audio tracks goes under the voice (0 = the first).</param>
 /// <param name="MakeDefault">The new English track is the one players start with.</param>
+/// <param name="BedPath">With the original voices removed: the sound to put the voice on (DubBed), used instead of the video's own.</param>
 public sealed record DubMixRequest(string VideoPath, string VoicePath, string OutputPath, int AudioTrack = 0, DuckLevel Duck = DuckLevel.Lower,
-    bool MakeDefault = true, double VoiceGainDb = 0);
+    bool MakeDefault = true, double VoiceGainDb = 0, string? BedPath = null);
 
 public sealed record DubMixResult(string OutputPath, int AudioTracks, IReadOnlyList<string> Notes);
 
@@ -48,6 +52,18 @@ public static class DubMixer
     }
 
     /// <summary>
+    /// The voice laid on the sound with the original voices removed (DubBed): no ducking, as the voices it replaces
+    /// are gone and the music and effects are meant to stay as loud as they were.
+    /// </summary>
+    public static string FilterOverBed(double voiceGainDb, int bedInput = 0, int voiceInput = 1)
+    {
+        string gain = voiceGainDb.ToString("0.#", CultureInfo.InvariantCulture);
+        return $"[{bedInput}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[bed];"
+            + $"[{voiceInput}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={gain}dB[voice];"
+            + "[bed][voice]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[mix]";
+    }
+
+    /// <summary>
     /// The mix on its own, into an audio file (AAC in Matroska). Done apart from the copy: with the mix filter
     /// and a subtitle track in the same FFmpeg run, FFmpeg 6 stopped the new track where the subtitles first
     /// pause (1.1 s into a 12 s test video).
@@ -55,7 +71,8 @@ public static class DubMixer
     public static IReadOnlyList<string> MixArgs(DubMixRequest request, string mixPath) => new List<string>
     {
         "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-progress", "pipe:1", "-nostats",
-        "-i", request.VideoPath, "-i", request.VoicePath, "-filter_complex", Filter(request.AudioTrack, request.Duck, request.VoiceGainDb),
+        "-i", request.BedPath ?? request.VideoPath, "-i", request.VoicePath,
+        "-filter_complex", request.BedPath is null ? Filter(request.AudioTrack, request.Duck, request.VoiceGainDb) : FilterOverBed(request.VoiceGainDb),
         "-map", "[mix]", "-c:a", "aac", "-b:a", "192k", "-vn", "-sn", "-dn", "-f", "matroska", mixPath,
     };
 
@@ -108,7 +125,9 @@ public static class DubMixer
 
         if (dropped > 0) notes.Add($"{dropped} stream{(dropped == 1 ? "" : "s")} {(mp4 ? "MP4 can't hold" : "of data")} left out (picture-based subtitles, fonts, covers or timecode). MKV keeps more.");
         var original = info.Streams.Where(s => s.Kind == StreamKind.Audio).ElementAt(request.AudioTrack);
-        notes.Add($"The voice is mixed over audio track {request.AudioTrack + 1} ({original.Describe()}), as stereo.");
+        notes.Add(request.BedPath is null
+            ? $"The voice is mixed over audio track {request.AudioTrack + 1} ({original.Describe()}), as stereo."
+            : $"The voice replaces the original voices of audio track {request.AudioTrack + 1} ({original.Describe()}), as stereo; its music and effects are kept.");
         return (args, notes, index, audio);
     }
 
@@ -118,6 +137,7 @@ public static class DubMixer
         var target = Path.GetFullPath(request.OutputPath);
         if (!File.Exists(video)) throw new MuxException($"{Path.GetFileName(video)} isn't there any more.");
         if (!File.Exists(request.VoicePath)) throw new MuxException("The voice track is missing.");
+        if (request.BedPath is { } bed && !File.Exists(bed)) throw new MuxException("The sound without the original voices is missing.");
         if (string.Equals(video, target, StringComparison.OrdinalIgnoreCase)) throw new MuxException("The dubbed video can't overwrite the one it's made from. Choose another name.");
 
         var info = await SubtitleMuxer.ProbeAsync(ffprobe, video, ct).ConfigureAwait(false);
@@ -126,7 +146,7 @@ public static class DubMixer
         var mixPath = Path.Combine(Path.GetDirectoryName(target)!, Path.GetFileNameWithoutExtension(target) + ".mix.partial.mka");
         request = request with { VideoPath = video };
         var plan = Plan(info, request, mixPath, partial);
-        log?.Info("Dubbing", $"Mixing the voice into {Path.GetFileName(target)}: original sound {request.Duck switch { DuckLevel.Little => "a little lower", DuckLevel.Much => "much lower", _ => "lower" }} under the voice, new English track {(request.MakeDefault ? "first choice (default)" : "added after the others")}.");
+        log?.Info("Dubbing", $"Mixing the voice into {Path.GetFileName(target)}: {(request.BedPath is not null ? "original voices removed, music and effects kept" : "original sound " + request.Duck switch { DuckLevel.Little => "a little lower", DuckLevel.Much => "much lower", _ => "lower" } + " under the voice")}, new English track {(request.MakeDefault ? "first choice (default)" : "added after the others")}.");
         var mixArgs = MixArgs(request, mixPath);
         log?.Detail("Dubbing", ActivityLog.CommandLine(ffmpeg, mixArgs));
         log?.Detail("Dubbing", ActivityLog.CommandLine(ffmpeg, plan.Args));

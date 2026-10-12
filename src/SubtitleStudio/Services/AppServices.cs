@@ -41,6 +41,9 @@ public sealed class AppServices
     /// <summary>Loads the Kokoro voice model on the given graphics card, tested and timed with a voice style for a given number of phonemes (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
     public Func<string, Func<int, float[]>, Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
 
+    /// <summary>Loads the voice separation model (null where ONNX Runtime isn't available, as in tests).</summary>
+    public Func<string, Gpu.GpuInfo?, Dubbing.ISeparationModel>? LoadSeparationModel { get; init; }
+
     /// <summary>Plays voice previews (Windows sound playback in the app; silent in tests).</summary>
     public Dubbing.IAudioPreview AudioPreview { get; init; } = new Dubbing.SilentAudioPreview();
 

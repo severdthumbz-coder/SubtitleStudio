@@ -341,6 +341,7 @@ public sealed partial class MainViewModel
 
     public IReadOnlyList<DubbingDuckOption> DubbingDuckOptions { get; } = new[]
     {
+        new DubbingDuckOption(DuckLevel.Removed, "removed", "Removed: music and effects kept"),
         new DubbingDuckOption(DuckLevel.Little, "little", "A little lower (about 8 dB)"),
         new DubbingDuckOption(DuckLevel.Lower, "lower", "Lower (about 12 dB)"),
         new DubbingDuckOption(DuckLevel.Much, "much", "Much lower (about 15 dB)"),
@@ -348,13 +349,15 @@ public sealed partial class MainViewModel
 
     public DubbingDuckOption SelectedDubbingDuck
     {
-        get => DubbingDuckOptions.FirstOrDefault(o => o.Id == _s.Config.DubbingDuck) ?? DubbingDuckOptions[1];
+        get => DubbingDuckOptions.FirstOrDefault(o => o.Id == _s.Config.DubbingDuck) ?? DubbingDuckOptions[2];
         set
         {
             if (value is null || value.Id == _s.Config.DubbingDuck) return;
             _s.Config.DubbingDuck = value.Id;
             SaveSettings();
             OnPropertyChanged();
+            OnPropertyChanged(nameof(RemovingVoices));
+            OnPropertyChanged(nameof(DubbingDuckHelp));
         }
     }
 
@@ -422,43 +425,73 @@ public sealed partial class MainViewModel
         bool makeDefault = DubbingDefaultTrack;
         await RunDubbingWorkAsync("Making the dubbed video", async ct =>
         {
-            var voicePath = Path.Combine(Path.GetDirectoryName(output)!, Path.GetFileNameWithoutExtension(output) + ".voice.partial.wav");
+            var folder = Path.GetDirectoryName(output)!;
+            var stem = Path.GetFileNameWithoutExtension(output);
+            var voicePath = Path.Combine(folder, stem + ".voice.partial.wav");
+            var bedPath = Path.Combine(folder, stem + ".sound.partial.wav");
             try
             {
-                // Speaking is most of the work: 90% of the bar, the mix the rest.
-                var (track, took) = await BuildVoiceTrackAsync(voicePath, 0.9, ct);
-                DubbingStatus = "Mixing the voice into the video...";
                 var started = DateTime.UtcNow;
-                var progress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 90 + f * 10; });
-                var mixed = await DubMixer.RunAsync(ff.FfmpegPath!, ff.FfprobePath!, new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault), progress, _s.Log, ct);
-                var total = took + (DateTime.UtcNow - started);
+                DubMixRequest request;
+                if (duck == DuckLevel.Removed)
+                {
+                    // The voices separated (or taken from the last time), each line placed like the voice it replaces,
+                    // then the sound without the voices where the English lines go.
+                    var voices = await SeparatedVoicesAsync(video, ff.FfmpegPath!, 0, 40, ct);
+                    var cues = Cues.Select(r => r.Cue).ToList();
+                    var placement = new VoicePlacement(await Task.Run(() => DubBed.MeasureLines(voices, cues), ct));
+                    _s.Log.Info("Dubbing", "Lines placed like the original voices: " + placement.Describe() + ".");
+                    var (track, _) = await BuildVoiceTrackAsync(voicePath, 0.5, ct, from: 40, placement: placement);
+                    DubbingStatus = "Taking the original voices out under the English lines...";
+                    var removal = new DubBed.Removal(track.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero);
+                    var bedProgress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 90 + f * 5; });
+                    await DubBed.WriteBedAsync(ff.FfmpegPath!, video.FullPath, 0, voices, removal, bedPath, video.Duration, bedProgress, ct);
+                    _s.Log.Info("Dubbing", $"Original voices taken out in {removal.Spans.Count} stretches under the English lines ({TimeSpan.FromSeconds(removal.Spans.Sum(x => x.End - x.Start) / (double)DubBed.SampleRate).TotalMinutes:0.0} min); the rest of the sound is as it was.");
+                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault, BedPath: bedPath);
+                }
+                else
+                {
+                    // Speaking is most of the work: 90% of the bar, the mix the rest.
+                    await BuildVoiceTrackAsync(voicePath, 0.9, ct);
+                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault);
+                }
+                DubbingStatus = "Mixing the voice into the video...";
+                double mixFrom = DubbingProgress;
+                var progress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = mixFrom + f * (100 - mixFrom); });
+                var mixed = await DubMixer.RunAsync(ff.FfmpegPath!, ff.FfprobePath!, request, progress, _s.Log, ct);
+                var total = DateTime.UtcNow - started;
                 DubbingStatus = $"Dubbed video saved: {Path.GetFileName(output)}, with the English voice-over as audio track {mixed.AudioTracks}{(makeDefault ? " (the default)" : "")}. Made in {FormatEta(total)}.";
-                _s.Log.Success("Dubbing", $"Dubbed video saved: {output} ({mixed.AudioTracks} audio tracks, the English voice-over {(makeDefault ? "first choice" : "last")}). The original video is unchanged.");
+                _s.Log.Success("Dubbing", $"Dubbed video saved: {output} ({mixed.AudioTracks} audio tracks, the English voice-over {(makeDefault ? "first choice" : "last")}{(duck == DuckLevel.Removed ? ", original voices removed" : "")}). The original video is unchanged.");
                 SetStatus($"Dubbed video saved: {Path.GetFileName(output)}.", StatusKind.Success);
             }
             finally
             {
-                try { if (File.Exists(voicePath)) File.Delete(voicePath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                foreach (var f in new[] { voicePath, bedPath })
+                    try { if (File.Exists(f)) File.Delete(f); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             }
         });
     }
 
-    /// <summary>Speaks every line into <paramref name="path"/>, reporting into the first <paramref name="share"/> of the bar.</summary>
-    private async Task<(VoiceTrackResult Result, TimeSpan Took)> BuildVoiceTrackAsync(string path, double share, CancellationToken ct)
+    /// <summary>
+    /// Speaks every line into <paramref name="path"/>, reporting into <paramref name="share"/> of the bar from
+    /// <paramref name="from"/> (percent). With a <paramref name="placement"/>, each line at the level and side of the original voice (stereo).
+    /// </summary>
+    private async Task<(VoiceTrackResult Result, TimeSpan Took)> BuildVoiceTrackAsync(string path, double share, CancellationToken ct,
+        double from = 0, VoicePlacement? placement = null)
     {
         var cues = Cues.Select(r => r.Cue.Clone()).ToList();
         var voice = SelectedDubbingVoice;
         float speed = (float)SelectedDubbingSpeed.Value;
         var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration);
         var tts = await EnsureKokoroAsync();
-        options = options with { Concurrency = tts.Concurrency };
+        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains };
         var started = DateTime.UtcNow;
-        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
+        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level and side of the original voice")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
         bool finished = false;
         var progress = new Progress<EngineProgress>(p =>
         {
             if (!_dubbingLive || finished) return;
-            DubbingProgress = p.Fraction * 100 * share;
+            DubbingProgress = from + p.Fraction * 100 * share;
             var elapsed = DateTime.UtcNow - started;
             var eta = p.Fraction > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - p.Fraction) / p.Fraction) : (TimeSpan?)null;
             DubbingStatus = $"Speaking {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";

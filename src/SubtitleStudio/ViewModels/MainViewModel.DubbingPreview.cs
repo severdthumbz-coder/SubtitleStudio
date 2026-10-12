@@ -92,25 +92,53 @@ public sealed partial class MainViewModel
             var voicePath = Path.Combine(folder, $"dub-{stamp}.wav");
             var clip = Path.Combine(folder, $"dub-{stamp}.mkv");
             var tts = await EnsureKokoroAsync();
+            bool removing = duck.Level == DuckLevel.Removed;
+            VoicePlacement? placement = null;
+            (float[] L, float[] R, float[] VL, float[] VR)? separated = null;
+            if (removing)
+            {
+                var sound = await PreviewVoicesAsync(video, ff.FfmpegPath!, start, length, ct);
+                separated = sound;
+                placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines));
+            }
+            double speakFrom = removing ? 30 : 0, speakShare = removing ? 45 : 70;
             DubbingStatus = $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
-            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency);
-            var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = p.Fraction * 70; });
+            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains);
+            var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = speakFrom + p.Fraction * speakShare; });
             var lineVoices = LineVoices();
             var result = await VoiceTrack.BuildAsync(lines, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, voicePath, progress, ct);
 
+            string? bedPath = null;
+            if (separated is { } sound2)
+            {
+                DubbingStatus = "Taking the original voices out under the English lines...";
+                bedPath = Path.Combine(folder, $"dub-{stamp}.sound.wav");
+                var removal = new DubBed.Removal(result.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero);
+                var (bl, br) = DubBed.Bed(sound2.L, sound2.R, sound2.VL, sound2.VR, removal);
+                var path = bedPath;
+                await Task.Run(() =>
+                {
+                    using var wav = new WavWriter(path, DubBed.SampleRate, 2);
+                    wav.WriteStereo(bl, br);
+                }, ct);
+            }
+
             DubbingStatus = "Mixing the voice over the original sound...";
             var encoder = await EncoderAsync(ff.FfmpegPath!, ct);
-            var args = DubPreview.RenderArgs(video.FullPath, voicePath, start, length, 0, duck.Level, DubPreview.FastVideo(encoder), clip);
+            var args = DubPreview.RenderArgs(video.FullPath, voicePath, start, length, 0, duck.Level, DubPreview.FastVideo(encoder), clip, bedPath);
             _s.Log.Detail("Dubbing", "Preview: " + Services.ActivityLog.CommandLine(ff.FfmpegPath!, args));
-            var render = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 70 + f * 30; });
+            double renderFrom = speakFrom + speakShare;
+            var render = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = renderFrom + f * (100 - renderFrom); });
             await SubtitleMuxer.RunFfmpegAsync(ff.FfmpegPath!, args, length, render, ct);
-            try { File.Delete(voicePath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (var f in new[] { voicePath, bedPath })
+                try { if (f is not null && File.Exists(f)) File.Delete(f); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 
             var inStretch = all.Where(c => c.Start >= start && c.Start < start + length).ToList();
             var first = inStretch.FirstOrDefault();
             var last = inStretch.LastOrDefault();
             DubPreviewText = (first is null ? "No lines in this stretch" : first == last ? $"Line {first.Index}" : $"Lines {first.Index}–{last!.Index}")
-                + $" ({ClockText(start)}–{ClockText(start + length)}), {(UsingSpeakers ? "each speaker in their own voice" : voice.Name + "'s voice")}, original sound {duck.Id switch { "little" => "a little lower", "much" => "much lower", _ => "lower" }}"
+                + $" ({ClockText(start)}–{ClockText(start + length)}), {(UsingSpeakers ? "each speaker in their own voice" : voice.Name + "'s voice")}, "
+                + (removing ? "original voices removed, each line placed like the voice it replaces" : $"original sound {duck.Id switch { "little" => "a little lower", "much" => "much lower", _ => "lower" }}")
                 + (fit && result.SpedUp + result.Stretched > 0 ? $"; {result.SpedUp + result.Stretched} said faster to fit" : string.Empty)
                 + ". Change the voice, speed or level and preview again to compare.";
             if (_dubPlayer is { } player && player.Load(clip, start, length))
@@ -119,7 +147,7 @@ public sealed partial class MainViewModel
                 DubbingStatus = "Preview ready: press play.";
             }
             else DubbingStatus = $"Preview made, but the player isn't available here. The clip is {clip}.";
-            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {(UsingSpeakers ? "each speaker in their own voice" : voice.Id)}, speed {speed:0.0#}, {(fit ? "fitted" : "not fitted")}, {duck.Id}.");
+            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {(UsingSpeakers ? "each speaker in their own voice" : voice.Id)}, speed {speed:0.0#}, {(fit ? "fitted" : "not fitted")}, {duck.Id}{(placement is null ? "" : "; " + placement.Describe())}.");
         });
     }
 

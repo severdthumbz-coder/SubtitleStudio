@@ -13,14 +13,20 @@ public sealed record LongLine(int Number, TimeSpan Speech, TimeSpan Slot)
 /// <param name="SpedUp">Lines Kokoro said faster to fit their time (and nothing more).</param>
 /// <param name="Stretched">Lines said faster and also made shorter afterwards (pitch kept).</param>
 /// <param name="TooLong">Lines still longer than their time: the next line waits for them.</param>
+/// <param name="Covered">Where each spoken line is in the video: from the earlier of its subtitle and its speech to the later end (time order).</param>
 public sealed record VoiceTrackResult(int Spoken, int Silent, IReadOnlyList<LongLine> TooLong, TimeSpan Length, TimeSpan LongestDelay, TimeSpan SpeechTime,
-    int SpedUp = 0, int Stretched = 0);
+    int SpedUp = 0, int Stretched = 0, IReadOnlyList<(TimeSpan Start, TimeSpan End)>? Covered = null);
 
 /// <param name="Speed">The chosen speaking speed (1 = normal).</param>
 /// <param name="Fit">Make lines that are too long fit their time (faster speech, then a little time-stretch).</param>
 /// <param name="Length">The video's length, so the track is as long as it (null: ends after the last line).</param>
 /// <param name="Concurrency">Lines spoken at the same time (they are still placed in order).</param>
-public sealed record VoiceTrackOptions(float Speed = 1f, bool Fit = true, TimeSpan? Length = null, int Concurrency = 1);
+/// <param name="Place">
+/// Each line's level and side: the gains for the left and right channel, given the line and its speech. Set: the track
+/// is stereo (VoicePlacement, from the original voices); null: mono, every line as Kokoro says it.
+/// </param>
+public sealed record VoiceTrackOptions(float Speed = 1f, bool Fit = true, TimeSpan? Length = null, int Concurrency = 1,
+    Func<SubtitleCue, float[], (float Left, float Right)>? Place = null);
 
 /// <summary>How a line was made to fit.</summary>
 public enum FitKind { Natural, SpedUp, Stretched, TooLong }
@@ -90,6 +96,7 @@ public static class VoiceTrack
         const int rate = KokoroTts.SampleRate;
         var ordered = cues.Where(c => c.End > c.Start).OrderBy(c => c.Start).ThenBy(c => c.Index).ToList();
         var tooLong = new List<LongLine>();
+        var covered = new List<(TimeSpan, TimeSpan)>();
         int spoken = 0, silent = 0, spedUp = 0, stretched = 0;
         long longestDelay = 0, speech = 0;
         long minPause = (long)(MinPause.TotalSeconds * rate);
@@ -134,7 +141,7 @@ public static class VoiceTrack
         }
         try
         {
-            using (var wav = new WavWriter(tmp, rate))
+            using (var wav = new WavWriter(tmp, rate, options.Place is null ? 1 : 2))
             {
                 for (int i = 0; i < ordered.Count; i++)
                 {
@@ -155,7 +162,15 @@ public static class VoiceTrack
                     long start = Math.Max(at, earliest);
                     longestDelay = Math.Max(longestDelay, start - at);
                     wav.WriteSilence(start - wav.SamplesWritten);
-                    wav.Write(samples);
+                    if (options.Place is { } place)
+                    {
+                        var (gl, gr) = place(cue, samples);
+                        wav.Write(samples, gl, gr);
+                    }
+                    else wav.Write(samples);
+                    var voiceStart = TimeSpan.FromSeconds(start / (double)rate);
+                    var voiceEnd = TimeSpan.FromSeconds((start + samples.Length) / (double)rate);
+                    covered.Add((cue.Start < voiceStart ? cue.Start : voiceStart, cue.End > voiceEnd ? cue.End : voiceEnd));
 
                     var slot = Slot(i);
                     var said = TimeSpan.FromSeconds(samples.Length / (double)rate);
@@ -163,7 +178,7 @@ public static class VoiceTrack
                 }
                 if (options.Length is { } total) wav.WriteSilence((long)(total.TotalSeconds * rate) - wav.SamplesWritten);
                 result = new VoiceTrackResult(spoken, silent, tooLong, TimeSpan.FromSeconds(wav.SamplesWritten / (double)rate),
-                    TimeSpan.FromSeconds(longestDelay / (double)rate), TimeSpan.FromSeconds(speech / (double)rate), spedUp, stretched);
+                    TimeSpan.FromSeconds(longestDelay / (double)rate), TimeSpan.FromSeconds(speech / (double)rate), spedUp, stretched, covered);
             }
             File.Move(tmp, outputPath, overwrite: true);
             return result;

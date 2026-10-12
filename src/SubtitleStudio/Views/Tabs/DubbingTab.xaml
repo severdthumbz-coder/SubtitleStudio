@@ -21,7 +21,7 @@
         <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Dubbing" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
             <ctl:HintMarker Margin="8,2,0,0"
-                            Text="Speaks English subtitles with an AI voice (Kokoro) running inside the app: nothing is uploaded and no other program is needed. Each line is spoken when its subtitle appears and fitted into its time; the voice is then mixed over the original sound, turned down while it speaks, and added to a copy of the video as an extra English audio track. The original video is never changed. A voice per speaker and a full dub (original voices removed) come in the next builds." />
+                            Text="Speaks English subtitles with an AI voice (Kokoro) running inside the app: nothing is uploaded and no other program is needed. Each line is spoken when its subtitle appears, fitted into its time, and can have a voice per speaker. The original voices are then taken out under the English lines (music and effects kept), or the original sound is turned down while the voice speaks; the result is added to a copy of the video as an extra English audio track. The original video is never changed." />
         </StackPanel>
 
         <!-- ================= Left: steps ================= -->
@@ -144,15 +144,16 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="4. Into the video" Style="{StaticResource Text.H2}" />
                             <ctl:HintMarker Margin="8,0,0,0"
-                                            Text="The voice is laid over the video's first audio track, which is turned down while the voice speaks and comes back up between lines. The mix is added as a new English audio track (AAC, stereo) to a copy of the video; picture, the original audio and the subtitles are copied as they are. Needs ffmpeg (Settings > Engines &amp; tools)." />
+                                            Text="Removed: the voices are separated from the video's first audio track by an AI model in the app (UVR MDX-Net, 56 MB, downloaded the first time; by the Ultimate Vocal Remover project), and taken out where each English line goes. Elsewhere the sound is untouched, so laughs, gasps and voices without subtitles stay. Each English line is as loud as the voice it replaces and on the same side. The other choices turn the whole original sound down while the voice speaks. The mix is added as a new English audio track (AAC, stereo) to a copy of the video; picture, the original audio and the subtitles are copied as they are. Needs ffmpeg (Settings > Engines &amp; tools)." />
                         </StackPanel>
-                        <TextBlock Text="Original sound under the voice" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <TextBlock Text="The original voices" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
                         <ComboBox ItemsSource="{Binding DubbingDuckOptions}" SelectedItem="{Binding SelectedDubbingDuck, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding DubbingDuckHelp}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
                         <CheckBox Content="Make the English voice-over the default audio track" IsChecked="{Binding DubbingDefaultTrack, Mode=TwoWay}" Margin="0,10,0,10"
                                   ToolTip="Players start with it; the original sound stays one click away. Off: the original stays the default." />
                         <WrapPanel>
                             <Button Style="{StaticResource AccentButton}" Tag="&#xE714;" Content="Make the dubbed video..." Command="{Binding MakeDubbedVideoCommand}" Margin="0,0,8,6"
-                                    ToolTip="Speaks every line, mixes it over the original sound and saves a copy of the video with the extra English track" />
+                                    ToolTip="Speaks every line, puts it in place of the original voices (or over the lowered sound) and saves a copy of the video with the extra English track" />
                             <Button Style="{StaticResource GhostButton}" Tag="&#xE720;" Content="Voice track only (WAV)..." Command="{Binding MakeVoiceTrackCommand}" Margin="0,0,0,6"
                                     ToolTip="Just the spoken lines, as a WAV as long as the video, to mix elsewhere" />
                         </WrapPanel>
@@ -225,9 +226,9 @@
 
             <Border Grid.Row="2" Style="{StaticResource Card}">
                 <StackPanel>
-                    <TextBlock Text="Coming in the next dubbing builds" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
+                    <TextBlock Text="Still to come for dubbing" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
-                               Text="Speakers: a different voice for each person, matching their gender, remembered across a season. Full dub: the original voices removed, the music and effects kept." />
+                               Text="Subtitles placed where the speech really is (some lines are timed early when the original voice is quiet or in the background)." />
                 </StackPanel>
             </Border>
         </Grid>

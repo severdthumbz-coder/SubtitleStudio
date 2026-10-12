@@ -5,6 +5,28 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.67] - 2026-10-12
+
+### Added
+- Dubbing, full dub: "The original voices: Removed (music and effects kept)" in step 4, the first choice. The voices are separated from the video's sound by an AI model running inside the app. Then they're taken out only where an English line replaces them:
+  - From 0.12 s before each line to 0.2 s after (or to the end of its English speech, if that runs later). Lines less than 0.4 s apart are taken together, with 40 ms fades.
+  - Everywhere else the sound is the original, untouched. Laughs, gasps, songs and background voices without subtitles stay, and the separation can't colour the music between lines.
+- The separation model: UVR-MDX-NET Inst HQ 5, by the Ultimate Vocal Remover project (Anjok07 and aufr33; the UVR code is MIT-licensed, and the authors ask for credit). It comes from the sherpa-onnx project's release on GitHub as a single ONNX file (56 MB), downloaded the first time and checked against its SHA-256.
+  - It runs through the app's ONNX Runtime on the graphics card with DirectML, or on the processor if the card can't run it.
+  - The sound is cut into 5.8 s pieces, each turned into a spectrum and back in the app (a new FFT for its 5120-point size). The pieces' edges are dropped, so they join without seams.
+  - Of the three models tried, it removed as much speech as the other two (Inst HQ 3 and Voc FT) and was a little cleaner on both speech and music, the smallest, and 20% quicker. Test: Kokoro lines laid 13 dB under a song's music, then separated again. About 89% of the speech came out with the voices; what stayed in the music was about 19 dB below the speech; the music kept was within 24 dB of the original (SDR).
+  - Not yet measured on a real episode or on the graphics card. On this test machine's processor (one thread) it ran at about 0.8x real time; with all of a Ryzen 9's cores it should be several times faster. The Log reports the speed.
+- The separated voices of an episode are kept in the temporary folder (SubtitleStudio\separated, about 0.7 GB an hour; the two most recent episodes). Making the video again, after editing the subtitles or changing voices, skips the separation. "Hear the dub" takes its stretch from them, or separates just its stretch when the episode hasn't been separated (a minute takes a few seconds).
+- Each English line at the level and on the side of the voice it replaces, measured from the separated voices. Someone speaking quietly or off screen stays quieter; a voice on one side stays on that side.
+  - Levels follow the original's ups and downs around its usual speaking level, softened to 80%, at most 12 dB below and 3 dB above. Measured on the louder half of each line, so pauses don't count.
+  - Sides are softened to 70% and kept within 25° of centre.
+  - Lines where no voice was found (more than 30 dB below the usual level, such as a line timed too early) are at the usual level, in the centre.
+  - The voice track becomes stereo for this; "Voice track only" stays mono, as before.
+- The Log shows the separation speed and device, how many lines are quieter or to one side, and how many stretches had their voices taken out.
+
+### Changed
+- Dubbing, step 4: the list is now "The original voices", with a line under it saying what the choice does. The "lower" choices work as before. "Coming in the next dubbing builds" now lists what's left: subtitles placed where the speech really is.
+
 ## [1.0.0.66] - 2026-10-12
 
 ### Fixed

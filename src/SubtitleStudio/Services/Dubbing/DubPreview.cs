@@ -42,17 +42,21 @@ public static class DubPreview
     public static IReadOnlyList<string> FastVideo(VideoEncoder encoder)
         => encoder.Name == VideoEncoders.X264.Name ? new[] { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23" } : encoder.Arguments;
 
+    /// <param name="bed">With the original voices removed: the stretch's sound without them (from the stretch's start).</param>
     public static IReadOnlyList<string> RenderArgs(string video, string voice, TimeSpan start, TimeSpan length, int audioTrack, DuckLevel duck,
-        IReadOnlyList<string> videoEncoder, string output)
+        IReadOnlyList<string> videoEncoder, string output, string? bed = null)
     {
         string Seconds(TimeSpan t) => t.TotalSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         var args = new List<string>
         {
             "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-progress", "pipe:1", "-nostats",
-            "-ss", Seconds(start), "-t", Seconds(length), "-i", video, "-i", voice,
-            "-filter_complex", "[0:v:0]scale=-2:'min(720,ih)'[pic];" + DubMixer.Filter(audioTrack, duck, 0),
-            "-map", "[pic]", "-map", "[mix]",
+            "-ss", Seconds(start), "-t", Seconds(length), "-i", video,
         };
+        if (bed is null)
+            args.AddRange(new[] { "-i", voice, "-filter_complex", "[0:v:0]scale=-2:'min(720,ih)'[pic];" + DubMixer.Filter(audioTrack, duck, 0) });
+        else
+            args.AddRange(new[] { "-i", bed, "-i", voice, "-filter_complex", "[0:v:0]scale=-2:'min(720,ih)'[pic];" + DubMixer.FilterOverBed(0, 1, 2) });
+        args.AddRange(new[] { "-map", "[pic]", "-map", "[mix]" });
         args.AddRange(videoEncoder);
         args.AddRange(new[] { "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-t", Seconds(length), "-f", "matroska", output });
         return args;
