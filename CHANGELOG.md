@@ -5,6 +5,31 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.69] - 2026-10-13
+
+### Added
+- AI Transcribe: "Listen to the voices alone (catches background speech; takes the music out first)", on by default.
+  - The music and effects are taken out first by the voice separation model the full dub uses (56 MB, downloaded the first time). Then the speech detector and Whisper hear the voices alone, so quiet speech under music and people talking in the background are found.
+  - A whole episode's separated voices are kept in the temporary folder, so dubbing the same episode doesn't separate them again (and the other way round). Transcribing only a part separates just that part.
+  - If the voices can't be separated (no internet for the download, say), it listens to the sound as it is and says so in the Log.
+- AI Transcribe: a second listen. Speech the detector heard that no line covers is listened to again, each stretch on its own so louder speech nearby can't drown it out: people in the background, a line Whisper skipped, a hesitation before a line.
+  - A line heard again that Whisper had already written within 2 minutes, over a stretch where nobody speaks, is moved to where it's really spoken. This is the "Coming from LA" kind of line that showed up at 0:35 instead of 1:19. Not yet seen on a real episode: the test scene didn't make Whisper misplace a line.
+  - The Log lists what was added, moved or left out.
+- AI Transcribe: sung lines are marked. A line whose voice holds steady notes and is mostly voiced (SingingCheck, on the pitch) is written between ♪ marks as song lyrics. It stays in the subtitles, and dubbing leaves it to the original. The second listen skips singing altogether.
+  - Measured: 5 of 6 stretches of a sung song judged singing. None of the speech was: Kokoro lines, a real four-person recording, or a slow, even audiobook reading. That reading was judged singing by a first version of the check; it now counts how much of the voice is voiced as well.
+- AI Transcribe: lines start where their voice starts. When the speech detector hears the voice begin a little before Whisper's time (a breath, an "uh", a quiet first syllable), the line starts there: at most 0.6 s earlier, and never inside the previous line's speech.
+- AI Transcribe: "Write hesitations (음, 어, uh, um)", off by default. Whisper is given a short prompt of hesitations, for Korean, English, Japanese or Chinese, only in that language, so it writes them down; it usually leaves them out. On the test scene it found every line, but it also joined two people's lines into one, which is why it's a choice. When Whisper writes the prompt itself back out, that line is dropped.
+
+### Changed
+- AI Transcribe: stretches of speech more than 3 s apart are joined for Whisper by a 1 s pause instead of 0.3 s. Whisper's times can be half a second out. Across a short join, that could put a line in the stretch before, up to a minute earlier; in the longer pause it lands in the pause and goes to the right stretch.
+
+### Measured
+- A 100 s test scene: Kokoro dialogue over music; four people talking quietly in the background, 12 dB under the music; lines starting with "Um", "Uh" and "Hmm"; a 14 s sung passage. Transcribed with Whisper Base, in English, on this test machine's processor:
+  - 1.0.0.68: 9 of 13 lines, 0 of the 4 background lines, average start error 0.36 s, the song written out as 2 lines of dialogue.
+  - 1.0.0.69 with the voices alone: 12 of 13 lines, 3 of 4 background lines (the fourth was heard but misheard), average start error 0.23 s, the song's 3 lines marked ♪.
+  - 1.0.0.69 on the sound as it is: 9 of 13 lines, 0 of 4 background lines. Separating the voices is what finds the background speech.
+- Not yet measured on Korean or with Large v3. How much background speech is found, and how hesitations come out, can differ there.
+
 ## [1.0.0.68] - 2026-10-12
 
 ### Fixed

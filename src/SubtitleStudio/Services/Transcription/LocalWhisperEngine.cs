@@ -62,6 +62,27 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
 
     public SceneLanguages.Options SceneOptions { get; set; } = new();
 
+    /// <summary>
+    /// Takes the music and effects out first and listens to the voices alone (null: the sound as it is). Quiet
+    /// speech under music, and people in the background, are heard by the speech detector and by Whisper.
+    /// </summary>
+    public Func<VoicesRequest, CancellationToken, Task<VoicesSource?>>? SeparateVoices { get; set; }
+
+    /// <summary>Hesitations written down ("음...", "uh"): Whisper is prompted with them (Hesitations).</summary>
+    public bool WriteHesitations { get; set; }
+
+    /// <summary>The prompts used for hesitations (Hesitations.Prompts unless set, for tests).</summary>
+    public IReadOnlyDictionary<string, string>? HesitationPrompts { get; set; }
+
+    /// <summary>Speech no line covers is listened to again on its own (ListenAgain).</summary>
+    public bool ListenAgainForMissed { get; set; } = true;
+
+    /// <summary>Lines that are sung (SingingCheck) are written between ♪ marks, as song lyrics: kept as subtitles, not dubbed.</summary>
+    public bool MarkSinging { get; set; } = true;
+
+    /// <summary>Cue starts moved back to where the voice starts, at most this far (zero: not moved).</summary>
+    public TimeSpan SnapStartsBack { get; set; } = TimeSpan.FromSeconds(0.6);
+
     public TranscriptionStats? LastStats { get; private set; }
 
     public IWhisperRunner Runner => _runner;
@@ -79,19 +100,49 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
 
         string? language = options.AutoDetectLanguage ? null : options.Language;
         bool translate = options.TranslateToEnglish && header.Multilingual;
-        var run = new WhisperRunOptions(modelPath, language, translate, Device, Threads, CarryContext);
+        // Hesitations only when writing the language spoken (a translation to English has none to keep).
+        var run = new WhisperRunOptions(modelPath, language, translate, Device, Threads, CarryContext, Prompts: WriteHesitations && !translate ? HesitationPrompts ?? Hesitations.Prompts : null);
         _log?.Info("Transcribe", $"{Path.GetFileName(mediaPath)}: {header.Name} ({Path.GetFileName(modelPath)}), "
             + (language is null ? "language detected automatically" : $"language {WhisperLanguages.NameOf(language)}")
             + (translate ? ", translated to English" : string.Empty)
             + (options.Start is not null || options.Length is not null ? $", part from {Format(options.Start ?? TimeSpan.Zero)} for {(options.Length is { } l0 ? Format(l0) : "the rest")}" : string.Empty)
             + $", requested device: {Device.Label}.");
 
-        // 1. Audio (the first 8% of the bar).
+        // 0. The voices alone (when asked): the separation takes the first 35% of the bar when it has to be done.
         var clock = Stopwatch.StartNew();
-        progress?.Report(new EngineProgress(0, "Reading the audio..."));
         TimeSpan? expected = options.Length ?? (options.MediaDuration is { } d ? d - (options.Start ?? TimeSpan.Zero) : null);
+        VoicesSource? voices = null;
+        if (SeparateVoices is { } separate)
+        {
+            var outer = progress;
+            bool separating = false;
+            voices = await separate(new VoicesRequest(mediaPath, options.AudioTrack, options.Start, options.Length, options.MediaDuration,
+                new InlineProgress<double>(f =>
+                {
+                    separating = true;
+                    outer?.Report(new EngineProgress(f * 0.35, $"Taking the music and effects out, to hear the voices alone... {f:P0}"));
+                })), ct).ConfigureAwait(false);
+            if (separating) progress = new InlineProgress<EngineProgress>(p => outer?.Report(p with { Fraction = 0.35 + p.Fraction * 0.65 }));
+            if (voices is not null)
+                _log?.Info("Transcribe", $"Listening to the voices alone (music and effects taken out{(separating ? $", in {clock.Elapsed.TotalSeconds:0} s" : ", kept from before")}).");
+        }
+
+        // 1. Audio (the first 8% of the bar).
+        progress?.Report(new EngineProgress(0, "Reading the audio..."));
         var audioProgress = new InlineProgress<double>(f => progress?.Report(new EngineProgress(f * 0.08, $"Reading the audio... {f:P0}")));
-        var samples = await AudioExtractor.ReadAsync(ffmpeg, mediaPath, options.AudioTrack, options.Start, options.Length, expected, audioProgress, ct).ConfigureAwait(false);
+        float[] samples;
+        try
+        {
+            samples = voices is null
+                ? await AudioExtractor.ReadAsync(ffmpeg, mediaPath, options.AudioTrack, options.Start, options.Length, expected, audioProgress, ct).ConfigureAwait(false)
+                : voices.CoversWholeFile
+                    ? await AudioExtractor.ReadAsync(ffmpeg, voices.Path, 0, options.Start, options.Length, expected, audioProgress, ct).ConfigureAwait(false)
+                    : await AudioExtractor.ReadAsync(ffmpeg, voices.Path, 0, null, null, expected, audioProgress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (voices is { Temporary: true }) try { File.Delete(voices.Path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
         var audioLength = TimeSpan.FromSeconds(samples.Length / (double)AudioExtractor.SampleRate);
         var reading = clock.Elapsed;
         _log?.Detail("Transcribe", $"Audio read: {Format(audioLength)} in {reading.TotalSeconds:0.0} s.");
@@ -176,9 +227,21 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
         //    and written again in the language found.
         if (DetectSceneLanguages && !translate && (sceneMain ?? language ?? detected) is { } lineMain)
             await RedoMixedLinesAsync(segments, samples, run, lineMain, ct).ConfigureAwait(false);
+        // 7. Speech no line covers, listened to again on its own (background voices, skipped lines); lines Whisper put in
+        //    the wrong place are moved to where they're heard.
+        if (ListenAgainForMissed && speech is { Count: > 0 } && (sceneMain ?? language ?? detected) is { } againLanguage)
+            await ListenAgainAsync(segments, samples, speech, run, againLanguage, ct).ConfigureAwait(false);
+        int echoes = segments.RemoveAll(x => Hesitations.IsEcho(x.Text, run.Prompts));
+        if (MarkSinging) MarkSung(segments, samples);
+        if (echoes > 0) _log?.Info("Transcribe", $"Left out {echoes} line(s) that were Whisper repeating its hesitation prompt.");
         var transcribing = clock.Elapsed;
 
         var shaped = TranscriptShaper.Shape(segments, Shape, options.Start ?? TimeSpan.Zero, plan.Active);
+        if (SnapStartsBack > TimeSpan.Zero && speech is { Count: > 0 })
+        {
+            int snapped = ListenAgain.SnapStarts(shaped.Cues, speech, options.Start ?? TimeSpan.Zero, SnapStartsBack);
+            if (snapped > 0) _log?.Info("Transcribe", $"{snapped} line(s) start a little earlier, where the voice starts (a breath or hesitation before the words).");
+        }
         samples = Array.Empty<float>();
         var docLanguage = translate ? "en" : language ?? detected;
         LastStats = new TranscriptionStats(audioLength, reading, loading, transcribing, device, _runner.DeviceProblem, docLanguage,
@@ -293,6 +356,64 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
         }
         if (redone + kept > 0)
             _log?.Info("Transcribe", $"{redone + kept} line(s) mixed two scripts: {redone} written again in the language they sound like, {kept} kept.");
+    }
+
+    private void MarkSung(List<WhisperSegment> segments, float[] samples)
+    {
+        int rate = AudioExtractor.SampleRate, marked = 0;
+        for (int i = 0; i < segments.Count; i++)
+        {
+            var x = segments[i];
+            var text = TranscriptShaper.Clean(x.Text);
+            if (text.Length == 0 || text.Contains('♪')) continue;
+            long from = Math.Max(0, (long)(x.Start.TotalSeconds * rate)), to = Math.Min(samples.Length, (long)(x.End.TotalSeconds * rate));
+            if (to - from < rate || !SingingCheck.IsSinging(samples.AsSpan((int)from, (int)(to - from)), rate)) continue;
+            segments[i] = x with { Text = $"♪ {text} ♪" };
+            marked++;
+        }
+        if (marked > 0) _log?.Info("Transcribe", $"{marked} line(s) sound sung (held notes): written between ♪ marks as song lyrics, which dubbing leaves to the original.");
+    }
+
+    private async Task ListenAgainAsync(List<WhisperSegment> segments, float[] samples, IReadOnlyList<SpeechRegion> speech, WhisperRunOptions run, string main, CancellationToken ct)
+    {
+        var clock = Stopwatch.StartNew();
+        var stretches = ListenAgain.Uncovered(speech, segments.Where(x => TranscriptShaper.Clean(x.Text).Any(char.IsLetterOrDigit)).Select(x => (x.Start, x.End)));
+        if (stretches.Count == 0) return;
+        int rate = AudioExtractor.SampleRate, sung = 0;
+        var chunks = new List<SpeechChunk>();
+        var asked = new List<(TimeSpan Start, TimeSpan End)>();
+        foreach (var (s, e) in stretches)
+        {
+            long from = Math.Max(0, (long)((s - ListenAgain.Pad).TotalSeconds * rate));
+            long to = Math.Min(samples.Length, (long)((e + ListenAgain.Pad).TotalSeconds * rate));
+            if (to - from < rate / 2) continue;
+            var audio = new ReadOnlyMemory<float>(samples, (int)from, (int)(to - from));
+            if (SingingCheck.IsSinging(audio.Span, rate))
+            {
+                sung++;
+                continue;
+            }
+            chunks.Add(new SpeechChunk(audio, new[] { new AudioPiece(0, from, (int)(to - from)) }));
+            asked.Add((s, e));
+        }
+        int empty = 0;
+        var found = new List<WhisperSegment>();
+        if (chunks.Count > 0)
+            await foreach (var raw in _runner.RunAsync(chunks.Select(c => c.Audio).ToList(), run with { Language = main, ChunkLanguages = null }, null, ct).ConfigureAwait(false))
+            {
+                var heard = ToSource(raw, chunks[raw.Chunk]) with { Chunk = -1 };
+                var text = TranscriptShaper.Clean(heard.Text);
+                // Only what was said in the stretch asked about (not in the padding around it).
+                var (s, e) = asked[raw.Chunk];
+                if (!text.Any(char.IsLetterOrDigit) || heard.End <= s || heard.Start >= e || Hesitations.IsEcho(text, run.Prompts)) { empty++; continue; }
+                found.Add(heard);
+            }
+        var merged = ListenAgain.Merge(segments, found, speech);
+        int added = merged.Added, moved = merged.Moved, same = merged.Same;
+        foreach (var note in merged.Notes) _log?.Detail("Transcribe", "Heard again: " + note + ".");
+        _log?.Info("Transcribe", $"Listened again to {stretches.Count} stretch(es) of speech no line covered ({Format(TimeSpan.FromSeconds(stretches.Sum(x => (x.End - x.Start).TotalSeconds)))}) in {clock.Elapsed.TotalSeconds:0.0} s: "
+            + $"{added} line(s) added, {moved} moved to where they're spoken" + (same > 0 ? $", {same} already written" : "") + (sung > 0 ? $", {sung} left out as singing" : "")
+            + (empty > 0 ? $", {empty} with no words" : "") + ".");
     }
 
     /// <summary>Segment and token times from chunk time to source time.</summary>

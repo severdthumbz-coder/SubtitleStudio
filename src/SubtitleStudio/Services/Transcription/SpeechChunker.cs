@@ -65,6 +65,14 @@ public static class SpeechChunker
         public TimeSpan MaxChunk { get; init; } = TimeSpan.FromSeconds(28);
         public TimeSpan JoinPause { get; init; } = TimeSpan.FromSeconds(0.3);
 
+        /// <summary>
+        /// Stretches this far apart in the source are joined by a longer pause (FarJoinPause): Whisper's times can be
+        /// half a second out, and across a 0.3 s join that put a line in the stretch before, up to a minute earlier.
+        /// In a longer pause the slip lands in the pause, and ToSource moves it to the right stretch.
+        /// </summary>
+        public TimeSpan FarGap { get; init; } = TimeSpan.FromSeconds(3);
+        public TimeSpan FarJoinPause { get; init; } = TimeSpan.FromSeconds(1.0);
+
         /// <summary>Where "sound" starts between the noise floor and loud speech (lower keeps more).</summary>
         public double Sensitivity { get; init; } = 0.2;
 
@@ -145,10 +153,11 @@ public static class SpeechChunker
         // The sample tail after the last whole frame belongs to the last stretch if it reaches the end.
         long Source(int frame) => (long)frame * FrameSamples;
 
-        int join = (int)(o.JoinPause.TotalSeconds * AudioExtractor.SampleRate);
+        int nearJoin = (int)(o.JoinPause.TotalSeconds * AudioExtractor.SampleRate), farJoin = (int)(o.FarJoinPause.TotalSeconds * AudioExtractor.SampleRate);
+        long farGap = (long)(o.FarGap.TotalSeconds * AudioExtractor.SampleRate);
         long maxChunk = (long)(o.MaxChunk.TotalSeconds * AudioExtractor.SampleRate);
         var chunks = new List<SpeechChunk>();
-        var group = new List<(long Start, int Length)>();
+        var group = new List<(long Start, int Length, int Join)>();
         long groupLength = 0;
 
         void Flush()
@@ -157,11 +166,12 @@ public static class SpeechChunker
             var audio = new float[groupLength];
             var pieces = new List<AudioPiece>(group.Count);
             int at = 0;
-            foreach (var (start, length) in group)
+            for (int g = 0; g < group.Count; g++)
             {
+                var (start, length, _) = group[g];
                 Array.Copy(samples, start, audio, at, length);
                 pieces.Add(new AudioPiece(at, start, length));
-                at += length + join;
+                at += length + (g + 1 < group.Count ? group[g + 1].Join : 0);
             }
             chunks.Add(new SpeechChunk(audio, pieces));
             group.Clear();
@@ -173,10 +183,11 @@ public static class SpeechChunker
             long from = Source(start);
             long to = end >= frames ? samples.Length : Source(end);
             int length = (int)(to - from);
+            int join = group.Count > 0 && from - (group[^1].Start + group[^1].Length) > farGap ? farJoin : nearJoin;
             long added = (group.Count > 0 ? join : 0) + length;
             if (group.Count > 0 && groupLength + added > maxChunk) Flush();
             groupLength += (group.Count > 0 ? join : 0) + length;
-            group.Add((from, length));
+            group.Add((from, length, group.Count > 0 ? join : 0));
         }
         Flush();
 

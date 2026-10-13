@@ -153,6 +153,32 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Take the music and effects out first and listen to the voices alone.</summary>
+    public bool TranscribeVoicesAlone
+    {
+        get => _s.Config.TranscribeVoicesAlone;
+        set
+        {
+            if (_s.Config.TranscribeVoicesAlone == value) return;
+            _s.Config.TranscribeVoicesAlone = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
+    /// <summary>Prompt Whisper to write hesitations (음, 어, uh).</summary>
+    public bool TranscribeHesitations
+    {
+        get => _s.Config.TranscribeHesitations;
+        set
+        {
+            if (_s.Config.TranscribeHesitations == value) return;
+            _s.Config.TranscribeHesitations = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
     public bool WriteSpokenLanguage
     {
         get => !TranslateToEnglish;
@@ -517,6 +543,7 @@ public sealed partial class MainViewModel
             modelPath = model.Path;
             local.Device = ResolveWhisperDevice();
             local.DetectSceneLanguages = TranscribeSceneLanguages;
+            ConfigureListening(local);
             // One model in graphics memory at a time: the translator's language model goes first.
             LocalTranslator?.Runner.Release();
         }

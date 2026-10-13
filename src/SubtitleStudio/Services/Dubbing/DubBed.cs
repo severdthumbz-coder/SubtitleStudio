@@ -200,7 +200,7 @@ public static class DubBed
     /// renamed when complete. <paramref name="progress"/>: the share of <paramref name="expected"/> done.
     /// </summary>
     public static async Task SeparateToFileAsync(string ffmpeg, string video, int track, VoiceSeparator separator, string voicesPath,
-        TimeSpan? expected, IProgress<double>? progress, CancellationToken ct)
+        TimeSpan? expected, IProgress<double>? progress, CancellationToken ct, TimeSpan? start = null, TimeSpan? length = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(voicesPath)!);
         var part = voicesPath + ".part";
@@ -222,7 +222,7 @@ public static class DubBed
                     }
                 }
                 // The model's work happens in Feed, on this thread, while FFmpeg keeps decoding ahead into its pipe.
-                await DecodeAsync(ffmpeg, DecodeArgs(video, track), (l, r) =>
+                await DecodeAsync(ffmpeg, DecodeArgs(video, track, start, length), (l, r) =>
                 {
                     ct.ThrowIfCancellationRequested();
                     input += l.Length;

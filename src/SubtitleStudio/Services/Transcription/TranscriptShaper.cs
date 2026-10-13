@@ -262,7 +262,7 @@ public static class TranscriptShaper
         return sb.ToString();
     }
 
-    private static string Key(string text)
+    public static string Key(string text)
     {
         var sb = new StringBuilder(text.Length);
         foreach (var c in text) if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));

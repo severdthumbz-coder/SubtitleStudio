@@ -66,7 +66,7 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE720;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="AI Transcribe" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
-                                   Text="Speech to timed subtitles with Whisper (whisper.cpp), running inside the app on the graphics card or the processor. Can also translate the speech into English subtitles." />
+                                   Text="Speech to timed subtitles with Whisper (whisper.cpp), running inside the app on the graphics card or the processor. It can listen to the voices alone, with the music and effects taken out first, to catch people talking in the background. Sung lines are marked with ♪, and each line starts where its voice starts. Can also translate the speech into English subtitles." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

@@ -98,16 +98,28 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
         DetectedLanguage = null;
         int current = 0;
 
-        var builder = factory.CreateBuilder()
-            .WithThreads(Math.Max(1, options.Threads))
-            .WithProbabilities()
-            .WithTokenTimestamps();
-        builder = options.Language is { Length: > 0 } language ? builder.WithLanguage(language) : builder.WithLanguageDetection();
-        if (options.Translate) builder = builder.WithTranslate();
-        if (!options.CarryContext) builder = builder.WithNoContext();
-        if (progress is not null) builder = builder.WithProgressHandler(p => progress.Report((Volatile.Read(ref current), p)));
+        // One processor per prompt (Whisper's prompt is fixed when a processor is built): the main language's
+        // hesitation prompt mustn't be given to a scene in another language.
+        WhisperProcessor Build(string? prompt)
+        {
+            var builder = factory.CreateBuilder()
+                .WithThreads(Math.Max(1, options.Threads))
+                .WithProbabilities()
+                .WithTokenTimestamps();
+            builder = options.Language is { Length: > 0 } language ? builder.WithLanguage(language) : builder.WithLanguageDetection();
+            if (options.Translate) builder = builder.WithTranslate();
+            if (!options.CarryContext) builder = builder.WithNoContext();
+            if (prompt is { Length: > 0 }) builder = builder.WithPrompt(prompt).WithCarryInitialPrompt(true);
+            if (progress is not null) builder = builder.WithProgressHandler(p => progress.Report((Volatile.Read(ref current), p)));
+            return builder.Build();
+        }
+        string? PromptFor(string? language) => language is { Length: > 0 } && options.Prompts?.TryGetValue(language, out var p) == true ? p : null;
 
-        await using var processor = builder.Build();
+        var processors = new Dictionary<string, (WhisperProcessor Processor, string? Language)>();
+        try
+        {
+        var processor = Build(PromptFor(options.Language));
+        processors[PromptFor(options.Language) ?? string.Empty] = (processor, options.Language);
         string? currentLanguage = options.Language;
         if (options.Language is not { Length: > 0 } && chunks.Count > 0)
         {
@@ -118,6 +130,7 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
                 DetectedLanguage = (code, probability);
                 processor.ChangeLanguage(code);
                 currentLanguage = code;
+                processors[string.Empty] = (processor, code);
             }
         }
 
@@ -127,11 +140,19 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
             Volatile.Write(ref current, c);
             // A scene in another language: that language for this chunk, then back.
             var wanted = options.ChunkLanguages is { } langs && c < langs.Count && langs[c] is { Length: > 0 } l ? l : options.Language is { Length: > 0 } main ? main : currentLanguage;
-            if (wanted is { Length: > 0 } && wanted != currentLanguage)
+            var key = PromptFor(wanted) ?? string.Empty;
+            if (!processors.TryGetValue(key, out var entry))
+            {
+                entry = (Build(key.Length > 0 ? key : null), null);
+                processors[key] = entry;
+            }
+            processor = entry.Processor;
+            if (wanted is { Length: > 0 } && wanted != entry.Language)
             {
                 processor.ChangeLanguage(wanted);
-                currentLanguage = wanted;
+                processors[key] = (processor, wanted);
             }
+            currentLanguage = wanted ?? currentLanguage;
             IAsyncEnumerator<SegmentData>? segments = null;
             try
             {
@@ -155,6 +176,11 @@ public sealed partial class WhisperNetRunner : IWhisperRunner
             {
                 if (segments is not null) await segments.DisposeAsync().ConfigureAwait(false);
             }
+        }
+        }
+        finally
+        {
+            foreach (var (p, _) in processors.Values) await p.DisposeAsync().ConfigureAwait(false);
         }
     }
 

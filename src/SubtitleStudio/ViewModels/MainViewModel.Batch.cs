@@ -348,6 +348,7 @@ public sealed partial class MainViewModel
             whisperModel = model.Path;
             whisper.Device = ResolveWhisperDevice();
             whisper.DetectSceneLanguages = TranscribeSceneLanguages;
+            ConfigureListening(whisper);
         }
 
         ITranslationService? translator = null;

@@ -54,6 +54,14 @@
                                   ToolTip="Whisper checks the language of each stretch of speech. Scenes in another language (Japanese scenes in a Korean drama) are written in that language instead of being forced into the main one. Adds about a second per half minute of speech.">
                             <TextBlock Text="Scenes in other languages: write each in its own language" TextWrapping="Wrap" />
                         </CheckBox>
+                        <CheckBox IsChecked="{Binding TranscribeVoicesAlone, Mode=TwoWay}" Margin="0,8,0,0"
+                                  ToolTip="The music and effects are taken out first by the voice separation model (56 MB, downloaded the first time; the same one the full dub uses), so quiet speech under music and people talking in the background are heard. Speech no line covers is listened to again, sung lines are marked with ♪, and lines start where the voice starts. Separating takes a few minutes per episode on the graphics card and is kept, so dubbing the same episode doesn't do it again.">
+                            <TextBlock Text="Listen to the voices alone (catches background speech; takes the music out first)" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding TranscribeHesitations, Mode=TwoWay}" Margin="0,8,0,0"
+                                  ToolTip="Whisper is given a short prompt of hesitations (음. 어, 네.) so it writes them down; it usually leaves them out. In tests it sometimes joined two people's lines into one, so it's off unless you want the hesitations written.">
+                            <TextBlock Text="Write hesitations (음, 어, uh, um)" TextWrapping="Wrap" />
+                        </CheckBox>
                         <TextBlock Text="How much" Style="{StaticResource Text.Label}" Margin="0,12,0,4" />
                         <ComboBox ItemsSource="{Binding TranscribeParts}" SelectedItem="{Binding SelectedTranscribePart, Mode=TwoWay}"
                                   ToolTip="Try the first 2 minutes to check the model, language and speed before a whole episode" />

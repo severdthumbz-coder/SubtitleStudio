@@ -11,8 +11,12 @@ public sealed record WhisperDevice(bool UseGpu, int? VulkanIndex, string Label)
 /// <param name="CarryContext">Feed the text so far back in as context. Off by default: after a long pause
 /// Whisper then tends to repeat earlier lines instead of hearing new ones.</param>
 /// <param name="ChunkLanguages">A language per chunk (scenes in another language); null entries, or no list, use <paramref name="Language"/>.</param>
+/// <param name="Prompts">
+/// A prompt for Whisper per language (code → text), given to every window: written the way the lines should come out
+/// (Hesitations: "음... 어, 그게..." so the hesitations are written down). Languages without one get none.
+/// </param>
 public sealed record WhisperRunOptions(string ModelPath, string? Language, bool Translate, WhisperDevice Device, int Threads, bool CarryContext = false,
-    IReadOnlyList<string?>? ChunkLanguages = null);
+    IReadOnlyList<string?>? ChunkLanguages = null, IReadOnlyDictionary<string, string>? Prompts = null);
 
 /// <summary>One token of a segment: text (may be part of a character), times, probability.</summary>
 public sealed record WhisperTokenInfo(string Text, TimeSpan Start, TimeSpan End, float Probability, bool Special);
