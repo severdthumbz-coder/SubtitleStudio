@@ -81,7 +81,7 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
     public bool MarkSinging { get; set; } = true;
 
     /// <summary>Cue starts moved back to where the voice starts, at most this far (zero: not moved).</summary>
-    public TimeSpan SnapStartsBack { get; set; } = TimeSpan.FromSeconds(0.6);
+    public TimeSpan SnapStartsBack { get; set; } = TimeSpan.FromSeconds(1.5);
 
     public TranscriptionStats? LastStats { get; private set; }
 
@@ -406,6 +406,12 @@ public sealed class LocalWhisperEngine : ITranscriptionService, IDisposable
                 // Only what was said in the stretch asked about (not in the padding around it).
                 var (s, e) = asked[raw.Chunk];
                 if (!text.Any(char.IsLetterOrDigit) || heard.End <= s || heard.Start >= e || Hesitations.IsEcho(text, run.Prompts)) { empty++; continue; }
+                // Kept inside the stretch no line covered: Whisper's times run into the padding, and a line reaching into
+                // the next one's time pushed that one later (1.0.0.69 on E03: some subtitles came up late).
+                var keepFrom = s - ListenAgain.Slack;
+                var keepTo = e + ListenAgain.Slack;
+                if (heard.Start < keepFrom) heard = heard with { Start = keepFrom };
+                if (heard.End > keepTo) heard = heard with { End = keepTo };
                 found.Add(heard);
             }
         var merged = ListenAgain.Merge(segments, found, speech);

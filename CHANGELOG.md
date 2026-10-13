@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.70] - 2026-10-13
+
+### Fixed
+- AI Transcribe: subtitles no longer come up late after the second listen. On E03 (1.0.0.69) the second listen added 14 lines, 5 of them between 1:47 and 1:58, and some subtitles then appeared after their speech had started. There were three causes:
+  - A line heard again could run past the stretch it was heard in: Whisper's times reach into the padding around the stretch. It is now kept inside that stretch, with 0.15 s to spare at each end, so it can't overlap the next line.
+  - When two lines overlapped, the later one was moved to start where the earlier one ended, so it came up late. Now the earlier one ends where the later one starts. Only when that would leave the earlier one shorter than 0.3 s is the later one moved instead.
+  - Lines whose voice starts before Whisper's time are moved back as far as 1.5 s (was 0.6 s), still never into the previous line's speech. Whisper Large v3 often starts a line late after a pause.
+- Tested: an overlapping pair now keeps the later line's start; a line starting 1.2 s after its voice is moved back to the voice. The test scene (1.0.0.69) scores the same.
+
 ## [1.0.0.69] - 2026-10-13
 
 ### Added

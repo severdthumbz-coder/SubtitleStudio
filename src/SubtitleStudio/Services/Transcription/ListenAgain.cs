@@ -169,7 +169,7 @@ public static class ListenAgain
 
     /// <summary>
     /// Cue starts moved back to where the voice starts, when the speech detector heard it begin a little earlier (a
-    /// breath, an "uh", the first quiet syllable): at most <paramref name="most"/> back, never into the previous cue.
+    /// breath, an "uh", the first quiet syllable, or Whisper's time simply late): at most <paramref name="most"/> back, never into the previous cue.
     /// </summary>
     public static int SnapStarts(IList<SubtitleCue> cues, IReadOnlyList<SpeechRegion> speech, TimeSpan offset, TimeSpan most)
     {

@@ -144,7 +144,15 @@ public static class TranscriptShaper
             var (start, end, text) = pieces[i];
             start += offset;
             end += offset;
-            if (start < previousEnd) start = previousEnd;           // never before the previous cue ends
+            // Overlapping the previous cue: that one ends where this one starts, so this line still comes up when its
+            // speech starts (pushing the start later made subtitles late). Only when the previous one would be too
+            // short is this one moved instead.
+            if (start < previousEnd)
+            {
+                var previous = cues[^1];
+                if (start - previous.Start >= shortest) { previous.End = start; previousEnd = start; }
+                else start = previousEnd;
+            }
             if (end < start + shortest) end = start + shortest;
             TimeSpan? next = i + 1 < pieces.Count ? pieces[i + 1].Start + offset : null;
             if (end - start < o.MinDuration) end = next is { } n && n > start + shortest ? Min(start + o.MinDuration, n) : start + o.MinDuration;
