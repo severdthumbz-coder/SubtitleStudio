@@ -12,8 +12,9 @@ public enum DuckLevel { Little, Lower, Much, Removed }
 /// <param name="AudioTrack">Which of the video's audio tracks goes under the voice (0 = the first).</param>
 /// <param name="MakeDefault">The new English track is the one players start with.</param>
 /// <param name="BedPath">With the original voices removed: the sound to put the voice on (DubBed), used instead of the video's own.</param>
+/// <param name="SmallVideo">Re-encode the picture smaller (at most 720 high) with this encoder, instead of copying it, for a far smaller file.</param>
 public sealed record DubMixRequest(string VideoPath, string VoicePath, string OutputPath, int AudioTrack = 0, DuckLevel Duck = DuckLevel.Lower,
-    bool MakeDefault = true, double VoiceGainDb = 0, string? BedPath = null);
+    bool MakeDefault = true, double VoiceGainDb = 0, string? BedPath = null, IReadOnlyList<string>? SmallVideo = null);
 
 public sealed record DubMixResult(string OutputPath, int AudioTracks, IReadOnlyList<string> Notes);
 
@@ -31,14 +32,15 @@ public static class DubMixer
     /// <summary>Compressor ratio for each level. Measured with pink noise under Kokoro speech: about 8, 12 and 15 dB down while the voice speaks.</summary>
     public static double Ratio(DuckLevel level) => level switch { DuckLevel.Little => 2, DuckLevel.Much => 10, _ => 4 };
 
-    /// <summary>"Episode 3.mkv" → "Episode 3 (English dub).mkv" (a name that isn't taken).</summary>
-    public static string SuggestOutput(string videoPath)
+    /// <summary>"Episode 3.mkv" → "Episode 3 (English dub).mkv" (a name that isn't taken); small: "(English dub, small).mkv".</summary>
+    public static string SuggestOutput(string videoPath, bool small = false)
     {
         var folder = Path.GetDirectoryName(Path.GetFullPath(videoPath))!;
         var name = Path.GetFileNameWithoutExtension(videoPath);
         var ext = SubtitleMuxer.Extension(SubtitleMuxer.ContainerFor(videoPath));
-        var candidate = Path.Combine(folder, $"{name} (English dub){ext}");
-        for (int n = 2; File.Exists(candidate); n++) candidate = Path.Combine(folder, $"{name} (English dub {n}){ext}");
+        var tag = small ? "English dub, small" : "English dub";
+        var candidate = Path.Combine(folder, $"{name} ({tag}){ext}");
+        for (int n = 2; File.Exists(candidate); n++) candidate = Path.Combine(folder, $"{name} ({tag} {n}){ext}");
         return candidate;
     }
 
@@ -100,7 +102,14 @@ public static class DubMixer
             }
             if (s.Kind == StreamKind.Subtitle) codec = mp4 ? (s.Codec == "mov_text" ? "copy" : "mov_text") : s.Codec is "mov_text" or "text" ? "srt" : "copy";
             args.AddRange(new[] { "-map", $"0:{s.Index}" });
-            per.AddRange(new[] { $"-c:{index}", codec });
+            // A smaller file: the main picture is re-encoded at most 720 high; attached cover art is still copied.
+            if (s.Kind == StreamKind.Video && !s.AttachedPicture && request.SmallVideo is { Count: > 0 } enc)
+            {
+                per.Add($"-c:{index}");
+                per.AddRange(enc);
+                per.AddRange(new[] { $"-vf:{index}", "scale=-2:'min(720,ih)'", $"-pix_fmt:{index}", "yuv420p" });
+            }
+            else per.AddRange(new[] { $"-c:{index}", codec });
             if (s.Kind == StreamKind.Audio)
             {
                 var flags = new List<string>();

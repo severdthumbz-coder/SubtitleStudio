@@ -361,6 +361,19 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Make a smaller dubbed video (re-encode the picture at most 720 high).</summary>
+    public bool DubbingSmallFile
+    {
+        get => _s.Config.DubbingSmallFile;
+        set
+        {
+            if (_s.Config.DubbingSmallFile == value) return;
+            _s.Config.DubbingSmallFile = value;
+            SaveSettings();
+            OnPropertyChanged();
+        }
+    }
+
     public bool DubbingDefaultTrack
     {
         get => _s.Config.DubbingDefaultTrack;
@@ -415,7 +428,8 @@ public sealed partial class MainViewModel
             SetStatus("ffmpeg is needed to add the voice to the video: set it in Settings > Engines & tools.", StatusKind.Error);
             return;
         }
-        var suggested = DubMixer.SuggestOutput(video.FullPath);
+        bool small = DubbingSmallFile;
+        var suggested = DubMixer.SuggestOutput(video.FullPath, small);
         var ext = Path.GetExtension(suggested);
         var filter = ext == ".mp4" ? "MP4 video (*.mp4)|*.mp4|Matroska video (*.mkv)|*.mkv" : "Matroska video (*.mkv)|*.mkv|MP4 video (*.mp4)|*.mp4";
         var output = _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested));
@@ -425,6 +439,8 @@ public sealed partial class MainViewModel
         bool makeDefault = DubbingDefaultTrack;
         await RunDubbingWorkAsync("Making the dubbed video", async ct =>
         {
+            IReadOnlyList<string>? smallVideo = null;
+            if (small) smallVideo = DubPreview.SmallVideo(await EncoderAsync(ff.FfmpegPath!, ct));
             var folder = Path.GetDirectoryName(output)!;
             var stem = Path.GetFileNameWithoutExtension(output);
             var voicePath = Path.Combine(folder, stem + ".voice.partial.wav");
@@ -448,13 +464,13 @@ public sealed partial class MainViewModel
                     var bedProgress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 90 + f * 5; });
                     await DubBed.WriteBedAsync(ff.FfmpegPath!, video.FullPath, 0, voices, removal, bedPath, video.Duration, bedProgress, ct);
                     _s.Log.Info("Dubbing", $"Original voices taken out in {removal.Spans.Count} stretches under the English lines ({TimeSpan.FromSeconds(removal.Spans.Sum(x => x.End - x.Start) / (double)DubBed.SampleRate).TotalMinutes:0.0} min); the rest of the sound is as it was. {removal.Extended} line ends stretched to follow the original voice ({removal.ExtendedBefore.TotalSeconds:0} s before lines, {removal.ExtendedAfter.TotalSeconds:0} s after, in all).");
-                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault, BedPath: bedPath);
+                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault, BedPath: bedPath, SmallVideo: smallVideo);
                 }
                 else
                 {
                     // Speaking is most of the work: 90% of the bar, the mix the rest.
                     await BuildVoiceTrackAsync(voicePath, 0.9, ct);
-                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault);
+                    request = new DubMixRequest(video.FullPath, voicePath, output, 0, duck, makeDefault, SmallVideo: smallVideo);
                 }
                 DubbingStatus = "Mixing the voice into the video...";
                 double mixFrom = DubbingProgress;
@@ -462,7 +478,7 @@ public sealed partial class MainViewModel
                 var mixed = await DubMixer.RunAsync(ff.FfmpegPath!, ff.FfprobePath!, request, progress, _s.Log, ct);
                 var total = DateTime.UtcNow - started;
                 DubbingStatus = $"Dubbed video saved: {Path.GetFileName(output)}, with the English voice-over as audio track {mixed.AudioTracks}{(makeDefault ? " (the default)" : "")}. Made in {FormatEta(total)}.";
-                _s.Log.Success("Dubbing", $"Dubbed video saved: {output} ({mixed.AudioTracks} audio tracks, the English voice-over {(makeDefault ? "first choice" : "last")}{(duck == DuckLevel.Removed ? ", original voices removed" : "")}). The original video is unchanged.");
+                _s.Log.Success("Dubbing", $"Dubbed video saved: {output} ({mixed.AudioTracks} audio tracks, the English voice-over {(makeDefault ? "first choice" : "last")}{(duck == DuckLevel.Removed ? ", original voices removed" : "")}{(small ? ", picture re-encoded smaller (at most 720 high)" : "")}). The original video is unchanged.");
                 SetStatus($"Dubbed video saved: {Path.GetFileName(output)}.", StatusKind.Success);
             }
             finally

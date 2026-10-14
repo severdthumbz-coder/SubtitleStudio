@@ -42,6 +42,20 @@ public static class DubPreview
     public static IReadOnlyList<string> FastVideo(VideoEncoder encoder)
         => encoder.Name == VideoEncoders.X264.Name ? new[] { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23" } : encoder.Arguments;
 
+    /// <summary>
+    /// A small keep file (for sharing or review): the picture re-encoded to at most 720 high at a modest bitrate.
+    /// Just the "-c:v …" and its options (scaling and pixel format are added per stream by DubMixer.Plan). Roughly
+    /// a quarter to a third the original's size for a 1080p source. The graphics card's encoder when there is one.
+    /// </summary>
+    public static IReadOnlyList<string> SmallVideo(VideoEncoder encoder)
+    {
+        var name = encoder.Name;
+        if (name.Contains("amf", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "26", "-qp_p", "28", "-qp_b", "30" };
+        if (name.Contains("nvenc", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_nvenc", "-rc", "constqp", "-qp", "27", "-preset", "p4" };
+        if (name.Contains("qsv", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_qsv", "-global_quality", "27" };
+        return new[] { "libx264", "-preset", "veryfast", "-crf", "27" };
+    }
+
     /// <param name="bed">With the original voices removed: the stretch's sound without them (from the stretch's start).</param>
     public static IReadOnlyList<string> RenderArgs(string video, string voice, TimeSpan start, TimeSpan length, int audioTrack, DuckLevel duck,
         IReadOnlyList<string> videoEncoder, string output, string? bed = null)

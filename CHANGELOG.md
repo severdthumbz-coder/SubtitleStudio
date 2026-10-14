@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.75] - 2026-10-14
+
+### Added
+- Dubbing: "Smaller file (lower quality, re-encodes the picture)" when making the dubbed video. The picture is re-encoded at most 720 lines high at a modest bitrate (on the graphics card where there is one), instead of being copied as-is. For a 1080p source the file is roughly a quarter to a third the size, saved as "(English dub, small)". Off by default; copying the picture keeps full quality and is much quicker.
+
+### Verified
+- Dubbing, Speakers: the short-line gender fix (1.0.0.73) is working on E03. Measured against the original Korean, lines that came out in the wrong gender before (cues 15, 16, 20, 26) now come out male, matching the source. Two very short lines over music (cue 22 at 0.7 s, cue 24 at 1.3 s, both clearly male) still fall to a female speaker, because their own pitch over that short a clip and under music reads high; those are best fixed with "change who speaks this line" in the Speakers tab.
+
 ## [1.0.0.74] - 2026-10-14
 
 ### Added

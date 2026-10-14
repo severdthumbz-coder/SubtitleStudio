@@ -53,6 +53,9 @@ public sealed class AppSettings
     /// <summary>Dubbing: flag speakers whose pitch can't tell gender, for the user to confirm.</summary>
     public bool DubbingConfirmGender { get; set; } = true;
 
+    /// <summary>Dubbing: make a smaller dubbed video (re-encode the picture at most 720 high).</summary>
+    public bool DubbingSmallFile { get; set; }
+
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>
