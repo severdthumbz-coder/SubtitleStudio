@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.71] - 2026-10-13
+
+### Fixed
+- Dubbing, full dub: no more Korean just before or after an English line. The removal stretched over the voice only where it was within 20 dB of the episode's usual speaking level. A quiet speaker's first syllable, a breath before a line or a word fading out fell under that, and that sliver of Korean was heard around the English.
+  - Each line is now judged by its own level: the voice counts as speaking within 30 dB of the line's louder part, never below −65 dB. Pauses of up to 150 ms between syllables are bridged (was 80 ms).
+  - The fixed margins are wider: 0.2 s before a line (was 0.12) and 0.3 s after (was 0.2), with 60 ms fades (was 40).
+  - Test: a breath at −52 dB before a −25 dB line and a word fading at −50 dB after it are now taken out with the line. With 1.0.0.70 both stayed.
+- Dubbing: the change applies to "Hear the dub" and to the dubbed video. Making the dubbed video again reuses the separated voices, so it doesn't separate again.
+
 ## [1.0.0.70] - 2026-10-13
 
 ### Fixed

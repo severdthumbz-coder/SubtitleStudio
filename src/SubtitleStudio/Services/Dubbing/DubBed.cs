@@ -87,10 +87,10 @@ public static class DubBed
     public const int SampleRate = 44100;
 
     /// <summary>The voices are taken out from this long before an English line's time to this long after.</summary>
-    public static readonly TimeSpan Before = TimeSpan.FromMilliseconds(120), After = TimeSpan.FromMilliseconds(200);
+    public static readonly TimeSpan Before = TimeSpan.FromMilliseconds(200), After = TimeSpan.FromMilliseconds(300);
 
     /// <summary>Fades in and out of the removal (no clicks).</summary>
-    public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(40);
+    public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(60);
 
     /// <summary>Lines closer than this are taken out together (the voices don't come back for a moment between them).</summary>
     public static readonly TimeSpan Bridge = TimeSpan.FromMilliseconds(400);
@@ -380,46 +380,68 @@ public static class DubBed
     public sealed class VoiceActivity
     {
         public const int PerSecond = 100;
-        public const double BelowUsual = 20;
+
+        /// <summary>
+        /// The voice counts as speaking within this much of the line's own level (its louder half). 1.0.0.68–70 used
+        /// 20 dB below the episode's usual level: a quiet speaker's first or last syllable, or a fading word, fell under
+        /// it, and that sliver of Korean was heard just before or after the English line.
+        /// </summary>
+        public const double BelowLine = 30;
+
+        /// <summary>Never quieter than this (dB), whatever the line's level: the separation's own faint residue isn't a voice.</summary>
+        public const double Floor = -65;
+
+        /// <summary>Dips shorter than this between active steps are bridged (the gaps between syllables).</summary>
+        public const int BridgeSteps = 15;
 
         /// <summary>The furthest a removal is stretched before a line, and after it.</summary>
         public static readonly TimeSpan GrowBefore = TimeSpan.FromSeconds(1.5), GrowAfter = TimeSpan.FromSeconds(1.0);
 
-        private readonly bool[] _active;
+        private readonly float[] _levels;
+        private readonly double _usual;
 
         /// <param name="levels">Level of each 10 ms step, dB (Levels).</param>
-        /// <param name="usual">The usual level of the voices in lines (VoicePlacement.Usual).</param>
+        /// <param name="usual">The usual level of the voices in lines (VoicePlacement.Usual): the line's level when it has no voice of its own.</param>
         public VoiceActivity(float[] levels, double usual)
         {
-            double threshold = Math.Max(usual - BelowUsual, -60);
-            var raw = levels.Select(l => l > threshold).ToArray();
-            _active = (bool[])raw.Clone();
-            // Bridge short dips: inactive runs under 80 ms between active steps.
-            const int gap = 8;
-            int last = -1;
-            for (int i = 0; i < raw.Length; i++)
-            {
-                if (!raw[i]) continue;
-                if (last >= 0 && i - last > 1 && i - last <= gap) for (int k = last + 1; k < i; k++) _active[k] = true;
-                last = i;
-            }
+            _levels = levels;
+            _usual = usual;
         }
 
-        public bool Active(TimeSpan t)
+        private float Level(long i) => i >= 0 && i < _levels.Length ? _levels[i] : -120f;
+
+        /// <summary>The line's own level: the louder half of its 10 ms steps (the usual level when it has none).</summary>
+        private double LineLevel(long a, long b)
         {
-            long i = (long)Math.Floor(t.TotalSeconds * PerSecond);
-            return i >= 0 && i < _active.Length && _active[i];
+            var inside = new List<float>();
+            for (long i = Math.Max(0, a); i < Math.Min(_levels.Length, b); i++) inside.Add(_levels[i]);
+            if (inside.Count == 0) return _usual;
+            inside.Sort();
+            double level = inside[inside.Count * 3 / 4];
+            return level < _usual - 40 ? _usual : level;
+        }
+
+        /// <summary>Speaking at a step, judged against a threshold, with short dips bridged.</summary>
+        private bool Speaking(long i, double threshold, int direction)
+        {
+            if (Level(i) > threshold) return true;
+            // A dip: speaking if the voice comes back within BridgeSteps further on.
+            for (int k = 1; k <= BridgeSteps; k++) if (Level(i + direction * k) > threshold) return true;
+            return false;
         }
 
         /// <summary>A removal span stretched over the voice that runs into it at either end (at most GrowBefore and GrowAfter).</summary>
         public (TimeSpan From, TimeSpan To) Grow(TimeSpan from, TimeSpan to)
         {
-            var step = TimeSpan.FromSeconds(1.0 / PerSecond);
-            var f = from;
-            while (from - f < GrowBefore && Active(f - step)) f -= step;
-            var t = to;
-            while (t - to < GrowAfter && Active(t)) t += step;
-            return (f, t);
+            long a = (long)Math.Floor(from.TotalSeconds * PerSecond), b = (long)Math.Ceiling(to.TotalSeconds * PerSecond);
+            double threshold = Math.Max(LineLevel(a, b) - BelowLine, Floor);
+            long most = (long)(GrowBefore.TotalSeconds * PerSecond), f = a;
+            while (a - f < most && Speaking(f - 1, threshold, -1)) f--;
+            most = (long)(GrowAfter.TotalSeconds * PerSecond);
+            long t = b;
+            while (t - b < most && Speaking(t, threshold, +1)) t++;
+            var step = 1.0 / PerSecond;
+            return (f < a ? TimeSpan.FromSeconds(f * step) : from, t > b ? TimeSpan.FromSeconds(t * step) : to);
         }
 
         /// <summary>The level of each 10 ms step of stereo sound, dB (−120 for silence).</summary>
