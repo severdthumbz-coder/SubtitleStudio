@@ -4,7 +4,8 @@ namespace SubtitleStudio.Services.Transcription;
 /// <param name="Voiced">Share of the sounding 30 ms steps that have a pitch.</param>
 /// <param name="Held">Share of the voiced time spent on notes held steady for 250 ms or more (within half a semitone).</param>
 /// <param name="LongRuns">Share of the voiced time in unbroken voiced runs of 600 ms or more.</param>
-public sealed record VoiceShape(double Voiced, double Held, int Steps, double LongRuns = 0);
+/// <param name="LongestHeld">The longest single note held steady (within a semitone), in seconds.</param>
+public sealed record VoiceShape(double Voiced, double Held, int Steps, double LongRuns = 0, double LongestHeld = 0);
 
 /// <summary>
 /// Tells singing from speech by the pitch (YIN, 30 ms steps): singing holds notes, at a steady pitch for a
@@ -29,8 +30,17 @@ public static class SingingCheck
     /// <summary>A stretch shorter than this (or with fewer voiced steps) isn't judged.</summary>
     public const int MinVoicedSteps = 20;
 
+    /// <summary>
+    /// A line shorter than this is never marked sung, however held its pitch. A sung passage worth leaving to the
+    /// original (an OST over a scene) runs for several seconds; short dialogue over music ("Hello.", "Sorry I'm late.")
+    /// can hold a steady note on one syllable and was being marked, so its Korean stayed in the dub. On E03 the
+    /// 7 lines marked ♪ were all 1.2–4.8 s of plain dialogue.
+    /// </summary>
+    public static readonly TimeSpan ShortestSung = TimeSpan.FromSeconds(5);
+
     public static bool IsSinging(ReadOnlySpan<float> samples, int rate = AudioExtractor.SampleRate)
     {
+        if (samples.Length < ShortestSung.TotalSeconds * rate) return false;
         var shape = Measure(samples, rate);
         return shape.Steps >= MinVoicedSteps && shape.Voiced >= SingingVoiced && (shape.Held >= SingingHeld || shape.LongRuns >= SingingRuns);
     }
@@ -42,7 +52,7 @@ public static class SingingCheck
         int nonQuiet = pitch.Count(p => p is not null);
         if (voiced == 0) return new VoiceShape(0, 0, 0);
         // Runs of steps whose pitch stays within a semitone of the run's average so far (a held note, vibrato allowed).
-        int held = 0, longRuns = 0;
+        int held = 0, longRuns = 0, longestHeld = 0;
         for (int i = 0; i < pitch.Length;)
         {
             if (pitch[i] is not > 0) { i++; continue; }
@@ -50,6 +60,7 @@ public static class SingingCheck
             int j = i + 1;
             while (j < pitch.Length && pitch[j] is > 0 && Math.Abs(12 * (Math.Log2(pitch[j]!.Value) - sum / (j - i))) < 1.0) { sum += Math.Log2(pitch[j]!.Value); j++; }
             if ((j - i) * Hop >= 0.25 * 8000) held += j - i;
+            longestHeld = Math.Max(longestHeld, j - i);
             i = j;
         }
         for (int i = 0; i < pitch.Length;)
@@ -60,7 +71,7 @@ public static class SingingCheck
             if ((j - i) * Hop >= 0.6 * 8000) longRuns += j - i;
             i = j;
         }
-        return new VoiceShape(voiced / (double)Math.Max(1, nonQuiet), held / (double)voiced, voiced, longRuns / (double)voiced);
+        return new VoiceShape(voiced / (double)Math.Max(1, nonQuiet), held / (double)voiced, voiced, longRuns / (double)voiced, longestHeld * Hop / 8000.0);
     }
 
     /// <summary>

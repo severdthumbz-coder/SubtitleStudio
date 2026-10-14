@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.72] - 2026-10-14
+
+### Fixed
+- AI Transcribe: short dialogue is no longer marked as singing. On E03 (1.0.0.71) 7 lines of plain dialogue — "Hello.", "Oh, hello, Doctor.", "Sorry I'm late.", "Be jealous a lot." and others, all 1.2–4.8 s — were written between ♪ marks. A short exclamation over a sustained score holds one steady note long enough to look sung, and a ♪ line is left to the original in the dub, so its Korean stayed in instead of the English.
+  - A line shorter than 5 s is now never marked sung, whatever its pitch. A sung passage worth leaving to the original (an OST over a scene) runs for several seconds; a one- or two-word line does not.
+  - The real sung passage in the test scene (14 s) is still marked; a slow audiobook reading and all the test speech are not, as before.
+  - This was found by running the app on E03 and reading the saved subtitles: every ♪ line was dialogue.
+
+### Note
+- Subtitles already saved with the mistaken ♪ marks keep them until re-transcribed. The ♪ can also be removed by hand in the Subtitles tab, or in the .srt file, before dubbing.
+
 ## [1.0.0.71] - 2026-10-13
 
 ### Fixed
