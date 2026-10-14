@@ -66,10 +66,15 @@ public sealed class SpeakerRowViewModel : ObservableObject
             if (value is null || value.Id == Speaker.Gender) return;
             Speaker.Gender = value.Id;
             Speaker.GenderSetByHand = true;
+            Speaker.GenderUncertain = false;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(GenderUncertain));
             _changed(this);
         }
     }
+
+    /// <summary>The pitch is in the band where male and female overlap: worth confirming the gender by hand.</summary>
+    public bool GenderUncertain => Speaker.GenderUncertain;
 
     public IReadOnlyList<KokoroVoiceInfo> Voices => KokoroVoices.English;
 
@@ -116,6 +121,7 @@ public sealed class SpeakerRowViewModel : ObservableObject
         OnPropertyChanged(nameof(Voice));
         OnPropertyChanged(nameof(Gender));
         OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(GenderUncertain));
     }
 
     public override string ToString() => Speaker.Name;

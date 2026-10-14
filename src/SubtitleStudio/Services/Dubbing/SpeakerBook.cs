@@ -82,6 +82,8 @@ public sealed class SpeakerBook
             s.Voice = p.Voice;
             s.VoiceSetByHand = p.VoiceSetByHand;
             if (p.GenderSetByHand || s.Gender is null) { s.Gender = p.Gender; s.GenderSetByHand = p.GenderSetByHand; }
+            // A gender confirmed by hand before (and remembered) isn't flagged again.
+            if (p.GenderSetByHand) s.GenderUncertain = false;
             s.Remembered = true;
         }
         // New speakers numbered after the remembered names ("Speaker 3" isn't given twice).

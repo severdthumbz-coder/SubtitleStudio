@@ -50,6 +50,9 @@ public sealed class AppSettings
     /// <summary>AI Transcribe: prompt Whisper to write hesitations (음, 어, uh).</summary>
     public bool TranscribeHesitations { get; set; }
 
+    /// <summary>Dubbing: flag speakers whose pitch can't tell gender, for the user to confirm.</summary>
+    public bool DubbingConfirmGender { get; set; } = true;
+
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

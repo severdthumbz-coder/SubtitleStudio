@@ -35,6 +35,20 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>Each speaker in their own voice (when speakers have been found); otherwise everyone in the voice of step 2.</summary>
+    /// <summary>Flag speakers whose pitch can't tell gender, for the user to confirm.</summary>
+    public bool DubbingConfirmGender
+    {
+        get => _s.Config.DubbingConfirmGender;
+        set
+        {
+            if (_s.Config.DubbingConfirmGender == value) return;
+            _s.Config.DubbingConfirmGender = value;
+            OnPropertyChanged();
+            SaveSettings();
+            if (!value) foreach (var r in SpeakerRows) { r.Speaker.GenderUncertain = false; r.Refresh(); }
+        }
+    }
+
     public bool DubbingPerSpeaker
     {
         get => _s.Config.DubbingPerSpeaker;
@@ -126,13 +140,18 @@ public sealed partial class MainViewModel
             var find = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 40 + f * 60; });
             var result = await Task.Run(() => SpeakerFinder.Find(audio, cues, _voiceprints, book, find, ct), ct);
             _speakerBook = book;
+            // The user doesn't want the borderline ones flagged: clear it, and pitch alone decides as before.
+            if (!_s.Config.DubbingConfirmGender) foreach (var sp in result.Speakers) sp.GenderUncertain = false;
             ShowSpeakers(result.Speakers);
 
             var took = DateTime.UtcNow - started;
             int men = result.Speakers.Count(s => s.Gender == "male"), women = result.Speakers.Count(s => s.Gender == "female");
+            int unsure = result.Speakers.Count(s => s.GenderUncertain);
             SpeakersStatus = $"{result.Speakers.Count} speaker{(result.Speakers.Count == 1 ? "" : "s")} ({women} female, {men} male)"
                 + (result.Remembered > 0 ? $", {result.Remembered} remembered from earlier episodes" : string.Empty)
+                + (unsure > 0 ? $". {unsure} ha{(unsure == 1 ? "s" : "ve")} a borderline voice pitch (marked \u201ccheck gender\u201d): a higher-voiced man or lower-voiced woman. Play their line and set it right" : string.Empty)
                 + ". Check the names and voices, and say when two are the same person.";
+            if (unsure > 0) _s.Log.Info("Dubbing", $"{unsure} speaker(s) have a pitch between {Services.Dubbing.Pitch.UncertainLowHz:0} and {Services.Dubbing.Pitch.UncertainHighHz:0} Hz, where male and female overlap: flagged for the user to confirm.");
             DubbingStatus = $"Found {result.Speakers.Count} speakers in {FormatEta(took)}.";
             _s.Log.Success("Dubbing", $"Speakers of {video.Name}: {result.Speakers.Count} found in {took.TotalSeconds:0} s; {result.Measured} lines measured, {result.ByNeighbour} too short (given the speaker of the line next to them); {result.Remembered} remembered from {book.Path}.");
             _s.Log.Detail("Dubbing", "Grouping: " + result.Steps + ".");

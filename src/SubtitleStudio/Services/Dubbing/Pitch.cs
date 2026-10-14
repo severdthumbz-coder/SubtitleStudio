@@ -9,6 +9,16 @@ namespace SubtitleStudio.Services.Dubbing;
 public static class Pitch
 {
     public const double MaleBelowHz = 160;
+
+    /// <summary>
+    /// Pitch in this band can't be trusted to tell gender: a higher-voiced man (older men especially) and a
+    /// lower-voiced woman overlap here. On E03 about a fifth of the lines fall in it. A speaker whose pitch is here
+    /// is flagged for the user to confirm. Outside it, pitch is clear enough.
+    /// </summary>
+    public const double UncertainLowHz = 140, UncertainHighHz = 185;
+
+    /// <summary>The pitch is in the band where male and female overlap.</summary>
+    public static bool GenderUncertain(double? hz) => hz is { } v && v >= UncertainLowHz && v <= UncertainHighHz;
     private const int Window = 320, Hop = 240;    // 40 ms windows every 30 ms, at 8 kHz
     private const int MaxSeconds = 4;              // a line's first 4 s are plenty
     private const double MinHz = 65, MaxHz = 400, Threshold = 0.15, LooseThreshold = 0.35;

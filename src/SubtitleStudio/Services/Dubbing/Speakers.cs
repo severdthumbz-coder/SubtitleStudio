@@ -34,6 +34,12 @@ public sealed class Speaker
     /// <summary>Recognised from an earlier episode of the show.</summary>
     public bool Remembered { get; set; }
 
+    /// <summary>
+    /// The pitch sits in the band where male and female overlap (a higher-voiced man, a lower-voiced woman), so the
+    /// gender guessed from it could be wrong. Worth the user confirming. Cleared once the gender is set by hand.
+    /// </summary>
+    public bool GenderUncertain { get; set; }
+
     public TimeSpan SpeechTime => TimeSpan.FromTicks(Lines.Sum(l => (l.End - l.Start).Ticks));
 }
 
@@ -134,16 +140,23 @@ public static class SpeakerFinder
             + "the other lines given to the speaker of their gender they sound most like";
         progress?.Report(0.95);
 
-        // Lines without a voiceprint: the speaker of the nearest measured line in time.
+        // Lines without a voiceprint (too short, under 1.2 s): the speaker of the nearest line in time, but a short line
+        // with its own clear pitch prefers the nearest neighbour whose speaker is the same gender. Without this a short
+        // line in a fast man/woman exchange took whichever neighbour was closest in time and so the wrong gender:
+        // on E03 a man's "My son." and "Nice to meet you." (each under a second) got the woman's voice.
         var owner = new int[lines.Count];
         Array.Fill(owner, -1);
         for (int g = 0; g < groups.Count; g++) foreach (var i in groups[g]) owner[i] = g;
+        var groupGender = groups.Select(g => Pitch.GenderOf(Pitch.Median(
+            g.Where(i => pitches[i] is not null).SelectMany(i => pitches[i]!).ToList()))).ToList();
         int byNeighbour = 0;
         for (int i = 0; i < lines.Count; i++)
         {
             if (owner[i] >= 0) continue;
-            int best = -1;
-            var bestGap = TimeSpan.MaxValue;
+            // The line's own gender, when it has enough pitch to tell (a quick exclamation over music often doesn't).
+            var ownGender = pitches[i] is { } p && p.Count >= MinPitchFrames ? Pitch.GenderOf(Pitch.Median(new List<double>(p))) : null;
+            int best = -1, bestSameGender = -1;
+            TimeSpan bestGap = TimeSpan.MaxValue, bestSameGap = TimeSpan.MaxValue;
             for (int d = 1; d < lines.Count && (best < 0 || d < 4); d++)
             {
                 foreach (var j in new[] { i - d, i + d })
@@ -151,9 +164,12 @@ public static class SpeakerFinder
                     if (j < 0 || j >= lines.Count || prints[j] is null) continue;
                     var gap = j < i ? lines[i].Start - lines[j].End : lines[j].Start - lines[i].End;
                     if (gap < bestGap) { bestGap = gap; best = j; }
+                    if (ownGender is not null && groupGender[owner[j]] == ownGender && gap < bestSameGap) { bestSameGap = gap; bestSameGender = j; }
                 }
             }
-            if (best >= 0) { owner[i] = owner[best]; byNeighbour++; }
+            // The same-gender neighbour when there is one within a reasonable gap; else the nearest.
+            int pick = bestSameGender >= 0 && bestSameGap <= TimeSpan.FromSeconds(3) ? bestSameGender : best;
+            if (pick >= 0) { owner[i] = owner[pick]; byNeighbour++; }
         }
         if (groups.Count == 0 && lines.Count > 0) { groups.Add(new List<int>()); for (int i = 0; i < lines.Count; i++) owner[i] = 0; }
 
@@ -166,6 +182,7 @@ public static class SpeakerFinder
                 .Where(i => pitches[i] is not null).SelectMany(i => pitches[i]!).ToList();
             s.PitchHz = Pitch.Median(allPitch);
             s.Gender = Pitch.GenderOf(s.PitchHz);
+            s.GenderUncertain = Pitch.GenderUncertain(s.PitchHz);
             s.Voiceprint = groups[g].Count > 0 ? Voiceprints.Mean(groups[g].Select(i => prints[i]!)) : null;
             speakers.Add(s);
         }
@@ -180,7 +197,7 @@ public static class SpeakerFinder
 
     private static Speaker Renumber(Speaker s, int id)
     {
-        var r = new Speaker { Id = id, Name = $"Speaker {id}", Gender = s.Gender, PitchHz = s.PitchHz, Voiceprint = s.Voiceprint };
+        var r = new Speaker { Id = id, Name = $"Speaker {id}", Gender = s.Gender, PitchHz = s.PitchHz, Voiceprint = s.Voiceprint, GenderUncertain = s.GenderUncertain };
         r.Lines.AddRange(s.Lines);
         return r;
     }

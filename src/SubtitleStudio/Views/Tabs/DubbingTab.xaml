@@ -101,6 +101,8 @@
                             <Button Style="{StaticResource GhostButton}" Tag="&#xE74D;" Content="Forget the show's speakers" Command="{Binding ForgetShowSpeakersCommand}" Margin="0,0,0,6"
                                     ToolTip="Clears the names and voices remembered for this show" />
                         </WrapPanel>
+                        <CheckBox Content="Ask me to confirm a speaker whose pitch is borderline" IsChecked="{Binding DubbingConfirmGender, Mode=TwoWay}" Margin="0,0,0,2"
+                                  ToolTip="When a speaker's pitch is in the range where a higher-voiced man and a lower-voiced woman overlap (about 140–185 Hz), the speaker is marked &quot;check gender&quot; so you can confirm it. Off: the pitch decides, as before." />
                         <TextBlock Text="{Binding SpeakersStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,6" />
                         <ItemsControl ItemsSource="{Binding SpeakerRows}" Visibility="{Binding HasSpeakers, Converter={StaticResource Vis}}">
                             <ItemsControl.ItemTemplate>
@@ -109,6 +111,10 @@
                                         <StackPanel>
                                             <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" FontWeight="SemiBold" ToolTip="The speaker's name (kept for the show)" />
                                             <TextBlock Text="{Binding Details}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,5" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5" Visibility="{Binding GenderUncertain, Converter={StaticResource Vis}}">
+                                                <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                <TextBlock Text="Check gender: the pitch is borderline (a higher-voiced man or lower-voiced woman). Play the line and set it." Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" />
+                                            </StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="90" />

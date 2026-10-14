@@ -5,6 +5,26 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.74] - 2026-10-14
+
+### Added
+- Dubbing, Speakers: a speaker whose voice pitch is borderline is flagged for you to confirm the gender. Pitch alone can't tell a higher-voiced man (older men especially) from a lower-voiced woman: on E03, about a fifth of the lines fall in the overlapping 140–185 Hz band, so some speakers were given the wrong gender and voice.
+  - A speaker whose median pitch is in that band is marked "Check gender" in the Speakers list, with the warning colour, and the status line counts them ("2 have a borderline voice pitch"). Play their line ("Original") and set male or female; the show remembers it, so you confirm each person about once per series.
+  - A speaker clearly male or clearly female isn't flagged. A gender you set by hand clears the flag and is never asked again.
+  - "Ask me to confirm a speaker whose pitch is borderline" (in the Speakers card) is on by default; turn it off to let the pitch decide as before.
+  - Measured on E03's original Korean: of 564 lines, 17% are clearly male (under 140 Hz), 48% clearly female (over 185 Hz), and 21% in the band where the two overlap — which is why this is worth confirming rather than guessing.
+
+## [1.0.0.73] - 2026-10-14
+
+### Fixed
+- Dubbing, Speakers: short lines in a fast exchange no longer take the wrong gender. A line under 1.2 s has no reliable voiceprint, so it was given to the speaker of the nearest line in time. In a quick back-and-forth between a man and a woman, the nearest line is often the other person's, so a man's short line got a woman's voice.
+  - Measured on E03 against the original Korean: cue 22 ("그러게", 99 Hz, clearly male) and cue 24 ("교수님 많이 반가우신가 보다", 116 Hz, male) are short lines that came out in a female voice in the dub.
+  - A short line with its own clear pitch (enough voiced frames to tell male from female) now prefers the nearest neighbour whose speaker is the same gender, within 3 s. A line too short or too quiet to tell still takes the nearest, as before.
+  - Verified by the measurement above and a test: a man's eight 0.8 s lines traded with a woman in a fast exchange all go to the male speaker; previously they scattered.
+
+### Note
+- Pitch near the 160 Hz male/female split (several E03 lines sit at 167–178 Hz) can still land either way; those are genuinely ambiguous from pitch alone. Correct any speaker's gender by hand in the Speakers list, which the show then remembers.
+
 ## [1.0.0.72] - 2026-10-14
 
 ### Fixed
