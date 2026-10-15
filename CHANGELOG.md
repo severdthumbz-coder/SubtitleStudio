@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.76] - 2026-10-14
+
+### Fixed
+- Dubbing, smaller file: "FFmpeg stopped: Error opening output files: Invalid argument" when making a smaller dubbed video. The scale filter was given per output stream ("-vf:0 …"), which the AMD AMF encoder rejected. It's now "-filter:v" (the video stream, of which there is one to re-encode), which every encoder takes. Verified end-to-end: a 1080p source with two audio tracks re-encodes to a valid, smaller file with the picture at 720, both original audio tracks and the new English track kept.
+
 ## [1.0.0.75] - 2026-10-14
 
 ### Added

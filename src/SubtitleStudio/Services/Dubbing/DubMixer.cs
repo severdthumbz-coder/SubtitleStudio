@@ -103,11 +103,13 @@ public static class DubMixer
             if (s.Kind == StreamKind.Subtitle) codec = mp4 ? (s.Codec == "mov_text" ? "copy" : "mov_text") : s.Codec is "mov_text" or "text" ? "srt" : "copy";
             args.AddRange(new[] { "-map", $"0:{s.Index}" });
             // A smaller file: the main picture is re-encoded at most 720 high; attached cover art is still copied.
+            // The scale is "-filter:v" (video streams), not "-vf:<index>": the stream-index form was rejected by the
+            // AMF encoder ("Invalid argument"), and there is only one video stream to encode here anyway.
             if (s.Kind == StreamKind.Video && !s.AttachedPicture && request.SmallVideo is { Count: > 0 } enc)
             {
                 per.Add($"-c:{index}");
                 per.AddRange(enc);
-                per.AddRange(new[] { $"-vf:{index}", "scale=-2:'min(720,ih)'", $"-pix_fmt:{index}", "yuv420p" });
+                per.AddRange(new[] { "-filter:v", "scale=-2:'min(720,ih)'", "-pix_fmt", "yuv420p" });
             }
             else per.AddRange(new[] { $"-c:{index}", codec });
             if (s.Kind == StreamKind.Audio)
