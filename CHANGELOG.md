@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.77] - 2026-10-17
+
+### Fixed
+- Dubbing, smaller file: the "Invalid argument" error is really fixed this time. 1.0.0.76 moved the scaling to "-filter:v", but the AMD AMF encoder rejected that too. The picture is now scaled with a filter_complex that feeds a named pad into the encoder ("[0:v]scale=…[pic]" then "-map [pic]") — the exact graph the preview already uses on the card without trouble. Verified end-to-end: a 1080p source with two audio tracks re-encodes to a valid, smaller file, the picture at 720, both original audio tracks and the new English track kept.
+
 ## [1.0.0.76] - 2026-10-14
 
 ### Fixed

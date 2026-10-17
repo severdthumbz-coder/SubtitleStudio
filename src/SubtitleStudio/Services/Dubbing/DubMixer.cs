@@ -88,6 +88,17 @@ public static class DubMixer
 
         var args = new List<string> { "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-progress", "pipe:1", "-nostats",
             "-i", request.VideoPath, "-i", mixPath, "-map_metadata", "0", "-map_chapters", "0" };
+
+        // A smaller file re-encodes the main picture at most 720 high. The scaling is done as a filter_complex that
+        // feeds a named pad ("[pic]") into the encoder, the same graph the preview uses — the only form the AMD AMF
+        // encoder accepts here (per-output "-filter:v"/"-vf:0" gave "Invalid argument"). The main video stream is
+        // mapped from that pad; everything else is mapped and copied as before.
+        MediaStream? smallVideoStream = request.SmallVideo is { Count: > 0 }
+            ? info.Streams.FirstOrDefault(s => s.Kind == StreamKind.Video && !s.AttachedPicture)
+            : null;
+        if (smallVideoStream is { } sv)
+            args.AddRange(new[] { "-filter_complex", $"[0:{sv.Index}]scale=-2:'min(720,ih)'[pic]" });
+
         var per = new List<string>();
         var notes = new List<string>();
         int index = 0, audio = 0, dropped = 0;
@@ -101,15 +112,13 @@ public static class DubMixer
                 continue;
             }
             if (s.Kind == StreamKind.Subtitle) codec = mp4 ? (s.Codec == "mov_text" ? "copy" : "mov_text") : s.Codec is "mov_text" or "text" ? "srt" : "copy";
-            args.AddRange(new[] { "-map", $"0:{s.Index}" });
-            // A smaller file: the main picture is re-encoded at most 720 high; attached cover art is still copied.
-            // The scale is "-filter:v" (video streams), not "-vf:<index>": the stream-index form was rejected by the
-            // AMF encoder ("Invalid argument"), and there is only one video stream to encode here anyway.
-            if (s.Kind == StreamKind.Video && !s.AttachedPicture && request.SmallVideo is { Count: > 0 } enc)
+            bool scaled = smallVideoStream is { } v && ReferenceEquals(s, v);
+            args.AddRange(scaled ? new[] { "-map", "[pic]" } : new[] { "-map", $"0:{s.Index}" });
+            if (scaled)
             {
                 per.Add($"-c:{index}");
-                per.AddRange(enc);
-                per.AddRange(new[] { "-filter:v", "scale=-2:'min(720,ih)'", "-pix_fmt", "yuv420p" });
+                per.AddRange(request.SmallVideo!);
+                per.AddRange(new[] { "-pix_fmt", "yuv420p" });
             }
             else per.AddRange(new[] { $"-c:{index}", codec });
             if (s.Kind == StreamKind.Audio)
