@@ -5,7 +5,10 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
-## [1.0.0.77] - 2026-10-17
+## [1.0.0.78] - 2026-10-17
+
+### Fixed
+- Dubbing, smaller file: the "smaller" file is now genuinely smaller than the original. 1.0.0.77 fixed the error but used a quality target (CQP/CRF), which the AMD AMF encoder — and encoders in general on an already-compressed source — ignore for size, so the file came out *larger* than the original (548 MB vs 496 MB). The smaller file now uses a bitrate cap chosen from the source itself: the picture is re-encoded to about half the source's overall bitrate (held between a 500 kbps floor so 720p still looks decent and a 1200 kbps ceiling), and the original audio tracks are re-encoded to AAC 96k rather than copied — on a low-bitrate source the untouched audio was otherwise most of the file. On a ~496 MB / 65-min episode this lands around 390 MB. If the source is already so low-bitrate that even that can't shrink it, a normal dubbed video is made instead (the picture copied, not re-encoded larger), and the log says so rather than tagging a not-smaller file "(small)".
 
 ### Fixed
 - Dubbing, smaller file: the "Invalid argument" error is really fixed this time. 1.0.0.76 moved the scaling to "-filter:v", but the AMD AMF encoder rejected that too. The picture is now scaled with a filter_complex that feeds a named pad into the encoder ("[0:v]scale=…[pic]" then "-map [pic]") — the exact graph the preview already uses on the card without trouble. Verified end-to-end: a 1080p source with two audio tracks re-encodes to a valid, smaller file, the picture at 720, both original audio tracks and the new English track kept.

@@ -42,18 +42,51 @@ public static class DubPreview
     public static IReadOnlyList<string> FastVideo(VideoEncoder encoder)
         => encoder.Name == VideoEncoders.X264.Name ? new[] { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23" } : encoder.Arguments;
 
+    /// <summary>A sensible floor for the small file's video bitrate: below this a 720p picture looks poor, whatever the source.</summary>
+    public const int SmallVideoFloorKbps = 500;
+
+    /// <summary>A ceiling so the target is never wasteful on a high-bitrate source (a review copy needs no more).</summary>
+    public const int SmallVideoCeilingKbps = 1200;
+
     /// <summary>
-    /// A small keep file (for sharing or review): the picture re-encoded to at most 720 high at a modest bitrate.
-    /// Just the "-c:v …" and its options (scaling and pixel format are added per stream by DubMixer.Plan). Roughly
-    /// a quarter to a third the original's size for a 1080p source. The graphics card's encoder when there is one.
+    /// The video bitrate (kbps) to aim the small file at, chosen from the source so the result is always smaller.
+    /// Taken as roughly half the source's overall bitrate (so the whole file, with its audio tracks, comes out well
+    /// below the original), then held between a floor (a 720p picture needs a minimum to look decent) and a ceiling
+    /// (more than this is wasted on a review copy). Returns null when the source is already so low-bitrate that even
+    /// the floor wouldn't shrink it — there's nothing to gain, so the picture is copied instead of re-encoded.
     /// </summary>
-    public static IReadOnlyList<string> SmallVideo(VideoEncoder encoder)
+    public static int? SmallVideoKbps(long sourceBytes, TimeSpan? duration)
     {
+        if (sourceBytes <= 0 || duration is not { TotalSeconds: > 1 } d) return SmallVideoFloorKbps;
+        int sourceKbps = (int)(sourceBytes * 8 / 1000 / d.TotalSeconds);
+        // The re-encode keeps the original audio tracks and adds the English one; only the picture shrinks. If even
+        // the floor-rate video plus that audio wouldn't beat the source, re-encoding can't help — copy instead.
+        if (sourceKbps <= SmallVideoFloorKbps + 400) return null;
+        int target = sourceKbps / 2;
+        return Math.Clamp(target, SmallVideoFloorKbps, SmallVideoCeilingKbps);
+    }
+
+    /// <summary>
+    /// A small keep file (for sharing or review): the picture re-encoded to at most 720 high at a set bitrate target
+    /// (<paramref name="kbps"/>). Just the "-c:v …" and its options (scaling and pixel format are added by
+    /// DubMixer.Plan). A bitrate cap, not a quality target: quality modes (CQP/CRF) let the encoder spend as many bits
+    /// as it likes, and on an already-compressed source — especially the AMD AMF encoder, which isn't bit-thrifty —
+    /// that made the "smaller" file larger than the original. The target is chosen from the source's own bitrate
+    /// (SmallVideoKbps), so the result is always a fraction of the original.
+    /// </summary>
+    public static IReadOnlyList<string> SmallVideo(VideoEncoder encoder, int kbps)
+    {
+        string k = kbps + "k", max = kbps * 3 / 2 + "k", buf = kbps * 2 + "k";
         var name = encoder.Name;
-        if (name.Contains("amf", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "26", "-qp_p", "28", "-qp_b", "30" };
-        if (name.Contains("nvenc", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_nvenc", "-rc", "constqp", "-qp", "27", "-preset", "p4" };
-        if (name.Contains("qsv", StringComparison.OrdinalIgnoreCase)) return new[] { "h264_qsv", "-global_quality", "27" };
-        return new[] { "libx264", "-preset", "veryfast", "-crf", "27" };
+        // AMF: VBR with a bitrate target and a peak cap (CQP ignored the size entirely).
+        if (name.Contains("amf", StringComparison.OrdinalIgnoreCase))
+            return new[] { "h264_amf", "-quality", "balanced", "-rc", "vbr_peak", "-b:v", k, "-maxrate", max };
+        if (name.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+            return new[] { "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-b:v", k, "-maxrate", max, "-bufsize", buf };
+        if (name.Contains("qsv", StringComparison.OrdinalIgnoreCase))
+            return new[] { "h264_qsv", "-b:v", k, "-maxrate", max };
+        // x264: a target bitrate with a ceiling (one pass; good enough for a review copy).
+        return new[] { "libx264", "-preset", "veryfast", "-b:v", k, "-maxrate", max, "-bufsize", buf };
     }
 
     /// <param name="bed">With the original voices removed: the stretch's sound without them (from the stretch's start).</param>

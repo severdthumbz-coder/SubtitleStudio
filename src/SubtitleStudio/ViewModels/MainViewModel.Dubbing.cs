@@ -428,7 +428,17 @@ public sealed partial class MainViewModel
             SetStatus("ffmpeg is needed to add the voice to the video: set it in Settings > Engines & tools.", StatusKind.Error);
             return;
         }
-        bool small = DubbingSmallFile;
+        // A smaller file only makes sense when the source has bitrate to spare; on an already low-bitrate video a
+        // re-encode would only grow it (the new English track adds to the picture that's already small). In that case
+        // fall back to a normal dub, so the "(small)" name never ends up on a file that isn't smaller.
+        int? smallKbps = null;
+        if (DubbingSmallFile)
+        {
+            long bytes = 0;
+            try { bytes = new FileInfo(video.FullPath).Length; } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            smallKbps = DubPreview.SmallVideoKbps(bytes, video.Duration);
+        }
+        bool small = smallKbps is not null;
         var suggested = DubMixer.SuggestOutput(video.FullPath, small);
         var ext = Path.GetExtension(suggested);
         var filter = ext == ".mp4" ? "MP4 video (*.mp4)|*.mp4|Matroska video (*.mkv)|*.mkv" : "Matroska video (*.mkv)|*.mkv|MP4 video (*.mp4)|*.mp4";
@@ -440,7 +450,13 @@ public sealed partial class MainViewModel
         await RunDubbingWorkAsync("Making the dubbed video", async ct =>
         {
             IReadOnlyList<string>? smallVideo = null;
-            if (small) smallVideo = DubPreview.SmallVideo(await EncoderAsync(ff.FfmpegPath!, ct));
+            if (smallKbps is { } k)
+            {
+                smallVideo = DubPreview.SmallVideo(await EncoderAsync(ff.FfmpegPath!, ct), k);
+                _s.Log.Info("Dubbing", $"Smaller file: the picture is re-encoded to at most 720 high at about {k} kbps, so the whole file comes out well under the original.");
+            }
+            else if (DubbingSmallFile)
+                _s.Log.Info("Dubbing", "Smaller file asked for, but the video is already low-bitrate — a re-encode would only grow it, so a normal dubbed video is made instead.");
             var folder = Path.GetDirectoryName(output)!;
             var stem = Path.GetFileNameWithoutExtension(output);
             var voicePath = Path.Combine(folder, stem + ".voice.partial.wav");

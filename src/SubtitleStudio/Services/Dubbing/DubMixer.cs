@@ -75,7 +75,7 @@ public static class DubMixer
         "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-progress", "pipe:1", "-nostats",
         "-i", request.BedPath ?? request.VideoPath, "-i", request.VoicePath,
         "-filter_complex", request.BedPath is null ? Filter(request.AudioTrack, request.Duck, request.VoiceGainDb) : FilterOverBed(request.VoiceGainDb),
-        "-map", "[mix]", "-c:a", "aac", "-b:a", "192k", "-vn", "-sn", "-dn", "-f", "matroska", mixPath,
+        "-map", "[mix]", "-c:a", "aac", "-b:a", request.SmallVideo is { Count: > 0 } ? "128k" : "192k", "-vn", "-sn", "-dn", "-f", "matroska", mixPath,
     };
 
     /// <summary>The copy: everything from the video, plus the mix as a new English track. Streams and Audio: what the new video must have.</summary>
@@ -113,6 +113,9 @@ public static class DubMixer
             }
             if (s.Kind == StreamKind.Subtitle) codec = mp4 ? (s.Codec == "mov_text" ? "copy" : "mov_text") : s.Codec is "mov_text" or "text" ? "srt" : "copy";
             bool scaled = smallVideoStream is { } v && ReferenceEquals(s, v);
+            // A smaller file re-encodes the original audio tracks to a modest AAC bitrate too: once the picture is this
+            // small, the untouched audio would otherwise be the bulk of the file (and keep it above the original).
+            bool shrinkAudio = smallVideoStream is not null && s.Kind == StreamKind.Audio;
             args.AddRange(scaled ? new[] { "-map", "[pic]" } : new[] { "-map", $"0:{s.Index}" });
             if (scaled)
             {
@@ -120,6 +123,7 @@ public static class DubMixer
                 per.AddRange(request.SmallVideo!);
                 per.AddRange(new[] { "-pix_fmt", "yuv420p" });
             }
+            else if (shrinkAudio) per.AddRange(new[] { $"-c:{index}", "aac", $"-b:{index}", "96k" });
             else per.AddRange(new[] { $"-c:{index}", codec });
             if (s.Kind == StreamKind.Audio)
             {
