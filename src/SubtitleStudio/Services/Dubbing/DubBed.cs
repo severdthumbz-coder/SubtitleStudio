@@ -13,7 +13,12 @@ namespace SubtitleStudio.Services.Dubbing;
 /// The share of the voice's energy in the highs (above ~2 kHz), 0 to 1. A close, dry voice keeps its highs; a voice
 /// across a room or down a hall loses them to the air and the walls, so a low value is one sign the voice is far.
 /// </param>
-public sealed record LineLevel(double Db, double LeftRms, double RightRms, double Brightness = 0.5);
+/// <param name="Envelope">
+/// The shape of the voice's loudness across the line — a handful of points (Emphasis.Points) from start to end, each
+/// a gain relative to the line's own average (1 = average, >1 where the actor pushes, &lt;1 where they ease off). It is
+/// the emphasis within the line, separate from how loud the line sits overall (Db). Null when there's no voice to read.
+/// </param>
+public sealed record LineLevel(double Db, double LeftRms, double RightRms, double Brightness = 0.5, float[]? Envelope = null);
 
 /// <summary>
 /// Each English line at the level and on the side of the original voice it replaces: a line spoken quietly or
@@ -117,25 +122,51 @@ public sealed class VoicePlacement
     /// gets a little room (a short reverb) and its highs rolled off, both scaled by Distance so the effect comes on
     /// gradually. Returns the same samples for a close line (no allocation), processed samples for a distant one.
     /// </summary>
-    public float[] Shape(SubtitleCue cue, float[] speech)
+    public float[] Depth(SubtitleCue cue, float[] speech)
     {
         double d = Distance(cue.Index);
         if (d < 0.08 || speech.Length < 16) return speech;
         return RoomTone.Apply(speech, KokoroTts.SampleRate, d);
     }
 
-    /// <summary>"usual level −22 dB; 14 lines quieter by 6 dB or more, 9 off to one side, 5 set back in the room".</summary>
+    /// <summary>
+    /// The line's speech shaped to follow the original voice's emphasis within the line — louder where the actor
+    /// pushed, softer where they eased off — time-warped to the English line's length. A gentle, slow gain (capped),
+    /// so it adds life without pumping; a flat original line leaves the speech unchanged. No envelope → unchanged.
+    /// </summary>
+    public float[] Emphasis(SubtitleCue cue, float[] speech)
+    {
+        if (!_levels.TryGetValue(cue.Index, out var level) || level.Envelope is not { } env) return speech;
+        return Dubbing.Emphasis.Apply(speech, env);
+    }
+
+    /// <summary>
+    /// The full per-line shaping, in order: emphasis within the line first (while the speech is still dry), then depth
+    /// (room and rolled-off highs for a distant voice). The level and side (Gains) are applied after this by the track.
+    /// </summary>
+    public float[] Shape(SubtitleCue cue, float[] speech) => Depth(cue, Emphasis(cue, speech));
+
+    /// <summary>How noticeable a line's emphasis shape is: the spread of its envelope, in dB (0 = flat).</summary>
+    public double EmphasisRange(int index)
+    {
+        if (!_levels.TryGetValue(index, out var level) || level.Envelope is not { Length: > 1 } env) return 0;
+        double lo = env.Min(), hi = env.Max();
+        return lo <= 0 ? 0 : 20 * Math.Log10(hi / lo);
+    }
+
+    /// <summary>"usual level −22 dB; 14 lines quieter by 6 dB or more, 9 off to one side, 5 set back in the room, 40 with the original's emphasis".</summary>
     public string Describe()
     {
-        int quiet = 0, side = 0, far = 0;
+        int quiet = 0, side = 0, far = 0, shaped = 0;
         foreach (var index in _levels.Keys)
         {
             var (db, angle) = Target(index);
             if (db <= Usual - 6) quiet++;
             if (Math.Abs(angle - Math.PI / 4) >= 10 * Math.PI / 180) side++;
             if (Distance(index) >= 0.3) far++;
+            if (EmphasisRange(index) >= 2) shaped++; // a line with a real loudness swing to follow (≥2 dB)
         }
-        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room";
+        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room, {shaped} shaped to the original's emphasis";
     }
 }
 
@@ -340,7 +371,7 @@ public static class DubBed
             r += right[i] * (double)right[i];
         }
         int n = Math.Max(1, left.Length);
-        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n), Brightness(left, right));
+        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n), Brightness(left, right), Emphasis.Measure(left, right, SampleRate));
     }
 
     /// <summary>

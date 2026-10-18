@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.81] - 2026-10-18
+
+### Added
+- Dubbing, emphasis: an English line now follows the *emphasis within* the Korean line it replaces — louder where the actor leaned in, softer where they eased off — not just the line's overall loudness. The shape of the original voice's loudness across the line is read from the separated voice (a short curve, relative to the line's own average, so it's emphasis and not overall level), then applied to the English speech as a gentle, slowly-varying gain stretched to the English line's length. Kept deliberately subtle — capped at ±4 dB and heavily smoothed — so it adds life without pumping or tremolo; a flat original line leaves the English untouched. It rides along with the existing "place each line like the original" (level, side, distance) and needs no separate switch. The dubbing log now also counts lines "shaped to the original's emphasis" (those with a real loudness swing to follow). All in-process, no outside tool.
+
 ## [1.0.0.80] - 2026-10-18
 
 ### Fixed
