@@ -103,7 +103,7 @@ public sealed partial class MainViewModel
             }
             double speakFrom = removing ? 30 : 0, speakShare = removing ? 45 : 70;
             DubbingStatus = $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
-            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains);
+            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains, placement is null ? null : placement.Shape);
             var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = speakFrom + p.Fraction * speakShare; });
             var lineVoices = LineVoices();
             var result = await VoiceTrack.BuildAsync(lines, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, voicePath, progress, ct);

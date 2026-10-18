@@ -7,9 +7,13 @@ using SubtitleStudio.Models;
 
 namespace SubtitleStudio.Services.Dubbing;
 
-/// <summary>How loud the original voice was in a line, and on which side (from the separated voices).</summary>
+/// <summary>How loud the original voice was in a line, on which side, and how bright (from the separated voices).</summary>
 /// <param name="Db">Level of the louder half of the line (dB below full scale), so pauses inside the line don't lower it.</param>
-public sealed record LineLevel(double Db, double LeftRms, double RightRms);
+/// <param name="Brightness">
+/// The share of the voice's energy in the highs (above ~2 kHz), 0 to 1. A close, dry voice keeps its highs; a voice
+/// across a room or down a hall loses them to the air and the walls, so a low value is one sign the voice is far.
+/// </param>
+public sealed record LineLevel(double Db, double LeftRms, double RightRms, double Brightness = 0.5);
 
 /// <summary>
 /// Each English line at the level and on the side of the original voice it replaces: a line spoken quietly or
@@ -61,17 +65,49 @@ public sealed class VoicePlacement
         return ((float)(g * Math.Cos(angle) * Math.Sqrt(2)), (float)(g * Math.Sin(angle) * Math.Sqrt(2)));
     }
 
-    /// <summary>"usual level −22 dB; 14 lines quieter by 6 dB or more, 9 off to one side".</summary>
+    /// <summary>A line this far below the usual level, or below this brightness, is treated as fully distant.</summary>
+    public const double FarBelowDb = 14, DryBrightness = 0.42, FarBrightness = 0.18;
+
+    /// <summary>
+    /// How far the original voice sounds, 0 (close and dry) to 1 (across a room, down a hall): the greater of two
+    /// signs — how far below the usual level the line sits, and how little energy it keeps up high (a distant voice
+    /// loses its highs to the air and the walls). A line with no voice found is treated as close (centre, dry).
+    /// </summary>
+    public double Distance(int index)
+    {
+        if (!_levels.TryGetValue(index, out var level) || level.Db < Usual - NoVoiceBelow) return 0;
+        double byLevel = Math.Clamp((Usual - level.Db) / FarBelowDb, 0, 1);
+        double byHighs = Math.Clamp((DryBrightness - level.Brightness) / (DryBrightness - FarBrightness), 0, 1);
+        // Needs both to read far to count fully: a voice that is merely quiet but still bright is close and soft, not
+        // distant, so the smaller of the two leads, with a little of the larger so a strong single sign still shows.
+        double lo = Math.Min(byLevel, byHighs), hi = Math.Max(byLevel, byHighs);
+        return Math.Clamp(lo * 0.75 + hi * 0.25, 0, 1);
+    }
+
+    /// <summary>
+    /// The line's speech made to sit at the original voice's distance: a close voice is left as it is, a distant one
+    /// gets a little room (a short reverb) and its highs rolled off, both scaled by Distance so the effect comes on
+    /// gradually. Returns the same samples for a close line (no allocation), processed samples for a distant one.
+    /// </summary>
+    public float[] Shape(SubtitleCue cue, float[] speech)
+    {
+        double d = Distance(cue.Index);
+        if (d < 0.08 || speech.Length < 16) return speech;
+        return RoomTone.Apply(speech, KokoroTts.SampleRate, d);
+    }
+
+    /// <summary>"usual level −22 dB; 14 lines quieter by 6 dB or more, 9 off to one side, 5 set back in the room".</summary>
     public string Describe()
     {
-        int quiet = 0, side = 0;
+        int quiet = 0, side = 0, far = 0;
         foreach (var index in _levels.Keys)
         {
             var (db, angle) = Target(index);
             if (db <= Usual - 6) quiet++;
             if (Math.Abs(angle - Math.PI / 4) >= 10 * Math.PI / 180) side++;
+            if (Distance(index) >= 0.3) far++;
         }
-        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side";
+        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room";
     }
 }
 
@@ -276,7 +312,29 @@ public static class DubBed
             r += right[i] * (double)right[i];
         }
         int n = Math.Max(1, left.Length);
-        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n));
+        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n), Brightness(left, right));
+    }
+
+    /// <summary>
+    /// The share of the voice's energy in the highs, 0 to 1: total energy less the energy left after a one-pole
+    /// low-pass at about 2 kHz, over the total. Close, dry speech has plenty up high (0.4–0.7); a distant or muffled
+    /// voice little (below ~0.25). Taken over both sides together, on the louder frames so pauses don't dilute it.
+    /// </summary>
+    public static double Brightness(ReadOnlySpan<float> left, ReadOnlySpan<float> right)
+    {
+        if (left.Length < 8) return 0.5;
+        // One-pole low-pass; a = exp(-2π f / fs), f ≈ 2 kHz. The high part is the signal minus its low-passed self.
+        double a = Math.Exp(-2 * Math.PI * 2000.0 / SampleRate);
+        double lp = 0, total = 0, high = 0;
+        for (int i = 0; i < left.Length; i++)
+        {
+            double x = (left[i] + right[i]) * 0.5;
+            lp = a * lp + (1 - a) * x;
+            double hi = x - lp;
+            total += x * x;
+            high += hi * hi;
+        }
+        return total <= 1e-12 ? 0.5 : Math.Clamp(high / total, 0, 1);
     }
 
     /// <summary>Each line's original voice, from a separated-voices file (the episode's).</summary>

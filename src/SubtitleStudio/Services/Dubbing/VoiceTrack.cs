@@ -25,8 +25,13 @@ public sealed record VoiceTrackResult(int Spoken, int Silent, IReadOnlyList<Long
 /// Each line's level and side: the gains for the left and right channel, given the line and its speech. Set: the track
 /// is stereo (VoicePlacement, from the original voices); null: mono, every line as Kokoro says it.
 /// </param>
+/// <param name="Shape">
+/// Each line's depth: the speech made to sit at the original voice's distance (room and rolled-off highs for a far
+/// voice), given the line and its speech, returning the samples to write. Applied before Place. Null: no depth, the
+/// speech used as Kokoro made it. Only meaningful with Place (the stereo, placed track).
+/// </param>
 public sealed record VoiceTrackOptions(float Speed = 1f, bool Fit = true, TimeSpan? Length = null, int Concurrency = 1,
-    Func<SubtitleCue, float[], (float Left, float Right)>? Place = null);
+    Func<SubtitleCue, float[], (float Left, float Right)>? Place = null, Func<SubtitleCue, float[], float[]>? Shape = null);
 
 /// <summary>How a line was made to fit.</summary>
 public enum FitKind { Natural, SpedUp, Stretched, TooLong }
@@ -164,8 +169,10 @@ public static class VoiceTrack
                     wav.WriteSilence(start - wav.SamplesWritten);
                     if (options.Place is { } place)
                     {
-                        var (gl, gr) = place(cue, samples);
-                        wav.Write(samples, gl, gr);
+                        // Depth first (room and rolled-off highs for a distant voice), then the level and side gains.
+                        var shaped = options.Shape is { } shape ? shape(cue, samples) : samples;
+                        var (gl, gr) = place(cue, shaped);
+                        wav.Write(shaped, gl, gr);
                     }
                     else wav.Write(samples);
                     var voiceStart = TimeSpan.FromSeconds(start / (double)rate);

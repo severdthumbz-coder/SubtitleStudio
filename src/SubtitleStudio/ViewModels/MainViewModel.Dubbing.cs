@@ -517,9 +517,9 @@ public sealed partial class MainViewModel
         float speed = (float)SelectedDubbingSpeed.Value;
         var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration);
         var tts = await EnsureKokoroAsync();
-        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains };
+        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape };
         var started = DateTime.UtcNow;
-        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level and side of the original voice")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
+        _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level, side and distance of the original voice")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
         bool finished = false;
         var progress = new Progress<EngineProgress>(p =>
         {
