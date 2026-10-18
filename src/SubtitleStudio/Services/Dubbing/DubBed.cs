@@ -36,10 +36,34 @@ public sealed class VoicePlacement
         _levels = levels;
         var heard = levels.Values.Where(l => l.Db > -70).Select(l => l.Db).OrderBy(d => d).ToList();
         Usual = heard.Count > 0 ? heard[heard.Count / 2] : -24;
+        // Distance is judged against this episode's own voices, not absolute thresholds: separation darkens every
+        // voice by an unknown amount, and the mix has its own spectral tilt, so what matters is whether a line is
+        // quiet AND dull *relative to the other lines here*. The references are the level at the lower quartile and
+        // the brightness at the lower quartile among lines that have a voice — a line is "far" as it falls below both.
+        var voiced = levels.Values.Where(l => l.Db > Usual - NoVoiceBelow).ToList();
+        var byDb = voiced.Select(l => l.Db).OrderBy(d => d).ToList();
+        var byBr = voiced.Select(l => l.Brightness).OrderBy(b => b).ToList();
+        UsualBrightness = byBr.Count > 0 ? byBr[byBr.Count / 2] : 0.3;
+        QuietLevel = Pctile(byDb, 0.25, Usual - 6);
+        DarkBrightness = Pctile(byBr, 0.25, UsualBrightness * 0.6);
+        LowLevel = Pctile(byDb, 0.05, Usual - 12);
+        LowBrightness = Pctile(byBr, 0.05, UsualBrightness * 0.3);
     }
+
+    private static double Pctile(List<double> sorted, double p, double fallback)
+        => sorted.Count == 0 ? fallback : sorted[Math.Clamp((int)(p * sorted.Count), 0, sorted.Count - 1)];
 
     /// <summary>The usual (median) level of the original voices, dB.</summary>
     public double Usual { get; }
+
+    /// <summary>The usual (median) brightness of the original voices (0–1), the close-voice reference for distance.</summary>
+    public double UsualBrightness { get; }
+
+    /// <summary>Level/brightness at the lower quartile (where "far" begins) and the 5th percentile (fully far), in this episode.</summary>
+    public double QuietLevel { get; }
+    public double DarkBrightness { get; }
+    public double LowLevel { get; }
+    public double LowBrightness { get; }
 
     /// <summary>Lines measured.</summary>
     public int Count => _levels.Count;
@@ -65,23 +89,27 @@ public sealed class VoicePlacement
         return ((float)(g * Math.Cos(angle) * Math.Sqrt(2)), (float)(g * Math.Sin(angle) * Math.Sqrt(2)));
     }
 
-    /// <summary>A line this far below the usual level, or below this brightness, is treated as fully distant.</summary>
-    public const double FarBelowDb = 14, DryBrightness = 0.42, FarBrightness = 0.18;
-
     /// <summary>
-    /// How far the original voice sounds, 0 (close and dry) to 1 (across a room, down a hall): the greater of two
-    /// signs — how far below the usual level the line sits, and how little energy it keeps up high (a distant voice
-    /// loses its highs to the air and the walls). A line with no voice found is treated as close (centre, dry).
+    /// How far the original voice sounds, 0 (close and dry) to 1 (across a room, down a hall). Distance needs BOTH
+    /// signs together — the line must be among the quieter lines in the episode AND among the duller ones (a distant
+    /// voice loses its highs to the air and the walls) — so the two are multiplied: a line at ordinary loudness can't
+    /// be "far" however dull, and a merely quiet but still-bright line stays close and soft. Both are measured against
+    /// this episode's own voices (the lower quartile is where "far" begins, the 5th percentile is fully far), because
+    /// the separation that isolates the voices darkens them by an unknown amount. No voice found → close.
     /// </summary>
     public double Distance(int index)
     {
         if (!_levels.TryGetValue(index, out var level) || level.Db < Usual - NoVoiceBelow) return 0;
-        double byLevel = Math.Clamp((Usual - level.Db) / FarBelowDb, 0, 1);
-        double byHighs = Math.Clamp((DryBrightness - level.Brightness) / (DryBrightness - FarBrightness), 0, 1);
-        // Needs both to read far to count fully: a voice that is merely quiet but still bright is close and soft, not
-        // distant, so the smaller of the two leads, with a little of the larger so a strong single sign still shows.
-        double lo = Math.Min(byLevel, byHighs), hi = Math.Max(byLevel, byHighs);
-        return Math.Clamp(lo * 0.75 + hi * 0.25, 0, 1);
+        double byLevel = Ramp(level.Db, QuietLevel, LowLevel);          // quieter than the quartile → ramps up
+        double byHighs = Ramp(level.Brightness, DarkBrightness, LowBrightness); // duller than the quartile → ramps up
+        return Math.Clamp(byLevel * byHighs, 0, 1);
+    }
+
+    /// <summary>0 at or above <paramref name="start"/>, 1 at or below <paramref name="full"/>, linear between (both are thresholds a line falls below).</summary>
+    private static double Ramp(double value, double start, double full)
+    {
+        if (start <= full) return value <= full ? 1 : 0;
+        return Math.Clamp((start - value) / (start - full), 0, 1);
     }
 
     /// <summary>

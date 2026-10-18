@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.80] - 2026-10-18
+
+### Fixed
+- Dubbing, depth: 1.0.0.79 set far too many lines "back in the room" (176 of 564 on a test episode) — a third of all dialogue got reverb. The distance test used absolute brightness thresholds, but voice separation darkens every isolated voice by an unknown amount, so an ordinary close line read as "dull → far". Distance is now judged against this episode's own voices: a line is distant only when it falls below the lower quartile of BOTH level and brightness among the episode's voiced lines (the 5th percentile is fully far), the two multiplied so a line at ordinary loudness can't be far however dull. This is self-calibrating — it adapts to whatever the separation produces — and bounds the flagged lines to the genuinely quiet-and-dull few rather than a third of the show.
+
 ## [1.0.0.79] - 2026-10-17
 
 ### Added
