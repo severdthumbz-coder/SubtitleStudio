@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.82] - 2026-10-20
+
+### Fixed
+- Dubbing, emphasis: a slight ringing on the spoken voices in 1.0.0.81. The within-line emphasis read a 16-point loudness curve from the separated voice and applied it as a gain, but with only light smoothing the gain could swing a few times a second (a separated voice has pauses and artifacts between points) — and a 3–8 Hz amplitude wobble is heard as roughness, not emphasis. Two fixes: the curve is now smoothed much more heavily (four passes) so it's a gentle arc rather than a flutter, and the applied gain is slew-limited (a one-pole smoother, ~80 ms) so it physically can't change fast enough to modulate the voice — even a jagged curve now moves the gain by a hair per sample. The emphasis itself is unchanged (still ±4 dB, still follows where the actor leans in); only the fast wobble is gone.
+- Dubbing log: the "shaped to the original's emphasis" count was reporting every line (its threshold caught ordinary syllable variation). It now counts only lines with a real loudness swing (≥3 dB after smoothing), so the number means something.
+
 ## [1.0.0.81] - 2026-10-18
 
 ### Added

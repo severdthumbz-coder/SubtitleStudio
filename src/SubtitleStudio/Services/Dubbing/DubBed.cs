@@ -164,7 +164,7 @@ public sealed class VoicePlacement
             if (db <= Usual - 6) quiet++;
             if (Math.Abs(angle - Math.PI / 4) >= 10 * Math.PI / 180) side++;
             if (Distance(index) >= 0.3) far++;
-            if (EmphasisRange(index) >= 2) shaped++; // a line with a real loudness swing to follow (≥2 dB)
+            if (EmphasisRange(index) >= 3) shaped++; // a line with a loudness swing worth following (≥3 dB after smoothing)
         }
         return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room, {shaped} shaped to the original's emphasis";
     }
