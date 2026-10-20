@@ -63,21 +63,39 @@ public sealed class KokoroTts : ITtsService, IDisposable
         return output.ToArray();
     }
 
-    /// <summary>The faint whine Kokoro's vocoder leaves near 9.6 kHz (a fixed tone, there on every voice since the first dub).</summary>
-    public const double RingHz = 9600, RingQ = 30;
+    /// <summary>
+    /// The whine Kokoro's vocoder leaves high in the band (around 9.6 kHz, but it drifts by voice between ~9 and 10.4
+    /// kHz). RingHz/RingQ is a narrow notch at its usual spot; LowPassHz is the main defence — a gentle low-pass that
+    /// takes off the whole top end where the whine lives, wherever it drifts to.
+    /// </summary>
+    public const double RingHz = 9600, RingQ = 24, LowPassHz = 8000;
 
     /// <summary>
-    /// Takes out Kokoro's ~9.6 kHz vocoder whine with a narrow notch (a biquad band-stop). The tone is a fixed, narrow
-    /// line high in the band; a notch that tight removes it while leaving the voice untouched — speech has essentially
-    /// no energy that narrow and that high, so the change to the spoken sound is nil. Applied to each piece as it's made.
+    /// Takes out Kokoro's vocoder whine. The tone isn't at a fixed frequency — it drifts around 9–10.4 kHz by voice —
+    /// so a single notch missed it on some lines (a little ring remained); the main step is now a gentle low-pass at
+    /// 8 kHz that removes the whole top end where the whine lives, with a notch at its usual spot as well. Speech has
+    /// almost no essential energy that high (only the air of sibilants, barely touched), so the voice is left as it was.
+    /// Applied to each piece as it's made.
     /// </summary>
     public static float[] DeRing(float[] audio)
     {
         if (audio.Length < 4) return audio;
-        // RBJ cookbook notch (band-stop) at RingHz with quality RingQ.
+        // Notch (RBJ band-stop) at the whine's usual spot.
         double w0 = 2 * Math.PI * RingHz / SampleRate, cw = Math.Cos(w0), alpha = Math.Sin(w0) / (2 * RingQ);
-        double b0 = 1, b1 = -2 * cw, b2 = 1, a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
-        // Normalise.
+        Biquad(audio, 1, -2 * cw, 1, 1 + alpha, -2 * cw, 1 - alpha);
+        // 4th-order Butterworth low-pass at LowPassHz (two cascaded biquads), to catch the whine wherever it drifts.
+        foreach (var q in new[] { 0.54119610, 1.30656296 }) // Butterworth Q's for a 4th-order section pair
+        {
+            double w = 2 * Math.PI * LowPassHz / SampleRate, c = Math.Cos(w), a = Math.Sin(w) / (2 * q);
+            double b1 = 1 - c, b0 = b1 / 2, b2 = b0, a0 = 1 + a, a1 = -2 * c, a2 = 1 - a;
+            Biquad(audio, b0, b1, b2, a0, a1, a2);
+        }
+        return audio;
+    }
+
+    /// <summary>One direct-form-I biquad pass over the buffer in place (coefficients are normalised by a0 here).</summary>
+    private static void Biquad(float[] audio, double b0, double b1, double b2, double a0, double a1, double a2)
+    {
         b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
         double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
         for (int i = 0; i < audio.Length; i++)
@@ -87,7 +105,6 @@ public sealed class KokoroTts : ITtsService, IDisposable
             x2 = x1; x1 = x; y2 = y1; y1 = y;
             audio[i] = (float)y;
         }
-        return audio;
     }
 
     /// <summary>Invalid samples (never seen with the full model) made silent rather than left to break the track.</summary>

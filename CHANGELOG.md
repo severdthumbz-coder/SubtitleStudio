@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.84] - 2026-10-20
+
+### Fixed
+- Dubbing voice: the last of the high-frequency ring. 1.0.0.83 notched it at 9.6 kHz, but the whine isn't at a fixed frequency — it drifts by voice between about 9 and 10.4 kHz, so a single narrow notch missed it on some lines and a little ring remained. The de-ring now also applies a gentle low-pass at 8 kHz, which removes the whole top end where the whine lives wherever it drifts, on top of the notch. Speech has almost no essential energy that high (only the faint air of "s"/"sh" sounds, measured down by well under half a dB), so the voice is unchanged; the ring is gone across all voices, not just the ones whose whine happened to sit at 9.6 kHz.
+
 ## [1.0.0.83] - 2026-10-20
 
 ### Fixed
