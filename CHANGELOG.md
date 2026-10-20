@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.83] - 2026-10-20
+
+### Fixed
+- Dubbing voice: a faint high-frequency ring on the spoken voices, present since the very first dub. It turned out to be a fixed ~9.6 kHz whine the Kokoro voice model's vocoder leaves on every voice — in the raw TTS output, before any mixing, placement or emphasis, which is why it predated all of that. It's now notched out with a narrow band-stop filter as each line is generated: the tone is a fixed, narrow line high in the band, so a tight notch removes it while leaving the voice itself unchanged (speech has essentially no energy that narrow and that high — the measured change to the 200 Hz–4 kHz speech band is 0.00 dB). Applies everywhere the voice is made (preview and the full dub).
+
 ## [1.0.0.82] - 2026-10-20
 
 ### Fixed

@@ -58,9 +58,36 @@ public sealed class KokoroTts : ITtsService, IDisposable
         {
             if (output.Count > 0) output.AddRange(new float[(int)(PiecePause.TotalSeconds * SampleRate)]);
             var audio = _model.Speak(tokens, _voices.Style(voiceId, tokens.Length), Math.Clamp(speed, 0.5f, 2f));
-            output.AddRange(Trim(Sanitize(audio)));
+            output.AddRange(Trim(DeRing(Sanitize(audio))));
         }
         return output.ToArray();
+    }
+
+    /// <summary>The faint whine Kokoro's vocoder leaves near 9.6 kHz (a fixed tone, there on every voice since the first dub).</summary>
+    public const double RingHz = 9600, RingQ = 30;
+
+    /// <summary>
+    /// Takes out Kokoro's ~9.6 kHz vocoder whine with a narrow notch (a biquad band-stop). The tone is a fixed, narrow
+    /// line high in the band; a notch that tight removes it while leaving the voice untouched — speech has essentially
+    /// no energy that narrow and that high, so the change to the spoken sound is nil. Applied to each piece as it's made.
+    /// </summary>
+    public static float[] DeRing(float[] audio)
+    {
+        if (audio.Length < 4) return audio;
+        // RBJ cookbook notch (band-stop) at RingHz with quality RingQ.
+        double w0 = 2 * Math.PI * RingHz / SampleRate, cw = Math.Cos(w0), alpha = Math.Sin(w0) / (2 * RingQ);
+        double b0 = 1, b1 = -2 * cw, b2 = 1, a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
+        // Normalise.
+        b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
+        double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (int i = 0; i < audio.Length; i++)
+        {
+            double x = audio[i];
+            double y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1; x1 = x; y2 = y1; y1 = y;
+            audio[i] = (float)y;
+        }
+        return audio;
     }
 
     /// <summary>Invalid samples (never seen with the full model) made silent rather than left to break the track.</summary>
