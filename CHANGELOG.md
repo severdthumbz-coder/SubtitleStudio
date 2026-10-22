@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.85] - 2026-10-21
+
+### Fixed
+- Dubbing voice: the ring that remained on brighter voices (the main female especially). A full-episode spectral sweep showed the sizzle isn't only the narrow 9.6 kHz line 1.0.0.83–84 chased — most of it is a broad, sustained fuzzy band across ~6.5–8 kHz, which sat below the 8 kHz low-pass and so survived, and which is louder on bright voices. The de-ring now keeps the 9.6 kHz notch but replaces the low-pass with a high-shelf cut above 6.5 kHz (−9 dB). A shelf, not a cut-off, because that band is also where the voice's sibilance ("s", "sh") lives: measured on a real voice it brings the sizzle band down ~6 dB and the 9.6 kHz line ~12 dB while softening sibilance only ~3 dB and leaving the voice proper (below 4 kHz) within hundredths of a dB. The metallic ring is gone across voices without lisping.
+
 ## [1.0.0.84] - 2026-10-20
 
 ### Fixed

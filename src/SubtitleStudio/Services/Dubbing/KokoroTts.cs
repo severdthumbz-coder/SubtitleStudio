@@ -64,32 +64,31 @@ public sealed class KokoroTts : ITtsService, IDisposable
     }
 
     /// <summary>
-    /// The whine Kokoro's vocoder leaves high in the band (around 9.6 kHz, but it drifts by voice between ~9 and 10.4
-    /// kHz). RingHz/RingQ is a narrow notch at its usual spot; LowPassHz is the main defence — a gentle low-pass that
-    /// takes off the whole top end where the whine lives, wherever it drifts to.
+    /// Kokoro's vocoder leaves a thin metallic sizzle high in the band. It is not one pure tone: a narrow line sits
+    /// near 9.6 kHz (RingHz), but the bulk is a sustained fuzzy band spread across ~6.5–8 kHz, strongest on brighter
+    /// voices. So there are two steps: a narrow notch at the 9.6 kHz line, and a high-shelf that pulls the whole top
+    /// end down (ShelfHz / ShelfGainDb). A shelf, not a low-pass: 6.5–8 kHz is also where the voice's sibilance ("s",
+    /// "sh") lives, so the top is softened rather than cut off — enough to kill the sizzle, not so much as to lisp.
     /// </summary>
-    public const double RingHz = 9600, RingQ = 24, LowPassHz = 8000;
+    public const double RingHz = 9600, RingQ = 24, ShelfHz = 6500, ShelfGainDb = -9;
 
     /// <summary>
-    /// Takes out Kokoro's vocoder whine. The tone isn't at a fixed frequency — it drifts around 9–10.4 kHz by voice —
-    /// so a single notch missed it on some lines (a little ring remained); the main step is now a gentle low-pass at
-    /// 8 kHz that removes the whole top end where the whine lives, with a notch at its usual spot as well. Speech has
-    /// almost no essential energy that high (only the air of sibilants, barely touched), so the voice is left as it was.
-    /// Applied to each piece as it's made.
+    /// Takes out Kokoro's vocoder sizzle: a narrow notch at the 9.6 kHz line, then a high-shelf cut above 6.5 kHz for
+    /// the broad fuzzy band above it. Tuned so the voice (below ~4 kHz) is untouched and sibilance is only softened,
+    /// while the metallic ring is brought down into the noise. Applied to each piece as it's made.
     /// </summary>
     public static float[] DeRing(float[] audio)
     {
         if (audio.Length < 4) return audio;
-        // Notch (RBJ band-stop) at the whine's usual spot.
+        // Notch (RBJ band-stop) at the 9.6 kHz line.
         double w0 = 2 * Math.PI * RingHz / SampleRate, cw = Math.Cos(w0), alpha = Math.Sin(w0) / (2 * RingQ);
         Biquad(audio, 1, -2 * cw, 1, 1 + alpha, -2 * cw, 1 - alpha);
-        // 4th-order Butterworth low-pass at LowPassHz (two cascaded biquads), to catch the whine wherever it drifts.
-        foreach (var q in new[] { 0.54119610, 1.30656296 }) // Butterworth Q's for a 4th-order section pair
-        {
-            double w = 2 * Math.PI * LowPassHz / SampleRate, c = Math.Cos(w), a = Math.Sin(w) / (2 * q);
-            double b1 = 1 - c, b0 = b1 / 2, b2 = b0, a0 = 1 + a, a1 = -2 * c, a2 = 1 - a;
-            Biquad(audio, b0, b1, b2, a0, a1, a2);
-        }
+        // High-shelf (RBJ) cut above ShelfHz for the broad sizzle band — softens the top without cutting it off.
+        double A = Math.Pow(10, ShelfGainDb / 40), w = 2 * Math.PI * ShelfHz / SampleRate, c = Math.Cos(w), s = Math.Sin(w);
+        double a2g = s / 2 * Math.Sqrt((A + 1 / A) * (1.0 / 0.9 - 1) + 2), sa = 2 * Math.Sqrt(A) * a2g;
+        Biquad(audio,
+            A * ((A + 1) + (A - 1) * c + sa), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - sa),
+            (A + 1) - (A - 1) * c + sa, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - sa);
         return audio;
     }
 
