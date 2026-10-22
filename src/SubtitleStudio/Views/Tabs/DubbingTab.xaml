@@ -110,10 +110,12 @@
                                     <Border BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0" Padding="0,8,0,8">
                                         <StackPanel>
                                             <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" FontWeight="SemiBold" ToolTip="The speaker's name (kept for the show)" />
-                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,5" />
+                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,2" />
+                                            <TextBlock Text="{Binding Sample}" Style="{StaticResource Text.Caption}" FontStyle="Italic" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="34" Margin="0,0,0,5"
+                                                       ToolTip="A line this speaker says — check the gender guess against who's really talking" />
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5" Visibility="{Binding GenderUncertain, Converter={StaticResource Vis}}">
                                                 <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,5,0" />
-                                                <TextBlock Text="Check gender: the pitch is borderline (a higher-voiced man or lower-voiced woman). Play the line and set it." Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" />
+                                                <TextBlock Text="Check gender: the pitch is hard to read here (a higher-voiced man, a lower-voiced woman, or only a few short lines). Read the line above, play it, and set it." Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" />
                                             </StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>

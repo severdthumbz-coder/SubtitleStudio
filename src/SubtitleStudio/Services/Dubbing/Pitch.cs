@@ -17,8 +17,28 @@ public static class Pitch
     /// </summary>
     public const double UncertainLowHz = 140, UncertainHighHz = 185;
 
+    /// <summary>
+    /// A wider band, and a line count, for flagging a speaker with little to go on. A speaker heard in only a few
+    /// lines has a shaky pitch (short, often over music), so the gender guess is worth a glance even a bit outside the
+    /// core overlap band. The main characters, with many lines, aren't flagged unless they're squarely in the band.
+    /// </summary>
+    public const double SoftLowHz = 125, SoftHighHz = 205;
+    public const int FewLines = 6;
+
     /// <summary>The pitch is in the band where male and female overlap.</summary>
     public static bool GenderUncertain(double? hz) => hz is { } v && v >= UncertainLowHz && v <= UncertainHighHz;
+
+    /// <summary>
+    /// Whether to flag this speaker's gender for a look: always in the core overlap band, and in a wider soft band when
+    /// the speaker has only a few lines (so the pitch is unreliable). A high-pitched man well above the band still can't
+    /// be caught by pitch — the sample line in the Speakers list is what gives him away — but this catches the shakier
+    /// short-speaker cases that pitch alone gets wrong.
+    /// </summary>
+    public static bool GenderUncertain(double? hz, int lineCount)
+    {
+        if (GenderUncertain(hz)) return true;
+        return lineCount <= FewLines && hz is { } v && v >= SoftLowHz && v <= SoftHighHz;
+    }
     private const int Window = 320, Hop = 240;    // 40 ms windows every 30 ms, at 8 kHz
     private const int MaxSeconds = 4;              // a line's first 4 s are plenty
     private const double MinHz = 65, MaxHz = 400, Threshold = 0.15, LooseThreshold = 0.35;

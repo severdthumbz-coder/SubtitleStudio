@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.86] - 2026-10-22
+
+### Added
+- Dubbing, Speakers list: each speaker now shows a sample of their dialogue (their longest line) under the pitch and line count. This is the reliable way to catch a miscast the pitch can't: an older man with a naturally high voice measures in the female range (e.g. 240+ Hz) and gets cast female, with no acoustic tell — but his line ("Hey, come over here.") gives him away at a glance, so you can set his gender by hand (which is remembered for the show). Fixing the gender re-picks a voice of that gender automatically.
+
+### Changed
+- Dubbing, gender confirm: the "check gender" flag now also catches shaky short-speaker cases. Besides the core 140–185 Hz overlap band, a speaker with only a few lines (whose pitch is unreliable — short, often over music) is flagged across a wider 125–205 Hz band. Main characters, with many lines, are still only flagged when squarely in the overlap band, so the list isn't cluttered with false flags. (A high-pitched man well above the band still can't be caught by pitch — the sample line is what surfaces him.)
+
 ## [1.0.0.85] - 2026-10-21
 
 ### Fixed

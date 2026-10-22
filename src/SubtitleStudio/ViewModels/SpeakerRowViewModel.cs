@@ -43,7 +43,7 @@ public sealed class SpeakerRowViewModel : ObservableObject
         }
     }
 
-    /// <summary>"142 lines, 6.3 min · 118 Hz · remembered".</summary>
+    /// <summary>"142 lines, 6.3 min · voice around 118 Hz · remembered".</summary>
     public string Details
     {
         get
@@ -55,6 +55,26 @@ public sealed class SpeakerRowViewModel : ObservableObject
             if (Speaker.PitchHz is { } hz) parts.Add($"voice around {hz:0} Hz");
             if (Speaker.Remembered) parts.Add("remembered from an earlier episode");
             return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>
+    /// A line this speaker says, so you can tell at a glance who they are — the point where the gender guess can be
+    /// checked against who's really talking (a high-pitched older man reads female by pitch, but his line gives him away).
+    /// The longest line is used, as it's the most recognisable; trimmed so the row stays tidy.
+    /// </summary>
+    public string Sample
+    {
+        get
+        {
+            var text = Speaker.Lines
+                .Select(l => (l.Text ?? string.Empty).Replace("\n", " ").Trim())
+                .Where(t => t.Length > 0)
+                .OrderByDescending(t => t.Length)
+                .FirstOrDefault();
+            if (string.IsNullOrEmpty(text)) return string.Empty;
+            if (text.Length > 60) text = text[..59].TrimEnd() + "…";
+            return "“" + text + "”";
         }
     }
 
@@ -118,6 +138,7 @@ public sealed class SpeakerRowViewModel : ObservableObject
     internal void Refresh()
     {
         OnPropertyChanged(nameof(Details));
+        OnPropertyChanged(nameof(Sample));
         OnPropertyChanged(nameof(Voice));
         OnPropertyChanged(nameof(Gender));
         OnPropertyChanged(nameof(Name));

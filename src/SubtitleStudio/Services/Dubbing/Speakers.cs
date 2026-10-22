@@ -182,7 +182,7 @@ public static class SpeakerFinder
                 .Where(i => pitches[i] is not null).SelectMany(i => pitches[i]!).ToList();
             s.PitchHz = Pitch.Median(allPitch);
             s.Gender = Pitch.GenderOf(s.PitchHz);
-            s.GenderUncertain = Pitch.GenderUncertain(s.PitchHz);
+            s.GenderUncertain = Pitch.GenderUncertain(s.PitchHz, s.Lines.Count);
             s.Voiceprint = groups[g].Count > 0 ? Voiceprints.Mean(groups[g].Select(i => prints[i]!)) : null;
             speakers.Add(s);
         }
