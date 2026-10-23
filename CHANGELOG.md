@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.87] - 2026-10-23
+
+### Fixed
+- Transcribe: a loop stuck inside a single line is now collapsed. Whisper sometimes gets stuck and repeats a phrase several times within one segment ("I'm so sorry. Just a moment. I'm so sorry. I'm so sorry. I'm so sorry. I'm so sorry."). The existing repeat guard worked line-to-line, so a loop that lived inside one line's text slipped through. Each line's text is now split into sentences and a run of the same sentence is cut to at most two, so a real emphasis double ("No. No.") is kept but a stuck loop is trimmed. Helps any transcription, not just this one.
+
 ## [1.0.0.86] - 2026-10-22
 
 ### Added

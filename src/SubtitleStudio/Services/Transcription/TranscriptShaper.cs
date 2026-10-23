@@ -61,7 +61,7 @@ public static class TranscriptShaper
         var kept = new List<(WhisperSegment Segment, string Text, string Key)>();
         foreach (var segment in segments)
         {
-            var text = Clean(segment.Text);
+            var text = Deloop(Clean(segment.Text));
             if (text.Length == 0 || (!text.Any(char.IsLetterOrDigit) && text.IndexOf('♪') < 0)) continue;
             if (segment.NoSpeechProbability > o.NoSpeechThreshold && segment.Probability > 0 && segment.Probability < o.LowConfidence)
             {
@@ -268,6 +268,50 @@ public static class TranscriptShaper
             sb.Append(c);
         }
         return sb.ToString();
+    }
+
+    /// <summary>The same sentence may stand twice in a row (for emphasis — "No. No."); a third is Whisper stuck.</summary>
+    public const int MaxSentenceRepeats = 2;
+
+    /// <summary>
+    /// Collapses a loop inside one segment's text: Whisper sometimes gets stuck and repeats a phrase several times
+    /// within a single line ("I'm so sorry. Just a moment. I'm so sorry. I'm so sorry. I'm so sorry."). The text is
+    /// split into sentences and a run of the same sentence is cut to at most MaxSentenceRepeats, so a real double
+    /// ("No. No.") is kept but a stuck loop is trimmed. Punctuation and spacing are left as they were otherwise.
+    /// </summary>
+    public static string Deloop(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        // Split into sentences, keeping each sentence's trailing end-punctuation with it.
+        var sentences = new List<string>();
+        int start = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (StrongEnds.IndexOf(text[i]) >= 0)
+            {
+                int end = i + 1;
+                while (end < text.Length && (text[end] == ' ' || StrongEnds.IndexOf(text[end]) >= 0)) end++;
+                sentences.Add(text[start..end].Trim());
+                start = end;
+            }
+        }
+        if (start < text.Length) sentences.Add(text[start..].Trim());
+        if (sentences.Count < MaxSentenceRepeats + 1) return text; // too few to contain a loop
+
+        var outSentences = new List<string>();
+        string? lastKey = null;
+        int run = 0;
+        bool trimmed = false;
+        foreach (var s in sentences)
+        {
+            if (s.Length == 0) continue;
+            var key = Key(s);
+            run = key == lastKey ? run + 1 : 1;
+            lastKey = key;
+            if (key.Length > 0 && run > MaxSentenceRepeats) { trimmed = true; continue; }
+            outSentences.Add(s);
+        }
+        return trimmed ? string.Join(" ", outSentences) : text;
     }
 
     public static string Key(string text)
