@@ -8,9 +8,12 @@ namespace SubtitleStudio.Services.Dubbing;
 /// (EnglishG2P), the phonemes into the model's numbers, and the model says them in the chosen voice.
 /// Long lines are said in pieces of at most 510 phonemes with a short pause between.
 /// </summary>
-public sealed class KokoroTts : ITtsService, IDisposable
+public sealed class KokoroTts : ITtsService, IDubbingVoice, IDisposable
 {
     public const int SampleRate = OnnxKokoroModel.SampleRate;
+
+    /// <summary>The engine's sample rate, as an instance member for IDubbingVoice (the static SampleRate stays for callers that have it).</summary>
+    int IDubbingVoice.SampleRate => SampleRate;
 
     /// <summary>Pause between the pieces of a line too long for one pass.</summary>
     public static readonly TimeSpan PiecePause = TimeSpan.FromMilliseconds(150);

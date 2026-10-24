@@ -35,7 +35,7 @@ public sealed partial class MainViewModel
     private string _dubbingReport = string.Empty;
     private string _previewText = string.Empty;
     private bool _previewTextEdited;
-    private KokoroTts? _kokoro;
+    private IDubbingVoice? _kokoro;
 
     public IReadOnlyList<ITtsService> TtsEngines => _s.TtsEngines;
 
@@ -108,7 +108,7 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>The voice model, loaded on first use.</summary>
-    private async Task<KokoroTts> EnsureKokoroAsync()
+    private async Task<IDubbingVoice> EnsureKokoroAsync()
     {
         if (_kokoro is not null) return _kokoro;
         if (!HasTtsModel) throw new InvalidOperationException("Download the voice model first.");
@@ -210,9 +210,9 @@ public sealed partial class MainViewModel
             }
             var path = Path.Combine(Path.GetTempPath(), "SubtitleStudio-voice-preview.wav");
             _s.AudioPreview.Stop();
-            WavFile.Write(path, samples, KokoroTts.SampleRate);
+            WavFile.Write(path, samples, tts.SampleRate);
             _s.AudioPreview.Play(path);
-            var length = samples.Length / (double)KokoroTts.SampleRate;
+            var length = samples.Length / (double)tts.SampleRate;
             DubbingStatus = $"{voice.Name}: {length:0.0} s of speech, made in {took.TotalSeconds:0.0} s.";
             _s.Log.Detail("Dubbing", $"Preview ({voice.Id}, speed {speed:0.0#}): \"{text}\" → {tts.Phonemes(text)} ({length:0.0} s in {took.TotalSeconds:0.0} s).");
         });
@@ -517,7 +517,7 @@ public sealed partial class MainViewModel
         float speed = (float)SelectedDubbingSpeed.Value;
         var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration);
         var tts = await EnsureKokoroAsync();
-        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape };
+        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = tts.SampleRate };
         var started = DateTime.UtcNow;
         _s.Log.Info("Dubbing", $"Voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers in their own voices" : "voice " + voice.Id)}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level, side, distance and emphasis of the original voice")}, on {tts.DeviceLabel}, {tts.Concurrency} at a time → {Path.GetFileName(path)}.");
         bool finished = false;

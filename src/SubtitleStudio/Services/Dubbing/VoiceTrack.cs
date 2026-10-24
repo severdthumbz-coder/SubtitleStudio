@@ -30,8 +30,10 @@ public sealed record VoiceTrackResult(int Spoken, int Silent, IReadOnlyList<Long
 /// voice), given the line and its speech, returning the samples to write. Applied before Place. Null: no depth, the
 /// speech used as Kokoro made it. Only meaningful with Place (the stereo, placed track).
 /// </param>
+/// <param name="Rate">The sample rate of the engine's samples (Kokoro 24 kHz, another engine may differ); the track is written at it.</param>
 public sealed record VoiceTrackOptions(float Speed = 1f, bool Fit = true, TimeSpan? Length = null, int Concurrency = 1,
-    Func<SubtitleCue, float[], (float Left, float Right)>? Place = null, Func<SubtitleCue, float[], float[]>? Shape = null);
+    Func<SubtitleCue, float[], (float Left, float Right)>? Place = null, Func<SubtitleCue, float[], float[]>? Shape = null,
+    int Rate = KokoroTts.SampleRate);
 
 /// <summary>How a line was made to fit.</summary>
 public enum FitKind { Natural, SpedUp, Stretched, TooLong }
@@ -98,7 +100,7 @@ public static class VoiceTrack
     public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<SubtitleCue, float, float[]> speak, VoiceTrackOptions options,
         string outputPath, IProgress<EngineProgress>? progress, CancellationToken ct)
     {
-        const int rate = KokoroTts.SampleRate;
+        int rate = options.Rate;
         var ordered = cues.Where(c => c.End > c.Start).OrderBy(c => c.Start).ThenBy(c => c.Index).ToList();
         var tooLong = new List<LongLine>();
         var covered = new List<(TimeSpan, TimeSpan)>();

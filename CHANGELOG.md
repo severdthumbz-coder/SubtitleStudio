@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.88] - 2026-10-23
+
+### Changed
+- Dubbing, internal: the voice engine is now used through an interface (IDubbingVoice) rather than the Kokoro class directly. The dubbing view-model and the voice-track builder no longer assume Kokoro specifically — the sample rate, device, concurrency, speaking and phoneme preview all go through the interface, and the voice track is written at the engine's own sample rate instead of a hard-coded 24 kHz. No change to behaviour or output; this is the groundwork so a second voice engine (a Piper-style ONNX model, or a cloning model) can be added later without touching the dubbing flow.
+
 ## [1.0.0.87] - 2026-10-23
 
 ### Fixed
