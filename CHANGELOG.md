@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.89] - 2026-10-24
+
+### Added
+- Dubbing, internal: a phoneme bridge (`PiperPhonemes`) that converts the app's own phonemizer output into the IPA a Piper voice expects — the groundwork to add Piper as a second voice engine *without* needing espeak-ng (an external tool the app's rules don't allow). Most of the app's phoneme alphabet is already IPA and passes through; a handful of one-character stand-ins (the diphthongs in "day", "my", "go", "now", "boy", the tap in "water", and a few rarities) are expanded to multi-character IPA. Verified over a real line plus the full stand-in set: every symbol maps, nothing is dropped (e.g. "Where do I go to get to the hospital?" becomes clean IPA). This resolves the make-or-break unknown for the Piper path; the remaining work (loading a Piper model, the final audio quality check) needs an actual Piper voice file. No user-facing change yet.
+
 ## [1.0.0.88] - 2026-10-23
 
 ### Changed
