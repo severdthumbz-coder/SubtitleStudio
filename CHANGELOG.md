@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.90] - 2026-10-24
+
+### Added
+- Dubbing, Piper engine (groundwork, not yet wired to the UI): the app can download Piper voices itself, like it downloads the Kokoro model. A curated set of English voices (`PiperVoices`) is fetched on demand from Hugging Face — the large model file verified against the repo's own checksum (no hashes baked into the app, the same mechanism the translation models use), the small config fetched directly (`PiperModelStore`). The config is parsed for the phoneme map, sample rate and inference scales (`PiperConfig`), the app's phonemes are turned into the voice's id sequence (BOS/EOS framed, pad between each, diphthongs kept whole), and the voice runs through ONNX Runtime on the graphics card (DirectML) or the processor (`PiperModel`), driven as a normal dubbing engine (`PiperTts`, implementing the build-88 interface). The phoneme bridge, catalogue, config parsing and id-sequencing are all tested; the ONNX inference and the final audio quality follow Piper's documented format but are first verified on a machine that has downloaded a voice (the dev build can't fetch one). No user-facing change yet — the engine picker and per-speaker wiring come next.
+
 ## [1.0.0.89] - 2026-10-24
 
 ### Added
