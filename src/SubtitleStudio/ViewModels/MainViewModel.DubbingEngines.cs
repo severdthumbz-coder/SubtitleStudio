@@ -124,6 +124,53 @@ public partial class MainViewModel
     /// <summary>The engine for the current dub: Piper when chosen and a voice is ready, otherwise Kokoro.</summary>
     private Task<IDubbingVoice> EnsureEngineAsync() => IsPiperEngine ? EnsurePiperAsync() : EnsureKokoroAsync();
 
+    /// <summary>A voice id that belongs to a Piper voice (the overflow "extras"), not a Kokoro one.</summary>
+    public static bool IsPiperVoiceId(string? id) => id is not null && Services.Dubbing.PiperVoices.Find(id) is not null;
+
+    // Piper models loaded for a mixed cast (one per overflow voice used), keyed by voice id.
+    private readonly Dictionary<string, PiperTts> _castPiper = new();
+
+    /// <summary>
+    /// Ensures the Piper overflow voices a cast uses are downloaded and loaded, and returns an IDubbingVoice that
+    /// speaks each line with the Piper model for that line's voice id. Downloads any missing voices first (with
+    /// progress), then loads each on the graphics card (or processor). Used only when the cast overflowed Kokoro.
+    /// </summary>
+    private async Task<IDubbingVoice> EnsurePiperForCastAsync(IReadOnlyList<string> voiceIds, CancellationToken ct)
+    {
+        var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
+        var adapter = gpu?.Primary is { IsSoftware: false } a && gpu.Backend != AiBackend.Cpu ? a : null;
+        foreach (var id in voiceIds)
+        {
+            if (_castPiper.ContainsKey(id)) continue;
+            var info = Services.Dubbing.PiperVoices.Find(id);
+            if (info is null) continue;
+            if (!_s.PiperModels.Has(info))
+            {
+                DubbingStatus = $"Downloading the extra voice {info.DisplayName}...";
+                var dl = new Progress<ModelDownloadProgress>(p => { if (_dubbingLive) DubbingStatus = $"Downloading {info.DisplayName}... {p.Done / (1024.0 * 1024):0} of {p.Total / (1024.0 * 1024):0} MB"; });
+                await _s.PiperModels.DownloadAsync(info, ModelHttp, dl, ct);
+                _s.Log.Success("Dubbing", $"Extra Piper voice downloaded: {info.DisplayName}.");
+            }
+            var piper = await Task.Run(() => { _ = EnglishG2P.Shared; return new PiperTts(_s.PiperModels.Load(info, adapter, m => _s.Log.Info("Dubbing", m))); }, ct);
+            _castPiper[id] = piper;
+            _s.Log.Info("Dubbing", $"Extra Piper voice ready: {info.DisplayName} ({piper.DeviceLabel}).");
+        }
+        return new CastPiper(_castPiper);
+    }
+
+    /// <summary>Routes each line to the Piper model for its voice id (a cast can use several Piper extras at once).</summary>
+    private sealed class CastPiper(IReadOnlyDictionary<string, PiperTts> byVoice) : IDubbingVoice
+    {
+        // All the app's Piper voices share one sample rate (22.05 kHz); the caller resamples to the track rate.
+        public int SampleRate => byVoice.Values.First().SampleRate;
+        public string DeviceLabel => byVoice.Values.First().DeviceLabel;
+        public int Concurrency => 1;
+        public float[] Speak(string subtitleText, string voiceId, float speed = 1f)
+            => byVoice.TryGetValue(voiceId, out var p) ? p.Speak(subtitleText, voiceId, speed) : Array.Empty<float>();
+        public string Phonemes(string subtitleText) => byVoice.Values.First().Phonemes(subtitleText);
+        public void Dispose() { } // models are owned by the view-model's _castPiper, disposed with the session
+    }
+
     /// <summary>The voice id to speak with on the current engine (the engine's own selected voice).</summary>
     private string CurrentVoiceId => IsPiperEngine ? SelectedPiperVoice.Id : SelectedDubbingVoice.Id;
 

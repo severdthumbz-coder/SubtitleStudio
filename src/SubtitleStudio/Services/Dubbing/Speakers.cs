@@ -382,7 +382,13 @@ public static class SpeakerFinder
             var voice = pool.FirstOrDefault(v => !used.Contains(v));
             if (voice is null)
             {
-                // All used: the least used one of that gender.
+                // Kokoro of this gender is used up. Before reusing a Kokoro voice (two characters sharing one), hand
+                // out a distinct Piper "extra" of the same gender if one is free — more mechanical, but not a repeat.
+                voice = PiperVoices.English.Where(p => p.Gender == (s.Gender ?? "female")).Select(p => p.Id).FirstOrDefault(v => !used.Contains(v));
+            }
+            if (voice is null)
+            {
+                // Kokoro and Piper of this gender both used: the least-used Kokoro one.
                 var counts = pool.ToDictionary(v => v, v => speakers.Count(o => o.Voice == v));
                 voice = pool.OrderBy(v => counts[v]).First();
             }

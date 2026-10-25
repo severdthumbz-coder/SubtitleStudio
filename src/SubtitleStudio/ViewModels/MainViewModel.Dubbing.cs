@@ -531,7 +531,22 @@ public sealed partial class MainViewModel
         });
         tts.TakeUsage(); // count from here
         var lineVoices = LineVoices();
-        var result = await VoiceTrack.BuildAsync(cues, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, path, progress, ct);
+
+        // Overflow Piper voices: when a cast has more speakers than Kokoro has distinct voices of a gender, the extras
+        // were given Piper voice ids (piper-*). Load Piper only if the cast actually uses any, and speak each line with
+        // the engine its voice belongs to, resampling Piper's 22.05 kHz output to the track's rate as it's written.
+        var piperIds = (lineVoices?.Values ?? Enumerable.Empty<string>()).Where(IsPiperVoiceId).Distinct().ToList();
+        IDubbingVoice? piper = piperIds.Count > 0 ? await EnsurePiperForCastAsync(piperIds, ct) : null;
+        int trackRate = tts.SampleRate;
+
+        float[] SpeakLine(SubtitleCue cue, float s)
+        {
+            var id = lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id;
+            if (piper is not null && IsPiperVoiceId(id))
+                return Resample.Linear(piper.Speak(cue.Text, id, s), piper.SampleRate, trackRate);
+            return tts.Speak(cue.Text, id, s);
+        }
+        var result = await VoiceTrack.BuildAsync(cues, SpeakLine, options, path, progress, ct);
         finished = true; // progress reported late must not overwrite the result
         var took = DateTime.UtcNow - started;
         DubbingReport = VoiceTrackReport(result, options.Fit);

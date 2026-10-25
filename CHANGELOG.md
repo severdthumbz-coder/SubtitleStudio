@@ -5,6 +5,17 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.92] - 2026-10-25
+
+### Added
+- Dubbing: Piper voices are now used as "extras" when a cast is larger than Kokoro can voice distinctly. Kokoro stays the default and is used for every speaker it can (15 female, 12 male distinct voices); only when a gender has more speakers than that do the overflow speakers get a distinct Piper voice instead of two characters sharing one Kokoro voice. The needed Piper voices are downloaded automatically before the track is built, loaded on the graphics card, and each overflow line is spoken by its Piper voice and resampled to the track's rate. On a normal-size cast nothing changes — Piper is never loaded. (Decided after build 91: Piper works but sounds more mechanical than Kokoro, so it earns its place only as overflow, not as a voice you'd pick over Kokoro.)
+
+### Known limitation
+- An overflow speaker's row in the Speakers list still shows a Kokoro voice in its dropdown (the row UI only knows Kokoro voices for now); the dub itself uses the correct Piper voice. Letting the Speakers list show and pick Piper voices is a later step.
+
+### Notes
+- Built and verified only via CI / first local run, as with all WPF changes (the dev container has no .NET SDK and the target is Windows). The overflow path (mixed Kokoro+Piper in one track, lazy Piper load, resampling) only exercises when a cast actually exceeds Kokoro's per-gender voice count.
+
 ## [1.0.0.91] - 2026-10-25
 
 ### Added
