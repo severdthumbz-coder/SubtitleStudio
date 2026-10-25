@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.93] - 2026-10-25
+
+### Fixed
+- Build fix for 1.0.0.92: the Piper overflow code added a named local function typed with `SubtitleCue`, whose namespace isn't imported in that file, so CI failed to compile ("SubtitleCue could not be found"). Reverted to the inferred-type lambda the voice-track builder already used, so no extra import is needed. No behaviour change from what 1.0.0.92 intended.
+
 ## [1.0.0.92] - 2026-10-25
 
 ### Added
