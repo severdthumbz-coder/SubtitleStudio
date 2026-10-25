@@ -194,14 +194,14 @@ public sealed partial class MainViewModel
     private async Task PreviewVoiceAsync()
     {
         var text = PreviewText.Trim();
-        var voice = SelectedDubbingVoice;
+        string voiceId = CurrentVoiceId, voiceName = CurrentVoiceName;
         float speed = (float)SelectedDubbingSpeed.Value;
         await RunDubbingWorkAsync("Preview", async ct =>
         {
-            var tts = await EnsureKokoroAsync();
-            DubbingStatus = $"Speaking as {voice.Name}...";
+            var tts = await EnsureEngineAsync();
+            DubbingStatus = $"Speaking as {voiceName}...";
             var started = DateTime.UtcNow;
-            var samples = await Task.Run(() => tts.Speak(text, voice.Id, speed), ct);
+            var samples = await Task.Run(() => tts.Speak(text, voiceId, speed), ct);
             var took = DateTime.UtcNow - started;
             if (samples.Length == 0)
             {
@@ -213,8 +213,8 @@ public sealed partial class MainViewModel
             WavFile.Write(path, samples, tts.SampleRate);
             _s.AudioPreview.Play(path);
             var length = samples.Length / (double)tts.SampleRate;
-            DubbingStatus = $"{voice.Name}: {length:0.0} s of speech, made in {took.TotalSeconds:0.0} s.";
-            _s.Log.Detail("Dubbing", $"Preview ({voice.Id}, speed {speed:0.0#}): \"{text}\" → {tts.Phonemes(text)} ({length:0.0} s in {took.TotalSeconds:0.0} s).");
+            DubbingStatus = $"{voiceName}: {length:0.0} s of speech, made in {took.TotalSeconds:0.0} s.";
+            _s.Log.Detail("Dubbing", $"Preview ({voiceId}, speed {speed:0.0#}): \"{text}\" → {tts.Phonemes(text)} ({length:0.0} s in {took.TotalSeconds:0.0} s).");
         });
     }
 
@@ -617,7 +617,7 @@ public sealed partial class MainViewModel
             Directory.CreateDirectory(_s.TtsModels.Folder);
             _s.Dialogs.OpenFolder(_s.TtsModels.Folder);
         });
-        PreviewVoiceCommand = new AsyncRelayCommand(PreviewVoiceAsync, () => !DubbingBusy && HasTtsModel && PreviewText.Trim().Length > 0);
+        PreviewVoiceCommand = new AsyncRelayCommand(PreviewVoiceAsync, () => !DubbingBusy && (IsPiperEngine ? PiperVoiceReady : HasTtsModel) && PreviewText.Trim().Length > 0);
         StopPreviewCommand = new RelayCommand(() => _s.AudioPreview.Stop());
         UseSelectedLineCommand = new RelayCommand(() => TakeSelectedLine(force: true), () => SelectedCue is not null);
         MakeVoiceTrackCommand = new AsyncRelayCommand(MakeVoiceTrackAsync, () => CanMakeVoiceTrack);

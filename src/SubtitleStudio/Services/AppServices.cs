@@ -38,6 +38,9 @@ public sealed class AppServices
     /// <summary>The dubbing voice model (models\tts next to the EXE).</summary>
     public Dubbing.TtsModelStore TtsModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts"));
 
+    /// <summary>Downloadable Piper voices (a second dubbing engine), under models/tts/piper.</summary>
+    public Dubbing.PiperModelStore PiperModels { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts", "piper"));
+
     /// <summary>Loads the Kokoro voice model on the given graphics card, tested and timed with a voice style for a given number of phonemes (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
     public Func<string, Func<int, float[]>, Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
 

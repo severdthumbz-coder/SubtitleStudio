@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.91] - 2026-10-25
+
+### Added
+- Dubbing: an engine picker and Piper voice downloader in the Voice section. "Engine" chooses Kokoro (built in, 27 voices) or Piper (voices you download as needed). With Piper selected, a voice dropdown lists the curated Piper voices and a "Download this voice" button fetches the chosen one from Hugging Face on first use (verified against the repo's checksum), then Preview speaks the line in that voice. This is the first point where Piper is reachable from the UI — pick Piper, download a voice, press Preview to hear it. The full dubbed track and per-speaker voices still use Kokoro for now; letting speakers mix engines comes in a follow-up once Piper's quality is confirmed by ear.
+
+### Notes
+- This build couldn't be compiled in the dev environment (the project targets Windows/WPF and the dev container has no .NET SDK after a reset), so CI and the first local run are the compile gate as they are for all WPF/XAML changes. The new code follows the existing Kokoro paths closely; the one thing only a real run can confirm is that a downloaded Piper voice actually speaks and sounds acceptable with the app's own phonemes.
+
 ## [1.0.0.90] - 2026-10-24
 
 ### Added

@@ -53,9 +53,26 @@
                             <ctl:HintMarker Margin="8,0,0,0"
                                             Text="27 English voices, female and male, American and British; the recommended ones are the clearest. British voices use American pronunciations for now. Preview speaks the line below: the line selected in the Subtitles tab, or anything you type." />
                         </StackPanel>
-                        <ComboBox ItemsSource="{Binding DubbingVoices}" SelectedItem="{Binding SelectedDubbingVoice, Mode=TwoWay}" Margin="0,10,0,4"
-                                  IsEnabled="{Binding HasTtsModel}" />
-                        <TextBlock Text="{Binding SelectedDubbingVoice.Note}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        <TextBlock Text="Engine" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                        <ComboBox ItemsSource="{x:Static vm:MainViewModel.DubbingEngines}" SelectedItem="{Binding SelectedDubbingEngine, Mode=TwoWay}"
+                                  ToolTip="Kokoro is built in (27 voices). Piper adds more voices you download as needed." />
+
+                        <!-- Kokoro voices -->
+                        <StackPanel Visibility="{Binding IsPiperEngine, Converter={StaticResource Vis}, ConverterParameter=invert}">
+                            <ComboBox ItemsSource="{Binding DubbingVoices}" SelectedItem="{Binding SelectedDubbingVoice, Mode=TwoWay}" Margin="0,10,0,4"
+                                      IsEnabled="{Binding HasTtsModel}" />
+                            <TextBlock Text="{Binding SelectedDubbingVoice.Note}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        </StackPanel>
+
+                        <!-- Piper voices (downloaded on demand) -->
+                        <StackPanel Visibility="{Binding IsPiperEngine, Converter={StaticResource Vis}}">
+                            <ComboBox ItemsSource="{Binding PiperVoices}" SelectedItem="{Binding SelectedPiperVoice, Mode=TwoWay}" Margin="0,10,0,4"
+                                      DisplayMemberPath="DisplayName" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Style="{StaticResource GhostButton}" Tag="&#xE896;" Content="{Binding DownloadPiperVoiceLabel}" Command="{Binding DownloadPiperVoiceCommand}" Margin="0,0,8,0" />
+                                <TextBlock Text="Downloaded from Hugging Face the first time you use it, then kept." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
                         <TextBlock Text="Speed" Style="{StaticResource Text.Label}" Margin="0,4,0,4" />
                         <ComboBox ItemsSource="{Binding DubbingSpeeds}" SelectedItem="{Binding SelectedDubbingSpeed, Mode=TwoWay}" IsEnabled="{Binding HasTtsModel}" />
                         <TextBlock Text="Line to hear" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />

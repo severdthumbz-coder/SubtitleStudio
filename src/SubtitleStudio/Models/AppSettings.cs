@@ -31,8 +31,12 @@ public sealed class AppSettings
     public double ReadingSpeedLimit { get; set; }
     /// <summary>"stacked" (original above the translation, SRT) or "topbottom" (original at the top, ASS).</summary>
     public string BilingualLayout { get; set; } = "stacked";
+    /// <summary>Dubbing: the voice engine — "kokoro" (in the app) or "piper" (downloadable voices).</summary>
+    public string DubbingEngine { get; set; } = "kokoro";
     /// <summary>Dubbing: the Kokoro voice (af_heart, am_michael...).</summary>
     public string DubbingVoice { get; set; } = "af_heart";
+    /// <summary>Dubbing: the chosen Piper voice id (PiperVoices), when the engine is Piper.</summary>
+    public string DubbingPiperVoice { get; set; } = "piper-ryan";
     /// <summary>Dubbing: speaking speed, 1 = normal.</summary>
     public double DubbingSpeed { get; set; } = 1.0;
     /// <summary>Dubbing: say lines faster (and, a little, time-stretch them) to fit the time before the next line.</summary>
