@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.94] - 2026-10-26
+
+### Added
+- Dubbing, voice-cloning groundwork (internal, not yet user-facing): the download/locate layer for an opt-in voice-cloning engine (`CloningSidecarStore`). Cloning will run as a bundled no-install sidecar — a prebuilt IndexTTS exe the app drives like FFmpeg — downloaded on demand from a project release (the ~11.7 GB model is fetched by the exe itself on first run, not by the app). This build adds the store that downloads and extracts that exe bundle and locates it; it's dormant until the bundle URL is set (the exe is built once on Windows and uploaded). No engine picker entry or UI yet — those come next, with a per-machine time/resource warning, since cloning is high-quality but slow on non-NVIDIA hardware. Cloning stays opt-in and personal-use; Kokoro + Piper remain the default.
+
 ## [1.0.0.93] - 2026-10-25
 
 ### Fixed
