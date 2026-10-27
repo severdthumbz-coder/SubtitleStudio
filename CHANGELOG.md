@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.95] - 2026-10-26
+
+### Added
+- Dubbing, voice-cloning engine driver (internal, not yet user-facing): `CloningTts` — the piece that speaks a line by driving the bundled IndexTTS sidecar exe once per line (write the speaker's reference clip + text, run the exe, read its output wav back as samples), implementing the standard dubbing-voice interface so it plugs in like Kokoro/Piper. Output is 22.05 kHz and resampled to the track rate; one line at a time (cloning is heavy). Deliberately NOT added to the engine picker yet: the "Cloning" option will appear only together with the per-machine time/resource warning and the reference-clip step in a following build, so the engine is never selectable while it can't actually run. Still dormant until the exe bundle is built and its URL is set. Kokoro + Piper remain the default.
+
 ## [1.0.0.94] - 2026-10-26
 
 ### Added

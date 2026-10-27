@@ -45,6 +45,16 @@ public partial class MainViewModel
 
     public bool IsPiperEngine => SelectedDubbingEngine.Id == "piper";
 
+    /// <summary>
+    /// Voice cloning is selected. Not yet offered in the engine picker — the picker entry lands with the hardware-aware
+    /// warning dialog and the reference-clip/ensure path, so the engine is never selectable while it can't actually run.
+    /// This helper and CloningTts exist so that final slice is small and the plumbing is already in place.
+    /// </summary>
+    public bool IsCloningEngine => SelectedDubbingEngine.Id == "cloning";
+
+    /// <summary>Whether the cloning sidecar exe has been downloaded (the ~11.7 GB model is fetched by the exe on first run).</summary>
+    public bool IsCloningReady => _s.CloningSidecar.HasExe;
+
     // ---------------- Piper voices ----------------
 
     public IReadOnlyList<PiperVoiceInfo> PiperVoices => Services.Dubbing.PiperVoices.English;
