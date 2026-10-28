@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.96] - 2026-10-28
+
+### Added
+- Dubbing, voice cloning is now a selectable engine. The voice picker gains a third engine, "Voice cloning (slow, matches the original)", alongside Kokoro and Piper. Choosing it shows a per-machine warning: on a PC with an NVIDIA card it notes cloning runs on CUDA (fastest, but still slower than Kokoro); on anything else it says plainly that cloning runs on the processor and is slow — fine for a short clip or one speaker, a long job for a whole episode — with Kokoro and Piper staying the quick default. A "Download the cloning engine" button fetches the bundled IndexTTS sidecar on demand (the ~11.7 GB voice model downloads itself on the first line spoken). Preview speaks the line in the cloned voice: it cuts a short reference clip from the paired video — the selected line's speaker when speakers have been found, otherwise the longest line — and copies that voice. Full per-speaker cloned dubs (a reference clip per speaker across a whole track) come next; this build makes cloning real and previewable end to end. Opt-in and personal-use.
+- The cloning sidecar download is now wired to its release (`CloningSidecarStore.BundleUrl`), so the engine downloads and runs; earlier builds were dormant until the exe was built and uploaded.
+
 ## [1.0.0.95] - 2026-10-26
 
 ### Added

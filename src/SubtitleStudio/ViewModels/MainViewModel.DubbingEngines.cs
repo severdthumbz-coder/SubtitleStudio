@@ -25,6 +25,7 @@ public partial class MainViewModel
     {
         new DubbingEngineOption("kokoro", "Kokoro (built in)"),
         new DubbingEngineOption("piper", "Piper (downloadable)"),
+        new DubbingEngineOption("cloning", "Voice cloning (slow, matches the original)"),
     };
 
     public DubbingEngineOption SelectedDubbingEngine
@@ -37,8 +38,13 @@ public partial class MainViewModel
             SaveSettings();
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsPiperEngine));
+            OnPropertyChanged(nameof(IsCloningEngine));
             OnPropertyChanged(nameof(DownloadPiperVoiceLabel));
             OnPropertyChanged(nameof(PiperVoiceReady));
+            OnPropertyChanged(nameof(CloningWarningText));
+            OnPropertyChanged(nameof(DownloadCloningLabel));
+            OnPropertyChanged(nameof(CloningBundleAvailable));
+            OnPropertyChanged(nameof(IsCloningReady));
             RelayCommand.Refresh();
         }
     }
@@ -131,8 +137,11 @@ public partial class MainViewModel
         return _piper;
     }
 
-    /// <summary>The engine for the current dub: Piper when chosen and a voice is ready, otherwise Kokoro.</summary>
-    private Task<IDubbingVoice> EnsureEngineAsync() => IsPiperEngine ? EnsurePiperAsync() : EnsureKokoroAsync();
+    /// <summary>The engine for the current dub: Piper or cloning when chosen and ready, otherwise Kokoro.</summary>
+    private Task<IDubbingVoice> EnsureEngineAsync()
+        => IsCloningEngine ? EnsureCloningPreviewAsync()
+            : IsPiperEngine ? EnsurePiperAsync()
+            : EnsureKokoroAsync();
 
     /// <summary>A voice id that belongs to a Piper voice (the overflow "extras"), not a Kokoro one.</summary>
     public static bool IsPiperVoiceId(string? id) => id is not null && Services.Dubbing.PiperVoices.Find(id) is not null;
@@ -182,8 +191,116 @@ public partial class MainViewModel
     }
 
     /// <summary>The voice id to speak with on the current engine (the engine's own selected voice).</summary>
-    private string CurrentVoiceId => IsPiperEngine ? SelectedPiperVoice.Id : SelectedDubbingVoice.Id;
+    private string CurrentVoiceId => IsCloningEngine ? ClonePreviewVoiceId : IsPiperEngine ? SelectedPiperVoice.Id : SelectedDubbingVoice.Id;
 
     /// <summary>A display name for the current voice, for status text.</summary>
-    private string CurrentVoiceName => IsPiperEngine ? SelectedPiperVoice.DisplayName : SelectedDubbingVoice.Name;
+    private string CurrentVoiceName => IsCloningEngine ? "the cloned voice" : IsPiperEngine ? SelectedPiperVoice.DisplayName : SelectedDubbingVoice.Name;
+
+    // ---------------- Voice cloning (IndexTTS sidecar) ----------------
+
+    private const string ClonePreviewVoiceId = "clone-preview";
+
+    /// <summary>Whether a cloning bundle is configured in this build (false until the release is wired up).</summary>
+    public bool CloningBundleAvailable => CloningSidecarStore.BundleAvailable;
+
+    public string DownloadCloningLabel => IsCloningReady ? "Downloaded" : "Download the cloning engine";
+
+    /// <summary>
+    /// What cloning will cost on this PC: cloning is CPU-bound unless there's an NVIDIA card, so on anything else it's
+    /// much slower than Kokoro/Piper. The text warns and, where we can, gives a rough order-of-magnitude so the user
+    /// decides with eyes open. (A precise estimate waits for the first real run, which calibrates it.)
+    /// </summary>
+    public string CloningWarningText
+    {
+        get
+        {
+            if (!CloningBundleAvailable)
+                return "Voice cloning isn't bundled in this build yet.";
+            bool cuda = _gpu?.Primary is { Vendor: GpuVendor.Nvidia } && _gpu.Backend != AiBackend.Cpu;
+            if (cuda)
+                return "Cloning copies each speaker's own voice from the original audio, so the dub sounds like them. "
+                     + $"Your NVIDIA card ({_gpu!.Primary!.Name}) runs it on CUDA — the fastest path, but still well slower than Kokoro. "
+                     + "The first run downloads the ~11.7 GB model.";
+            return "Cloning copies each speaker's own voice from the original audio, so the dub sounds like them — the closest match to the original. "
+                 + "On this PC it runs on the processor (no NVIDIA card), which is slow: expect it to take many times longer than Kokoro, roughly on the order of real-time or more per line. "
+                 + "Good for a short clip or a single speaker; a whole episode will be a long job. The first run also downloads the ~11.7 GB model. "
+                 + "Kokoro and Piper stay the quick default.";
+        }
+    }
+
+    public string CloningDeviceArg => _gpu?.Primary is { Vendor: GpuVendor.Nvidia } && _gpu.Backend != AiBackend.Cpu ? "cuda" : "cpu";
+
+    private AsyncRelayCommand? _downloadCloningCommand;
+    public AsyncRelayCommand DownloadCloningCommand => _downloadCloningCommand ??= new AsyncRelayCommand(DownloadCloningAsync, () => CloningBundleAvailable && !IsCloningReady && !DubbingBusy);
+
+    private async Task DownloadCloningAsync()
+    {
+        await RunDubbingWorkAsync("Downloading the voice-cloning engine", async ct =>
+        {
+            var started = DateTime.UtcNow;
+            var progress = new Progress<ModelDownloadProgress>(p =>
+            {
+                if (!_dubbingLive) return;
+                DubbingProgress = p.Fraction * 100;
+                var elapsed = (DateTime.UtcNow - started).TotalSeconds;
+                double rate = elapsed > 1 ? p.Done / elapsed : 0;
+                DubbingStatus = $"Downloading the cloning engine... {p.Done / (1024.0 * 1024):0} of {p.Total / (1024.0 * 1024):0} MB"
+                    + (rate > 0 ? $", {rate / (1024 * 1024):0.0} MB/s" : string.Empty);
+            });
+            await _s.CloningSidecar.DownloadAsync(ModelHttp, progress, ct);
+            _s.Log.Success("Dubbing", $"Voice-cloning engine downloaded and extracted ({CloningSidecarStore.ExeName}).");
+            DubbingStatus = "The cloning engine is ready. The ~11.7 GB voice model downloads on the first line it speaks.";
+            SetStatus("The voice-cloning engine is ready.", StatusKind.Success);
+        });
+        OnPropertyChanged(nameof(IsCloningReady));
+        OnPropertyChanged(nameof(DownloadCloningLabel));
+        RelayCommand.Refresh();
+    }
+
+    /// <summary>
+    /// A cloning engine for previewing one line: cuts a short reference clip from the paired video (the selected
+    /// line's speaker if speakers have been found, otherwise the longest subtitle line) and keys it as the preview
+    /// voice. Throws a clear message when there's nothing to clone from yet (no video, or no lines).
+    /// </summary>
+    private async Task<IDubbingVoice> EnsureCloningPreviewAsync()
+    {
+        if (!IsCloningReady)
+            throw new InvalidOperationException("Download the voice-cloning engine first (step 1).");
+        if (PairedVideo is not { } video)
+            throw new InvalidOperationException("Cloning copies a voice from the video: pair the subtitles with a video first.");
+        var ff = _s.Ffmpeg.Resolve(_s.Config.FfmpegPath);
+        if (!ff.IsComplete)
+            throw new InvalidOperationException("ffmpeg is needed to take the reference clip: set it in Settings > Engines & tools.");
+
+        // Pick a line to copy the voice from: the selected line's speaker's longest line, else the longest line overall.
+        var speakerLine = SelectedLineSpeaker?.Speaker.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault();
+        var line = speakerLine ?? Cues.Select(r => r.Cue).OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault();
+        if (line is null)
+            throw new InvalidOperationException("There are no lines to copy a voice from.");
+
+        DubbingStatus = "Taking a reference clip of the original voice...";
+        var workDir = Path.Combine(_s.CloningSidecar.Folder, "work");
+        Directory.CreateDirectory(workDir);
+        var refClip = Path.Combine(workDir, "ref-preview.wav");
+        await CutReferenceClipAsync(ff.FfmpegPath!, video.FullPath, line, refClip, CancellationToken.None);
+
+        var refClips = new Dictionary<string, string> { [ClonePreviewVoiceId] = refClip };
+        var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
+        _gpu ??= gpu;
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, 0, workDir, m => _s.Log.Info("Dubbing", m));
+    }
+
+    /// <summary>
+    /// Cuts a reference clip (~10 s, 22.05 kHz mono WAV) of a line's audio from the video, for the cloning engine.
+    /// A little padding is trimmed and the clip is capped so the reference is one clean stretch of the speaker's voice.
+    /// </summary>
+    private static async Task CutReferenceClipAsync(string ffmpeg, string videoPath, Models.SubtitleCue line, string outPath, CancellationToken ct)
+    {
+        var start = line.Start;
+        var span = line.End - line.Start;
+        if (span > TimeSpan.FromSeconds(12)) span = TimeSpan.FromSeconds(12);
+        if (span < TimeSpan.FromSeconds(2)) span = TimeSpan.FromSeconds(Math.Min(6, (line.End - line.Start).TotalSeconds + 4));
+        var samples = await AudioExtractor.ReadAsync(ffmpeg, videoPath, 0, start, span, span, null, ct);
+        WavFile.Write(outPath, samples, AudioExtractor.SampleRate);
+    }
 }

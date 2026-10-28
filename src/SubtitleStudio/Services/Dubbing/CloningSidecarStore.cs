@@ -23,7 +23,7 @@ public sealed class CloningSidecarStore
     public const string PartialSuffix = ".download";
 
     /// <summary>The release zip holding index-tts.exe and its support files. Set once the bundle is uploaded.</summary>
-    public static readonly string? BundleUrl = null; // e.g. "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v1/index-tts-win-x64.zip"
+    public static readonly string? BundleUrl = "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v1/index-tts-win-x64.zip";
 
     /// <summary>Expected name of the executable inside the extracted bundle.</summary>
     public const string ExeName = "index-tts.exe";

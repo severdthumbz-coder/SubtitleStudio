@@ -631,7 +631,7 @@ public sealed partial class MainViewModel
             Directory.CreateDirectory(_s.TtsModels.Folder);
             _s.Dialogs.OpenFolder(_s.TtsModels.Folder);
         });
-        PreviewVoiceCommand = new AsyncRelayCommand(PreviewVoiceAsync, () => !DubbingBusy && (IsPiperEngine ? PiperVoiceReady : HasTtsModel) && PreviewText.Trim().Length > 0);
+        PreviewVoiceCommand = new AsyncRelayCommand(PreviewVoiceAsync, () => !DubbingBusy && (IsCloningEngine ? IsCloningReady : IsPiperEngine ? PiperVoiceReady : HasTtsModel) && PreviewText.Trim().Length > 0);
         StopPreviewCommand = new RelayCommand(() => _s.AudioPreview.Stop());
         UseSelectedLineCommand = new RelayCommand(() => TakeSelectedLine(force: true), () => SelectedCue is not null);
         MakeVoiceTrackCommand = new AsyncRelayCommand(MakeVoiceTrackAsync, () => CanMakeVoiceTrack);
