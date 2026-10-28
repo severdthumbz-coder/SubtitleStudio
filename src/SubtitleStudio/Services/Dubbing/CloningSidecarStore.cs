@@ -23,7 +23,7 @@ public sealed class CloningSidecarStore
     public const string PartialSuffix = ".download";
 
     /// <summary>The release zip holding index-tts.exe and its support files. Set once the bundle is uploaded.</summary>
-    public static readonly string? BundleUrl = "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v1/index-tts-win-x64.zip";
+    public static readonly string? BundleUrl = "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v2/index-tts-win-x64.zip";
 
     /// <summary>Expected name of the executable inside the extracted bundle.</summary>
     public const string ExeName = "index-tts.exe";
@@ -34,16 +34,33 @@ public sealed class CloningSidecarStore
 
     public string ExePath => Path.Combine(Folder, ExeName);
 
-    /// <summary>The sidecar exe is present (downloaded and extracted).</summary>
-    public bool HasExe => File.Exists(ExePath) && new FileInfo(ExePath).Length > 0;
+    /// <summary>Records which bundle URL produced the extracted copy, so a changed URL re-downloads cleanly.</summary>
+    private string VersionMarkerPath => Path.Combine(Folder, ".bundle-url.txt");
+
+    private bool ExtractedBundleMatchesUrl
+    {
+        get
+        {
+            try { return File.Exists(VersionMarkerPath) && File.ReadAllText(VersionMarkerPath).Trim() == (BundleUrl ?? string.Empty); }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+    }
+
+    /// <summary>
+    /// The sidecar exe is present AND was extracted from the URL this build points at. A changed <see cref="BundleUrl"/>
+    /// (a new release of the exe) makes this false even if an older exe is still on disk, so the app re-downloads the
+    /// new bundle instead of running a stale one — no manual folder-delete needed between exe versions.
+    /// </summary>
+    public bool HasExe => File.Exists(ExePath) && new FileInfo(ExePath).Length > 0 && ExtractedBundleMatchesUrl;
 
     /// <summary>Whether a bundle URL is configured at all (false until the exe is built and the release made).</summary>
     public static bool BundleAvailable => !string.IsNullOrEmpty(BundleUrl);
 
     /// <summary>
-    /// Downloads and extracts the exe bundle if it isn't already present. The bundle is a zip on our own GitHub
-    /// release, so it's fetched directly over HTTPS (no LFS pointer); the whole zip is written to a temp file, then
-    /// extracted into the cloning folder. Interrupted downloads restart (the exe is one artifact, not resumable here).
+    /// Downloads and extracts the exe bundle if it isn't already present (or the URL changed since the last extract).
+    /// The bundle is a zip on our own GitHub release, so it's fetched directly over HTTPS (no LFS pointer); the whole
+    /// zip is written to a temp file, then extracted into the cloning folder, overwriting any older bundle in place.
     /// </summary>
     public async Task DownloadAsync(HttpClient http, IProgress<ModelDownloadProgress>? progress, CancellationToken ct)
     {
@@ -73,8 +90,9 @@ public sealed class CloningSidecarStore
                 }
             }
             ZipFile.ExtractToDirectory(zipPath, Folder, overwriteFiles: true);
-            if (!HasExe)
+            if (!(File.Exists(ExePath) && new FileInfo(ExePath).Length > 0))
                 throw new InvalidOperationException($"The cloning bundle didn't contain {ExeName}.");
+            try { File.WriteAllText(VersionMarkerPath, BundleUrl); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
         finally
         {

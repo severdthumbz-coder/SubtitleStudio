@@ -303,4 +303,78 @@ public partial class MainViewModel
         var samples = await AudioExtractor.ReadAsync(ffmpeg, videoPath, 0, start, span, span, null, ct);
         WavFile.Write(outPath, samples, AudioExtractor.SampleRate);
     }
+
+    // ---------------- Cloning across a cast (the full cloned dub) ----------------
+
+    /// <summary>
+    /// The clip-map key for a line, when cloning: the speaker's name (unique per cast) so each line is spoken from its
+    /// own speaker's reference clip. Null when speakers aren't in use — a single clip then covers every line.
+    /// </summary>
+    private const string CloneAllKey = "clone-all";
+
+    /// <summary>
+    /// The line → clone key map: each line's speaker name when speakers are used (and that speaker has lines), else
+    /// every line keyed to one clip. Mirrors <see cref="LineVoices"/> but for cloning, where the "voice" is a clip.
+    /// </summary>
+    private Dictionary<int, string> LineCloneKeys()
+    {
+        var map = new Dictionary<int, string>();
+        if (UsingSpeakers)
+            foreach (var r in SpeakerRows)
+                foreach (var c in r.Speaker.Lines) map[c.Index] = r.Speaker.Name;
+        else
+            foreach (var cue in Cues) map[cue.Cue.Index] = CloneAllKey;
+        return map;
+    }
+
+    /// <summary>
+    /// Prepares the cloning engine for a whole dub: cuts one reference clip per speaker (from each speaker's longest
+    /// line, so the copied voice is a clean stretch) and returns a <see cref="CloningTts"/> whose clip map is keyed to
+    /// match <see cref="LineCloneKeys"/>. When speakers aren't in use, one clip (the longest line overall) covers all.
+    /// The ~11.7 GB model is fetched by the exe on its first line, not here. Progress is reported into the dubbing bar.
+    /// </summary>
+    private async Task<IDubbingVoice> EnsureCloningCastAsync(string ffmpeg, Models.MediaItem video, double from, double share, CancellationToken ct)
+    {
+        if (!IsCloningReady)
+            throw new InvalidOperationException("Download the voice-cloning engine first (step 1).");
+        var workDir = Path.Combine(_s.CloningSidecar.Folder, "work");
+        Directory.CreateDirectory(workDir);
+        var refClips = new Dictionary<string, string>();
+
+        if (UsingSpeakers)
+        {
+            var speakers = SpeakerRows.Select(r => r.Speaker).Where(s => s.Lines.Count > 0).ToList();
+            for (int i = 0; i < speakers.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var s = speakers[i];
+                var line = s.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).First();
+                var clip = Path.Combine(workDir, $"ref-{SafeName(s.Name)}-{i}.wav");
+                if (_dubbingLive) { DubbingStatus = $"Taking a reference clip of {s.Name}..."; DubbingProgress = from + (i / (double)Math.Max(1, speakers.Count)) * share; }
+                await CutReferenceClipAsync(ffmpeg, video.FullPath, line, clip, ct);
+                refClips[s.Name] = clip;
+            }
+            _s.Log.Info("Dubbing", $"Cloning: {refClips.Count} reference clips cut, one per speaker (from each speaker's longest line).");
+        }
+        else
+        {
+            var line = Cues.Select(r => r.Cue).OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault()
+                ?? throw new InvalidOperationException("There are no lines to copy a voice from.");
+            var clip = Path.Combine(workDir, "ref-all.wav");
+            if (_dubbingLive) DubbingStatus = "Taking a reference clip of the original voice...";
+            await CutReferenceClipAsync(ffmpeg, video.FullPath, line, clip, ct);
+            refClips[CloneAllKey] = clip;
+            _s.Log.Info("Dubbing", "Cloning: one reference clip cut (no speakers in use), used for every line.");
+        }
+
+        var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
+        _gpu ??= gpu;
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, 0, workDir, m => _s.Log.Info("Dubbing", m));
+    }
+
+    private static string SafeName(string name)
+    {
+        var cleaned = new string((name ?? string.Empty).Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
+        return cleaned.Length > 0 ? cleaned : "spk";
+    }
 }

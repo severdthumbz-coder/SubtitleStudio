@@ -516,6 +516,12 @@ public sealed partial class MainViewModel
         var voice = SelectedDubbingVoice;
         float speed = (float)SelectedDubbingSpeed.Value;
         var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration);
+
+        // Voice cloning: cut a reference clip per speaker from the video, then speak each line from its speaker's clip.
+        // Cloning copies the original voice, so it can't be mixed with the Kokoro/Piper paths — it's its own engine here.
+        if (IsCloningEngine)
+            return await BuildClonedVoiceTrackAsync(path, share, ct, from, placement, cues, voice, speed, options);
+
         var tts = await EnsureKokoroAsync();
         options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = tts.SampleRate };
         var started = DateTime.UtcNow;
@@ -557,6 +563,56 @@ public sealed partial class MainViewModel
         RememberSpeakers();
         foreach (var l in result.TooLong.Take(50))
             _s.Log.Detail("Dubbing", $"Line {l.Number}: {l.Speech.TotalSeconds:0.0} s of speech in {l.Slot.TotalSeconds:0.0} s (over by {l.Over.TotalSeconds:0.0} s).");
+        return (result, took);
+    }
+
+    /// <summary>
+    /// The voice track when the cloning engine is selected: each line spoken from its speaker's reference clip (cut
+    /// from the paired video), the 22.05 kHz output resampled to the track rate. Cloning is slow and one line at a
+    /// time; the same fitting, placement and reporting as the normal path apply.
+    /// </summary>
+    private async Task<(VoiceTrackResult Result, TimeSpan Took)> BuildClonedVoiceTrackAsync(string path, double share, CancellationToken ct,
+        double from, VoicePlacement? placement, List<Models.SubtitleCue> cues, KokoroVoiceInfo voice, float speed, VoiceTrackOptions options)
+    {
+        if (PairedVideo is not { } video)
+            throw new InvalidOperationException("Cloning copies voices from the video: pair the subtitles with a video first.");
+        var ff = _s.Ffmpeg.Resolve(_s.Config.FfmpegPath);
+        if (!ff.IsComplete)
+            throw new InvalidOperationException("ffmpeg is needed to take the reference clips: set it in Settings > Engines & tools.");
+
+        // A small slice of this track's share goes to cutting the reference clips up front.
+        double prepShare = share * 0.1;
+        var tts = await EnsureCloningCastAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct);
+        int trackRate = tts.SampleRate;
+        var cloneKeys = LineCloneKeys();
+        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = trackRate };
+
+        var started = DateTime.UtcNow;
+        _s.Log.Info("Dubbing", $"Cloned voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers each cloned from the original" : "one cloned voice")}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level, side, distance and emphasis of the original voice")}, on {tts.DeviceLabel} → {Path.GetFileName(path)}.");
+        bool finished = false;
+        double speakFrom = from + prepShare * 100, speakShare = share - prepShare;
+        var progress = new Progress<EngineProgress>(p =>
+        {
+            if (!_dubbingLive || finished) return;
+            DubbingProgress = speakFrom + p.Fraction * 100 * speakShare;
+            var elapsed = DateTime.UtcNow - started;
+            var eta = p.Fraction > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - p.Fraction) / p.Fraction) : (TimeSpan?)null;
+            DubbingStatus = $"Cloning {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
+        });
+
+        var result = await VoiceTrack.BuildAsync(cues, (cue, s) =>
+        {
+            var key = cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey;
+            var samples = tts.Speak(cue.Text, key, s);
+            return trackRate == tts.SampleRate ? samples : Resample.Linear(samples, tts.SampleRate, trackRate);
+        }, options, path, progress, ct);
+        finished = true;
+        var took = DateTime.UtcNow - started;
+        DubbingReport = VoiceTrackReport(result, options.Fit);
+        _s.Log.Success("Dubbing", $"Cloned voice track made: {result.Spoken} lines spoken ({result.SpeechTime.TotalMinutes:0.0} min of speech) in {took.TotalMinutes:0.0} min"
+            + (options.Fit ? $"; {result.SpedUp} said faster and {result.Stretched} also shortened to fit" : string.Empty)
+            + $"; {result.Silent} without words; {result.TooLong.Count} still longer than their time.");
+        RememberSpeakers();
         return (result, took);
     }
 

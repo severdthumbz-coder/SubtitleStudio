@@ -91,22 +91,40 @@ public sealed partial class MainViewModel
             var stamp = DateTime.Now.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
             var voicePath = Path.Combine(folder, $"dub-{stamp}.wav");
             var clip = Path.Combine(folder, $"dub-{stamp}.mkv");
-            var tts = await EnsureKokoroAsync();
+            bool cloning = IsCloningEngine;
             bool removing = duck.Level == DuckLevel.Removed;
             VoicePlacement? placement = null;
             (float[] L, float[] R, float[] VL, float[] VR)? separated = null;
+            // Cloning cuts a reference clip per speaker first (a slice of the preview bar); then the usual separation.
+            double clonePrep = cloning ? 15 : 0;
+            IDubbingVoice tts = cloning
+                ? await EnsureCloningCastAsync(ff.FfmpegPath!, video, 0, clonePrep, ct)
+                : await EnsureKokoroAsync();
             if (removing)
             {
                 var sound = await PreviewVoicesAsync(video, ff.FfmpegPath!, start, length, ct);
                 separated = sound;
                 placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines));
             }
-            double speakFrom = removing ? 30 : 0, speakShare = removing ? 45 : 70;
-            DubbingStatus = $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
-            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: tts.SampleRate);
+            double speakFrom = clonePrep + (removing ? 25 : 0), speakShare = (removing ? 45 : 70) - clonePrep / 2;
+            DubbingStatus = cloning
+                ? $"Cloning {lines.Count} line{(lines.Count == 1 ? "" : "s")} (slow on the processor)..."
+                : $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
+            int trackRate = tts.SampleRate;
+            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: trackRate);
             var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = speakFrom + p.Fraction * speakShare; });
-            var lineVoices = LineVoices();
-            var result = await VoiceTrack.BuildAsync(lines, (cue, s) => tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s), options, voicePath, progress, ct);
+            var lineVoices = cloning ? null : LineVoices();
+            var cloneKeys = cloning ? LineCloneKeys() : null;
+            var result = await VoiceTrack.BuildAsync(lines, (cue, s) =>
+            {
+                if (cloning)
+                {
+                    var key = cloneKeys!.GetValueOrDefault(cue.Index) ?? CloneAllKey;
+                    var samples = tts.Speak(cue.Text, key, s);
+                    return tts.SampleRate == trackRate ? samples : Resample.Linear(samples, tts.SampleRate, trackRate);
+                }
+                return tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s);
+            }, options, voicePath, progress, ct);
 
             string? bedPath = null;
             if (separated is { } sound2)
@@ -138,7 +156,7 @@ public sealed partial class MainViewModel
             var first = inStretch.FirstOrDefault();
             var last = inStretch.LastOrDefault();
             DubPreviewText = (first is null ? "No lines in this stretch" : first == last ? $"Line {first.Index}" : $"Lines {first.Index}–{last!.Index}")
-                + $" ({ClockText(start)}–{ClockText(start + length)}), {(UsingSpeakers ? "each speaker in their own voice" : voice.Name + "'s voice")}, "
+                + $" ({ClockText(start)}–{ClockText(start + length)}), {(IsCloningEngine ? (UsingSpeakers ? "each speaker cloned from the original" : "cloned from the original voice") : UsingSpeakers ? "each speaker in their own voice" : voice.Name + "'s voice")}, "
                 + (removing ? "original voices removed, each line placed like the voice it replaces" : $"original sound {duck.Id switch { "little" => "a little lower", "much" => "much lower", _ => "lower" }}")
                 + (fit && result.SpedUp + result.Stretched > 0 ? $"; {result.SpedUp + result.Stretched} said faster to fit" : string.Empty)
                 + ". Change the voice, speed or level and preview again to compare.";

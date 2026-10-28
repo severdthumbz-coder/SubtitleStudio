@@ -5,6 +5,20 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.98] - 2026-10-28
+
+### Changed
+- Dubbing, cloning engine points at the rebuilt sidecar bundle (`cloning-v2`), which fixes the missing-data-file crash (`contractions_dict.json`) the first bundle hit once the model loaded.
+- The cloning engine now records which bundle URL produced the extracted copy. When the URL changes (a new release of the sidecar exe), the app treats the old extracted copy as stale and re-downloads the new bundle, overwriting it in place — no manual delete of the cloning folder between exe versions. A matching exe already on disk is still skipped, as before.
+
+## [1.0.0.97] - 2026-10-28
+
+### Added
+- Dubbing, cloning now drives the actual dub, not just a single line. In build 96 the cloning engine was wired only into the small step-2 "Preview" (one typed line); the big "Preview the dub" and the saved voice track / dubbed video still used Kokoro even with cloning selected. This build routes the whole dub through cloning when it's the chosen engine: it cuts one reference clip per speaker from the paired video (each speaker's longest line, so the copied voice is a clean stretch), then speaks every line from its own speaker's clip, resampling the cloned 22.05 kHz output to the track rate. Line fitting, per-line placement (level/side/distance/emphasis) and the too-long report all apply as with Kokoro. So "Preview the dub," "Make the voice track" and "Make the dubbed video" all produce a cloned dub when Voice cloning is selected — the destination J asked for. Still slow on non-NVIDIA hardware and one line at a time; the warning says so. When no speakers have been found, one reference clip (the longest line overall) covers every line.
+
+### Fixed
+- Dubbing, the dub-preview description and status now say "cloned from the original" when cloning is selected, instead of naming a Kokoro voice.
+
 ## [1.0.0.96] - 2026-10-28
 
 ### Added
