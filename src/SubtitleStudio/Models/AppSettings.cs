@@ -60,6 +60,12 @@ public sealed class AppSettings
     /// <summary>Dubbing: make a smaller dubbed video (re-encode the picture at most 720 high).</summary>
     public bool DubbingSmallFile { get; set; }
 
+    /// <summary>Dubbing cloning: quality/speed — "fast", "balanced" or "best" (maps to IndexTTS --n-timesteps).</summary>
+    public string CloningQuality { get; set; } = "balanced";
+
+    /// <summary>Dubbing cloning: what gets cloned — "all" (every line), "speakers" (only chosen speakers) or "lines" (only the selected line range); the rest is spoken by Kokoro.</summary>
+    public string CloningScope { get; set; } = "all";
+
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

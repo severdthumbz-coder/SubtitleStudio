@@ -5,6 +5,16 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.99] - 2026-10-28
+
+### Added
+- Dubbing, cloning scope — clone only what's worth the wait. A real cloned line measured ~132 s on J's processor (~38× real-time), so a whole episode would be ~20 hours. Cloning now has a "What to clone" choice: **every line** (the whole dub), **only the speakers you pick** (tick "Clone" on each speaker in the Speakers list), or **only the selected line range** (a window around the line selected in the Subtitles tab). Lines outside the chosen scope are spoken by Kokoro at normal speed, so the slow cloning is spent only where it matters — e.g. clone the lead, Kokoro the extras. The dub preview, the voice track and the dubbed video all honour the scope and mix the two engines per line.
+- Dubbing, cloning quality/speed selector — **Fast**, **Balanced** (default) or **Best**, wired to IndexTTS's diffusion steps (`--n-timesteps`): fewer steps are quicker and a little rougher, more are slower and cleaner. Applies to the preview and the full dub.
+- Dubbing, cloning time estimate + confirm. The cloning panel shows a live estimate ("N lines to clone — roughly X on this PC"), updated as the scope, quality or picked speakers change. Starting a voice track or dubbed video whose estimate is over ~20 minutes now asks for confirmation first, so a long job is never launched by accident. (On an NVIDIA/CUDA machine the estimate is far shorter and the prompt rarely fires.)
+
+### Changed
+- The cloned dub mixes engines per line (cloning for in-scope lines, Kokoro for the rest) rather than cloning being all-or-nothing. Kokoro is the base (its rate is the track rate); cloned 22.05 kHz output is resampled to match, as the Piper overflow path already does.
+
 ## [1.0.0.98] - 2026-10-28
 
 ### Changed

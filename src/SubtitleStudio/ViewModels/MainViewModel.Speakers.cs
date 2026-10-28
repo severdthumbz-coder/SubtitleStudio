@@ -211,6 +211,8 @@ public sealed partial class MainViewModel
         }
         row.Refresh();
         foreach (var r in SpeakerRows) r.SetOthers(SpeakerRows);
+        OnPropertyChanged(nameof(CloningEstimateText));
+        OnPropertyChanged(nameof(ClonedLineCount));
     }
 
     private void MergeSpeakers(SpeakerRowViewModel from, SpeakerRowViewModel into)

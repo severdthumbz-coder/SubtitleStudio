@@ -125,6 +125,19 @@ public sealed class SpeakerRowViewModel : ObservableObject
         }
     }
 
+    private bool _cloneThisSpeaker = true;
+
+    /// <summary>
+    /// When cloning with scope "selected speakers": whether this speaker's lines are cloned (their own voice copied).
+    /// Off means this speaker's lines are spoken by their Kokoro voice instead, so the slow cloning is spent only on
+    /// the speakers that matter. Defaults on; shown only in the cloning scope UI.
+    /// </summary>
+    public bool CloneThisSpeaker
+    {
+        get => _cloneThisSpeaker;
+        set { if (SetProperty(ref _cloneThisSpeaker, value)) _changed(this); }
+    }
+
     public AsyncRelayCommand HearOriginalCommand { get; }
     public AsyncRelayCommand HearVoiceCommand { get; }
 

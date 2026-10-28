@@ -45,6 +45,8 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(DownloadCloningLabel));
             OnPropertyChanged(nameof(CloningBundleAvailable));
             OnPropertyChanged(nameof(IsCloningReady));
+            OnPropertyChanged(nameof(CloningEstimateText));
+            OnPropertyChanged(nameof(ClonedLineCount));
             RelayCommand.Refresh();
         }
     }
@@ -230,6 +232,157 @@ public partial class MainViewModel
 
     public string CloningDeviceArg => _gpu?.Primary is { Vendor: GpuVendor.Nvidia } && _gpu.Backend != AiBackend.Cpu ? "cuda" : "cpu";
 
+    // ---------------- Cloning quality (speed knob) ----------------
+
+    /// <summary>A cloning quality choice: a label and the IndexTTS --n-timesteps it maps to (0 = the model default).</summary>
+    public sealed record CloningQualityOption(string Id, string Label, int Timesteps)
+    {
+        public override string ToString() => Label;
+    }
+
+    public IReadOnlyList<CloningQualityOption> CloningQualities { get; } = new[]
+    {
+        new CloningQualityOption("fast", "Fast (roughest, quickest)", 10),
+        new CloningQualityOption("balanced", "Balanced (recommended)", 0),
+        new CloningQualityOption("best", "Best (slowest, cleanest)", 40),
+    };
+
+    public CloningQualityOption SelectedCloningQuality
+    {
+        get => CloningQualities.FirstOrDefault(q => q.Id == _s.Config.CloningQuality) ?? CloningQualities[1];
+        set
+        {
+            if (value is null || value.Id == _s.Config.CloningQuality) return;
+            _s.Config.CloningQuality = value.Id;
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CloningEstimateText));
+        }
+    }
+
+    /// <summary>The --n-timesteps value for the chosen quality (0 = let the exe use its default).</summary>
+    private int CloningTimesteps => SelectedCloningQuality.Timesteps;
+
+    // ---------------- Cloning scope ----------------
+
+    public sealed record CloningScopeOption(string Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    public IReadOnlyList<CloningScopeOption> CloningScopes { get; } = new[]
+    {
+        new CloningScopeOption("all", "Every line (whole dub)"),
+        new CloningScopeOption("speakers", "Only the speakers I pick"),
+        new CloningScopeOption("lines", "Only the selected line range"),
+    };
+
+    public CloningScopeOption SelectedCloningScope
+    {
+        get => CloningScopes.FirstOrDefault(s => s.Id == _s.Config.CloningScope) ?? CloningScopes[0];
+        set
+        {
+            if (value is null || value.Id == _s.Config.CloningScope) return;
+            _s.Config.CloningScope = value.Id;
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsCloneScopeSpeakers));
+            OnPropertyChanged(nameof(CloningEstimateText));
+        }
+    }
+
+    public bool IsCloneScopeSpeakers => SelectedCloningScope.Id == "speakers";
+
+    /// <summary>
+    /// The set of line indices that cloning will speak, given the current scope. "all" = every line; "speakers" = the
+    /// lines of the speakers whose clone toggle is on; "lines" = the selected line range (from the Subtitles tab). Lines
+    /// not in this set are spoken by Kokoro, so the slow cloning is spent only where it's wanted.
+    /// </summary>
+    private HashSet<int> CloneLineSet()
+    {
+        var set = new HashSet<int>();
+        switch (SelectedCloningScope.Id)
+        {
+            case "speakers":
+                if (UsingSpeakers)
+                    foreach (var r in SpeakerRows.Where(r => r.CloneThisSpeaker))
+                        foreach (var c in r.Speaker.Lines) set.Add(c.Index);
+                else
+                    foreach (var cue in Cues) set.Add(cue.Cue.Index); // no speakers: fall back to all
+                break;
+            case "lines":
+                // The line selected in the Subtitles tab and a small window around it (a scene), capped so a stray
+                // selection can't start a huge job. When nothing is selected, treat as the first line's neighbourhood.
+                var anchorIdx = (SelectedCue?.Cue.Index) ?? (Cues.Count > 0 ? Cues[0].Cue.Index : -1);
+                if (anchorIdx >= 0)
+                    foreach (var cue in Cues.Where(c => Math.Abs(c.Cue.Index - anchorIdx) <= CloneLineWindow)) set.Add(cue.Cue.Index);
+                break;
+            default: // "all"
+                foreach (var cue in Cues) set.Add(cue.Cue.Index);
+                break;
+        }
+        return set;
+    }
+
+    /// <summary>How many lines on each side of the selected line the "selected line range" scope covers.</summary>
+    private const int CloneLineWindow = 15;
+
+    // ---------------- Time estimate ----------------
+
+    /// <summary>
+    /// Roughly how long cloning a line takes on this PC, in seconds — a measured ballpark (≈130 s/line on a CPU like
+    /// J's; much faster on CUDA). Used only to warn before a long run, so order-of-magnitude is what matters.
+    /// </summary>
+    private double SecondsPerClonedLine => CloningDeviceArg == "cuda" ? 8 : SelectedCloningQuality.Id switch
+    {
+        "fast" => 70,
+        "best" => 170,
+        _ => 130,
+    };
+
+    /// <summary>The number of lines cloning will actually speak under the current scope (the rest go to Kokoro).</summary>
+    public int ClonedLineCount => IsCloningEngine ? CloneLineSet().Count : 0;
+
+    /// <summary>A plain-language estimate of how long the current cloning scope will take, for the UI and the confirm.</summary>
+    public string CloningEstimateText
+    {
+        get
+        {
+            if (!IsCloningEngine) return string.Empty;
+            int n = ClonedLineCount;
+            if (n == 0) return "No lines are in the cloning scope yet.";
+            var total = TimeSpan.FromSeconds(n * SecondsPerClonedLine);
+            var rough = total.TotalHours >= 1 ? $"about {total.TotalHours:0.#} hour{(total.TotalHours >= 1.95 ? "s" : "")}"
+                : total.TotalMinutes >= 1 ? $"about {total.TotalMinutes:0} min"
+                : "under a minute";
+            return $"{n:N0} line{(n == 1 ? "" : "s")} to clone — roughly {rough} on this PC ({SecondsPerClonedLine:0} s/line). The rest are spoken by Kokoro.";
+        }
+    }
+
+    /// <summary>Above this, ask the user to confirm before starting (a long job they might not mean to launch).</summary>
+    private static readonly TimeSpan CloningConfirmThreshold = TimeSpan.FromMinutes(20);
+
+    /// <summary>
+    /// Confirms a long cloning run with the user (returns false to cancel). Called before the dub preview and the full
+    /// dub when cloning is selected; short jobs under the threshold run without asking.
+    /// </summary>
+    private bool ConfirmCloningRun()
+    {
+        if (!IsCloningEngine) return true;
+        int n = ClonedLineCount;
+        if (n == 0)
+        {
+            SetStatus("Nothing is in the cloning scope — pick speakers or a line range, or switch scope to the whole dub.", StatusKind.Error);
+            return false;
+        }
+        var total = TimeSpan.FromSeconds(n * SecondsPerClonedLine);
+        if (total < CloningConfirmThreshold) return true;
+        return _s.Dialogs.Confirm("Voice cloning is slow",
+            $"Cloning {n:N0} line{(n == 1 ? "" : "s")} will take roughly {(total.TotalHours >= 1 ? $"{total.TotalHours:0.#} hours" : $"{total.TotalMinutes:0} minutes")} on this PC "
+            + $"(about {SecondsPerClonedLine:0} s per line; cloning runs one line at a time on the processor). "
+            + "The rest of the lines are spoken by Kokoro. Start the cloned dub?");
+    }
+
     private AsyncRelayCommand? _downloadCloningCommand;
     public AsyncRelayCommand DownloadCloningCommand => _downloadCloningCommand ??= new AsyncRelayCommand(DownloadCloningAsync, () => CloningBundleAvailable && !IsCloningReady && !DubbingBusy);
 
@@ -287,7 +440,7 @@ public partial class MainViewModel
         var refClips = new Dictionary<string, string> { [ClonePreviewVoiceId] = refClip };
         var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
         _gpu ??= gpu;
-        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, 0, workDir, m => _s.Log.Info("Dubbing", m));
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
     }
 
     /// <summary>
@@ -333,7 +486,7 @@ public partial class MainViewModel
     /// match <see cref="LineCloneKeys"/>. When speakers aren't in use, one clip (the longest line overall) covers all.
     /// The ~11.7 GB model is fetched by the exe on its first line, not here. Progress is reported into the dubbing bar.
     /// </summary>
-    private async Task<IDubbingVoice> EnsureCloningCastAsync(string ffmpeg, Models.MediaItem video, double from, double share, CancellationToken ct)
+    private async Task<IDubbingVoice> EnsureCloningCastAsync(string ffmpeg, Models.MediaItem video, double from, double share, CancellationToken ct, HashSet<int>? cloneSet = null)
     {
         if (!IsCloningReady)
             throw new InvalidOperationException("Download the voice-cloning engine first (step 1).");
@@ -341,9 +494,14 @@ public partial class MainViewModel
         Directory.CreateDirectory(workDir);
         var refClips = new Dictionary<string, string>();
 
+        // Only cut clips for speakers that actually have a line cloning will speak (the scope's line set), so a
+        // "selected speakers" or "line range" scope doesn't spend time cutting clips for speakers Kokoro will voice.
+        var cloneLines = cloneSet ?? new HashSet<int>(Cues.Select(c => c.Cue.Index));
         if (UsingSpeakers)
         {
-            var speakers = SpeakerRows.Select(r => r.Speaker).Where(s => s.Lines.Count > 0).ToList();
+            var speakers = SpeakerRows.Select(r => r.Speaker)
+                .Where(s => s.Lines.Any(l => cloneLines.Contains(l.Index)))
+                .ToList();
             for (int i = 0; i < speakers.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -354,11 +512,12 @@ public partial class MainViewModel
                 await CutReferenceClipAsync(ffmpeg, video.FullPath, line, clip, ct);
                 refClips[s.Name] = clip;
             }
-            _s.Log.Info("Dubbing", $"Cloning: {refClips.Count} reference clips cut, one per speaker (from each speaker's longest line).");
+            _s.Log.Info("Dubbing", $"Cloning: {refClips.Count} reference clips cut, one per speaker in scope (from each speaker's longest line).");
         }
         else
         {
-            var line = Cues.Select(r => r.Cue).OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault()
+            var line = Cues.Select(r => r.Cue).Where(c => cloneLines.Contains(c.Index)).Concat(Cues.Select(r => r.Cue))
+                .OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault()
                 ?? throw new InvalidOperationException("There are no lines to copy a voice from.");
             var clip = Path.Combine(workDir, "ref-all.wav");
             if (_dubbingLive) DubbingStatus = "Taking a reference clip of the original voice...";
@@ -369,7 +528,7 @@ public partial class MainViewModel
 
         var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
         _gpu ??= gpu;
-        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, 0, workDir, m => _s.Log.Info("Dubbing", m));
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
     }
 
     private static string SafeName(string name)

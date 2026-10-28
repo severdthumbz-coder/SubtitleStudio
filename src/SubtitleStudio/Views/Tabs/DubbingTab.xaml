@@ -83,6 +83,20 @@
                                 <Button Style="{StaticResource GhostButton}" Tag="&#xE896;" Content="{Binding DownloadCloningLabel}" Command="{Binding DownloadCloningCommand}" Margin="0,0,8,0" />
                                 <TextBlock Text="Preview copies the selected line's speaker (find the speakers first for the best match)." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
                             </StackPanel>
+
+                            <!-- Quality / speed -->
+                            <TextBlock Text="Quality" Style="{StaticResource Text.Label}" Margin="0,8,0,4" />
+                            <ComboBox ItemsSource="{Binding CloningQualities}" SelectedItem="{Binding SelectedCloningQuality, Mode=TwoWay}"
+                                      ToolTip="Fewer diffusion steps are faster but a little rougher; Balanced is the model default." />
+
+                            <!-- What to clone (scope) -->
+                            <TextBlock Text="What to clone" Style="{StaticResource Text.Label}" Margin="0,10,0,4" />
+                            <ComboBox ItemsSource="{Binding CloningScopes}" SelectedItem="{Binding SelectedCloningScope, Mode=TwoWay}"
+                                      ToolTip="Cloning is slow, so you can clone only some speakers or a line range and let Kokoro speak the rest." />
+                            <TextBlock Text="Turn on &quot;Find the speakers&quot; below and tick the speakers to clone in their list." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding IsCloneScopeSpeakers, Converter={StaticResource Vis}}" />
+                            <TextBlock Text="{Binding CloningEstimateText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource Brush.Warning}" />
                         </StackPanel>
                         <TextBlock Text="Speed" Style="{StaticResource Text.Label}" Margin="0,4,0,4" />
                         <ComboBox ItemsSource="{Binding DubbingSpeeds}" SelectedItem="{Binding SelectedDubbingSpeed, Mode=TwoWay}" IsEnabled="{Binding HasTtsModel}" />
@@ -137,7 +151,12 @@
                                 <DataTemplate>
                                     <Border BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0" Padding="0,8,0,8">
                                         <StackPanel>
-                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" FontWeight="SemiBold" ToolTip="The speaker's name (kept for the show)" />
+                                            <DockPanel>
+                                                <CheckBox DockPanel.Dock="Right" Content="Clone" IsChecked="{Binding CloneThisSpeaker, Mode=TwoWay}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                          ToolTip="Clone this speaker's own voice from the original (slow). Off: this speaker is spoken by the Kokoro voice chosen below."
+                                                          Visibility="{Binding DataContext.IsCloneScopeSpeakers, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource Vis}}" />
+                                                <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" FontWeight="SemiBold" ToolTip="The speaker's name (kept for the show)" />
+                                            </DockPanel>
                                             <TextBlock Text="{Binding Details}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,2" />
                                             <TextBlock Text="{Binding Sample}" Style="{StaticResource Text.Caption}" FontStyle="Italic" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="34" Margin="0,0,0,5"
                                                        ToolTip="A line this speaker says — check the gender guess against who's really talking" />

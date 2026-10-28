@@ -409,6 +409,7 @@ public sealed partial class MainViewModel
         var folder = PairedVideo?.Folder ?? (_doc?.SourcePath is { } sp ? Path.GetDirectoryName(sp) : null);
         var path = _s.Dialogs.SaveFile("Save the voice track", "WAV audio (*.wav)|*.wav", 1, folder, VoiceTrackFileName);
         if (path is null) return;
+        if (!ConfirmCloningRun()) return;
         DubbingReport = string.Empty;
         await RunDubbingWorkAsync("Making the voice track", async ct =>
         {
@@ -444,6 +445,7 @@ public sealed partial class MainViewModel
         var filter = ext == ".mp4" ? "MP4 video (*.mp4)|*.mp4|Matroska video (*.mkv)|*.mkv" : "Matroska video (*.mkv)|*.mkv|MP4 video (*.mp4)|*.mp4";
         var output = _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested));
         if (output is null) return;
+        if (!ConfirmCloningRun()) return;
         DubbingReport = string.Empty;
         var duck = SelectedDubbingDuck.Level;
         bool makeDefault = DubbingDefaultTrack;
@@ -580,15 +582,22 @@ public sealed partial class MainViewModel
         if (!ff.IsComplete)
             throw new InvalidOperationException("ffmpeg is needed to take the reference clips: set it in Settings > Engines & tools.");
 
-        // A small slice of this track's share goes to cutting the reference clips up front.
+        // Kokoro is the base engine (its rate is the track rate); cloning speaks only the in-scope lines, Kokoro the rest.
+        var scopeSet = CloneLineSet();
+        var cloneLines = new HashSet<int>(cues.Where(c => scopeSet.Contains(c.Index)).Select(c => c.Index));
+        var kokoro = await EnsureKokoroAsync();
+        int trackRate = kokoro.SampleRate;
+
+        // A small slice of this track's share goes to cutting the reference clips up front (only for in-scope speakers).
         double prepShare = share * 0.1;
-        var tts = await EnsureCloningCastAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct);
-        int trackRate = tts.SampleRate;
+        IDubbingVoice? clone = cloneLines.Count > 0 ? await EnsureCloningCastAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct, cloneLines) : null;
+        int cloneRate = clone?.SampleRate ?? trackRate;
         var cloneKeys = LineCloneKeys();
-        options = options with { Concurrency = tts.Concurrency, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = trackRate };
+        var lineVoices = LineVoices();
+        options = options with { Concurrency = 1, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = trackRate };
 
         var started = DateTime.UtcNow;
-        _s.Log.Info("Dubbing", $"Cloned voice track: {cues.Count} lines, {(UsingSpeakers ? $"{SpeakerRows.Count} speakers each cloned from the original" : "one cloned voice")}, speed {speed:0.0#}, {(options.Fit ? "fitted to their time" : "not fitted")}{(placement is null ? "" : ", each at the level, side, distance and emphasis of the original voice")}, on {tts.DeviceLabel} → {Path.GetFileName(path)}.");
+        _s.Log.Info("Dubbing", $"Cloned voice track: {cloneLines.Count} of {cues.Count} lines cloned ({SelectedCloningScope.Label}), the rest Kokoro; {(UsingSpeakers ? $"{SpeakerRows.Count} speakers" : "one voice")}, quality {SelectedCloningQuality.Id}, speed {speed:0.0#}, {(options.Fit ? "fitted" : "not fitted")}{(placement is null ? "" : ", each placed like the original")}, cloning on {clone?.DeviceLabel ?? "(none in scope)"} → {Path.GetFileName(path)}.");
         bool finished = false;
         double speakFrom = from + prepShare * 100, speakShare = share - prepShare;
         var progress = new Progress<EngineProgress>(p =>
@@ -602,9 +611,13 @@ public sealed partial class MainViewModel
 
         var result = await VoiceTrack.BuildAsync(cues, (cue, s) =>
         {
-            var key = cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey;
-            var samples = tts.Speak(cue.Text, key, s);
-            return trackRate == tts.SampleRate ? samples : Resample.Linear(samples, tts.SampleRate, trackRate);
+            if (clone is not null && cloneLines.Contains(cue.Index))
+            {
+                var key = cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey;
+                var samples = clone.Speak(cue.Text, key, s);
+                return cloneRate == trackRate ? samples : Resample.Linear(samples, cloneRate, trackRate);
+            }
+            return kokoro.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s);
         }, options, path, progress, ct);
         finished = true;
         var took = DateTime.UtcNow - started;
@@ -701,7 +714,11 @@ public sealed partial class MainViewModel
         PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(HasDocument) or nameof(EditorLanguage) or nameof(EditorTitle) or nameof(PairedVideo)) RaiseDubbingSource();
-            if (e.PropertyName is nameof(SelectedCue)) TakeSelectedLine(force: false);
+            if (e.PropertyName is nameof(SelectedCue))
+            {
+                TakeSelectedLine(force: false);
+                if (IsCloningEngine && SelectedCloningScope.Id == "lines") { OnPropertyChanged(nameof(CloningEstimateText)); OnPropertyChanged(nameof(ClonedLineCount)); }
+            }
         };
     }
 }

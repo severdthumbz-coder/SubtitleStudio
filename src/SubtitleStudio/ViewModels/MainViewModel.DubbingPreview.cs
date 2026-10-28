@@ -72,6 +72,8 @@ public sealed partial class MainViewModel
         }
         var all = Cues.Select(r => r.Cue).Where(c => c.End > c.Start).OrderBy(c => c.Start).ToList();
         if (all.Count == 0) return;
+        // A preview is only the chosen stretch, so it's short even when cloning — no long-run confirm needed here
+        // (the confirm is on the full dub). But if cloning and nothing in scope, say so rather than silently using Kokoro.
         var anchor = SelectedCue?.Cue.Start ?? all[0].Start;
         var length = SelectedDubPreviewLength.Length;
         if (video.Duration is { } d && d < length) length = d;
@@ -95,11 +97,29 @@ public sealed partial class MainViewModel
             bool removing = duck.Level == DuckLevel.Removed;
             VoicePlacement? placement = null;
             (float[] L, float[] R, float[] VL, float[] VR)? separated = null;
-            // Cloning cuts a reference clip per speaker first (a slice of the preview bar); then the usual separation.
-            double clonePrep = cloning ? 15 : 0;
-            IDubbingVoice tts = cloning
-                ? await EnsureCloningCastAsync(ff.FfmpegPath!, video, 0, clonePrep, ct)
-                : await EnsureKokoroAsync();
+
+            // For cloning: Kokoro is the base engine (its rate is the track rate), cloning speaks only the in-scope
+            // lines in this stretch, the rest stay Kokoro. Cut only the clips those lines need.
+            IDubbingVoice tts;
+            IDubbingVoice? clone = null;
+            HashSet<int>? cloneLines = null;
+            Dictionary<int, string>? cloneKeys = null;
+            double clonePrep = 0;
+            if (cloning)
+            {
+                var scopeSet = CloneLineSet();
+                cloneLines = new HashSet<int>(lines.Where(l => scopeSet.Contains(l.Index)).Select(l => l.Index));
+                tts = await EnsureKokoroAsync();
+                if (cloneLines.Count > 0)
+                {
+                    clonePrep = 15;
+                    clone = await EnsureCloningCastAsync(ff.FfmpegPath!, video, 0, clonePrep, ct, cloneLines);
+                    cloneKeys = LineCloneKeys();
+                }
+                else _s.Log.Info("Dubbing", "Cloning: no lines in this preview stretch are in the cloning scope; the preview is spoken by Kokoro.");
+            }
+            else tts = await EnsureKokoroAsync();
+
             if (removing)
             {
                 var sound = await PreviewVoicesAsync(video, ff.FfmpegPath!, start, length, ct);
@@ -107,21 +127,21 @@ public sealed partial class MainViewModel
                 placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines));
             }
             double speakFrom = clonePrep + (removing ? 25 : 0), speakShare = (removing ? 45 : 70) - clonePrep / 2;
-            DubbingStatus = cloning
-                ? $"Cloning {lines.Count} line{(lines.Count == 1 ? "" : "s")} (slow on the processor)..."
+            DubbingStatus = cloning && clone is not null
+                ? $"Cloning {cloneLines!.Count} of {lines.Count} line{(lines.Count == 1 ? "" : "s")} (slow on the processor), the rest spoken by Kokoro..."
                 : $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
-            int trackRate = tts.SampleRate;
-            var options = new VoiceTrackOptions(speed, fit, length, tts.Concurrency, placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: trackRate);
+            int trackRate = tts.SampleRate; // Kokoro's rate is the track rate
+            int cloneRate = clone?.SampleRate ?? trackRate;
+            var options = new VoiceTrackOptions(speed, fit, length, Math.Min(tts.Concurrency, clone?.Concurrency ?? int.MaxValue), placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: trackRate);
             var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = speakFrom + p.Fraction * speakShare; });
-            var lineVoices = cloning ? null : LineVoices();
-            var cloneKeys = cloning ? LineCloneKeys() : null;
+            var lineVoices = LineVoices();
             var result = await VoiceTrack.BuildAsync(lines, (cue, s) =>
             {
-                if (cloning)
+                if (clone is not null && cloneLines!.Contains(cue.Index))
                 {
                     var key = cloneKeys!.GetValueOrDefault(cue.Index) ?? CloneAllKey;
-                    var samples = tts.Speak(cue.Text, key, s);
-                    return tts.SampleRate == trackRate ? samples : Resample.Linear(samples, tts.SampleRate, trackRate);
+                    var samples = clone.Speak(cue.Text, key, s);
+                    return cloneRate == trackRate ? samples : Resample.Linear(samples, cloneRate, trackRate);
                 }
                 return tts.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s);
             }, options, voicePath, progress, ct);
