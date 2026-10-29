@@ -22,15 +22,17 @@ public sealed class CloningTts : IDubbingVoice
     private readonly string _device;      // "cpu" or "cuda"
     private readonly int _timesteps;      // cfm diffusion steps (lower = faster, slightly rougher); 0 = the model default
     private readonly string _workDir;     // temp folder for per-line in/out wavs
+    private readonly int _spacingMs;      // pause between line launches so pressure doesn't accumulate over a long dub
     private readonly Action<string>? _log;
 
-    public CloningTts(string exePath, IReadOnlyDictionary<string, string> refClips, string device, int timesteps, string workDir, Action<string>? log = null)
+    public CloningTts(string exePath, IReadOnlyDictionary<string, string> refClips, string device, int timesteps, string workDir, Action<string>? log = null, int spacingMs = 400)
     {
         _exePath = exePath;
         _refClips = refClips;
         _device = device;
         _timesteps = timesteps;
         _workDir = workDir;
+        _spacingMs = Math.Max(0, spacingMs);
         _log = log;
         Directory.CreateDirectory(workDir);
     }
@@ -52,28 +54,46 @@ public sealed class CloningTts : IDubbingVoice
             return Array.Empty<float>();
         }
 
-        var outPath = Path.Combine(_workDir, $"clone-{Guid.NewGuid():N}.wav");
-        var args = new List<string> { "synth", "--ref", refClip, "--text", text, "--out", outPath, "--device", _device, "--lang", "en" };
+        // Each line is its own exe process (the exe loads the model, speaks, exits). Over a long dub that's hundreds of
+        // launches of a native-heavy process; one can fail transiently (a bad exit, a brief file lock, memory pressure
+        // that shows up as a heap-corruption exit code like 0xC0000374). So a failed line is retried once after a short
+        // pause rather than silenced, and a small gap is left between launches so the OS reclaims the last process's
+        // memory and handles before the next starts — which is what keeps a 500-line run from dying partway.
+        // args layout: 0 synth, 1 --ref, 2 refClip, 3 --text, 4 text, 5 --out, 6 <outPath>, 7 --device, ...
+        var args = new List<string> { "synth", "--ref", refClip, "--text", text, "--out", "", "--device", _device, "--lang", "en" };
+        const int OutPathIndex = 6;
         if (_timesteps > 0) { args.Add("--n-timesteps"); args.Add(_timesteps.ToString()); }
 
-        try
+        Exception? lastError = null;
+        for (int attempt = 0; attempt < 2; attempt++)
         {
-            RunExe(args);
-            if (!File.Exists(outPath)) { _log?.Invoke("Cloning: the sidecar produced no output for a line."); return Array.Empty<float>(); }
-            var (samples, rate) = WavFile.Read(outPath);
-            // The engine should emit Rate; if a build differs, resample so SampleRate stays the engine's declared rate.
-            return rate == Rate ? samples : Resample.Linear(samples, rate, Rate);
+            if (attempt > 0) Thread.Sleep(RetryPauseMs); // let the failed process's resources be reclaimed before retry
+            var outPath = Path.Combine(_workDir, $"clone-{Guid.NewGuid():N}.wav");
+            args[OutPathIndex] = outPath;
+            try
+            {
+                RunExe(args);
+                if (!File.Exists(outPath)) throw new InvalidOperationException("the sidecar produced no output file");
+                var (samples, rate) = WavFile.Read(outPath);
+                if (_spacingMs > 0) Thread.Sleep(_spacingMs); // breathe between launches so pressure doesn't accumulate
+                return rate == Rate ? samples : Resample.Linear(samples, rate, Rate);
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                if (attempt == 0) _log?.Invoke("Cloning: a line failed, retrying once (" + ex.Message.Replace('\r', ' ').Replace('\n', ' ').Trim() + ").");
+            }
+            finally
+            {
+                try { if (File.Exists(outPath)) File.Delete(outPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
         }
-        catch (Exception ex)
-        {
-            _log?.Invoke("Cloning: the sidecar failed on a line (" + ex.Message.Replace('\r', ' ').Replace('\n', ' ').Trim() + ").");
-            return Array.Empty<float>();
-        }
-        finally
-        {
-            try { if (File.Exists(outPath)) File.Delete(outPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        }
+        _log?.Invoke("Cloning: the sidecar failed on a line after a retry, leaving it silent (" + (lastError?.Message.Replace('\r', ' ').Replace('\n', ' ').Trim() ?? "unknown") + ").");
+        return Array.Empty<float>();
     }
+
+    /// <summary>Pause before retrying a failed line (ms), to let the OS reclaim the failed process's resources.</summary>
+    private const int RetryPauseMs = 1500;
 
     private void RunExe(IReadOnlyList<string> args)
     {

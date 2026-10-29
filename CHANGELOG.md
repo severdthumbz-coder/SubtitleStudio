@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.100] - 2026-10-29
+
+### Fixed
+- Dubbing, cloning long runs are hardened against the sidecar crash. A full cloned dub launches one `index-tts.exe` process per line, and on a long run one of those launches could die with a Windows heap-corruption exit code (0xC0000374) and abort the whole job. Now a failed line is retried once after a short pause (instead of silencing it or aborting), and a small gap (~0.4 s) is left between line launches so the OS reclaims the previous process's memory and handles before the next starts — which is what lets a many-line run get through. A line that still fails after the retry is left silent and logged, and the dub continues.
+
+### Notes
+- Root cause, for the record: the published IndexTTS CLI only has a one-line-per-process `synth` mode, so the ~11.7 GB model is loaded and torn down on every line — that's both why each line takes ~90–140 s (most of it model load) and why hundreds of launches build up pressure. The real fix is a batch/keep-loaded mode in the sidecar (load once, speak many, exit once), which needs a small custom entry script in the frozen exe and a re-freeze; that's planned next. This build makes the current per-line path survive a long run in the meantime.
+
 ## [1.0.0.99] - 2026-10-28
 
 ### Added
