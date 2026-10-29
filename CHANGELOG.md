@@ -5,6 +5,13 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.102] - 2026-10-29
+
+### Changed
+- Dubbing, cloning batch mode is now live. The engine points at the batch-capable sidecar (`cloning-v3`) and `SupportsBatch` is on, so a cloned dub now loads the 11.7 GB model once and speaks all in-scope lines in one run, instead of one process per line. Measured on a Ryzen 9 6900HX (CPU): a 2-line batch took 227 s ≈ a one-time ~130 s model load + ~48 s per line, versus ~130 s per line before — so once the model is loaded each line is roughly 2.7× quicker. A scene (~13 lines) is ~13 min, a line-range scope (~30) ~26 min; a whole 561-line episode is ~7.5 h (down from ~20 h), so scoped use (key speakers, or a scene) stays the practical way on a processor, while a CUDA machine is far faster still. The app auto-re-downloads the new sidecar because the bundle URL changed.
+- The in-app cloning time estimate and the pre-run confirm are calibrated to those measured numbers (130 s load + 48 s/line at Balanced; Fast ~28 s/line, Best ~70 s/line), so the prediction matches reality rather than erring optimistic.
+- The sidecar launcher now tolerates a UTF-8 BOM in the batch jobs file (reads with utf-8-sig), so a hand-written jobs file can't trip it; the app itself writes the file without a BOM regardless.
+
 ## [1.0.0.101] - 2026-10-29
 
 ### Added

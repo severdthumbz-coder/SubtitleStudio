@@ -23,7 +23,7 @@ public sealed class CloningSidecarStore
     public const string PartialSuffix = ".download";
 
     /// <summary>The release zip holding index-tts.exe and its support files. Set once the bundle is uploaded.</summary>
-    public static readonly string? BundleUrl = "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v2/index-tts-win-x64.zip";
+    public static readonly string? BundleUrl = "https://github.com/severdthumbz-coder/SubtitleStudio/releases/download/cloning-v3/index-tts-win-x64.zip";
 
     /// <summary>Expected name of the executable inside the extracted bundle.</summary>
     public const string ExeName = "index-tts.exe";
@@ -33,7 +33,7 @@ public sealed class CloningSidecarStore
     /// true together with the bundle URL when a batch-capable exe is uploaded. When false, the app uses the per-line
     /// path. Older bundles are single-line only, so this guards against sending "batch" to an exe that doesn't know it.
     /// </summary>
-    public static readonly bool SupportsBatch = false;
+    public static readonly bool SupportsBatch = true;
 
     public CloningSidecarStore(string folder) => Folder = folder;
 

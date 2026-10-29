@@ -340,14 +340,15 @@ public partial class MainViewModel
         _ => 130,
     };
 
-    // Batch mode: the model loads once (~130 s on CPU), then each line is synth-only. These are ballparks until the
-    // first real batch run calibrates them; the synth-only cost scales with quality but is a fraction of a full line.
-    private double BatchLoadSeconds => CloningDeviceArg == "cuda" ? 20 : 130;
-    private double BatchSynthSecondsPerLine => CloningDeviceArg == "cuda" ? 2 : SelectedCloningQuality.Id switch
+    // Batch mode: the model loads once, then each line is synth-only. Calibrated from a measured 2-line CPU run on
+    // J's Ryzen 9 6900HX (226.8 s total ≈ 130 s one-time load + ~48 s/line at Balanced/25 steps). Fast (~10 steps)
+    // and Best (~40 steps) scale the synth roughly with the step count. CUDA is far faster (load dominates there).
+    private double BatchLoadSeconds => CloningDeviceArg == "cuda" ? 25 : 130;
+    private double BatchSynthSecondsPerLine => CloningDeviceArg == "cuda" ? 3 : SelectedCloningQuality.Id switch
     {
-        "fast" => 10,
-        "best" => 30,
-        _ => 18,
+        "fast" => 28,   // ~10 steps
+        "best" => 70,   // ~40 steps
+        _ => 48,        // ~25 steps (measured)
     };
 
     /// <summary>Estimated total seconds for the current cloning scope, batch or per-line depending on the sidecar.</summary>
