@@ -243,7 +243,7 @@ public partial class MainViewModel
     public IReadOnlyList<CloningQualityOption> CloningQualities { get; } = new[]
     {
         new CloningQualityOption("fast", "Fast (roughest, quickest)", 10),
-        new CloningQualityOption("balanced", "Balanced (recommended)", 0),
+        new CloningQualityOption("balanced", "Balanced (recommended)", 25),  // the IndexTTS default
         new CloningQualityOption("best", "Best (slowest, cleanest)", 40),
     };
 
@@ -340,6 +340,20 @@ public partial class MainViewModel
         _ => 130,
     };
 
+    // Batch mode: the model loads once (~130 s on CPU), then each line is synth-only. These are ballparks until the
+    // first real batch run calibrates them; the synth-only cost scales with quality but is a fraction of a full line.
+    private double BatchLoadSeconds => CloningDeviceArg == "cuda" ? 20 : 130;
+    private double BatchSynthSecondsPerLine => CloningDeviceArg == "cuda" ? 2 : SelectedCloningQuality.Id switch
+    {
+        "fast" => 10,
+        "best" => 30,
+        _ => 18,
+    };
+
+    /// <summary>Estimated total seconds for the current cloning scope, batch or per-line depending on the sidecar.</summary>
+    private double EstimatedCloningSeconds(int n)
+        => CloningSidecarStore.SupportsBatch ? BatchLoadSeconds + n * BatchSynthSecondsPerLine : n * SecondsPerClonedLine;
+
     /// <summary>The number of lines cloning will actually speak under the current scope (the rest go to Kokoro).</summary>
     public int ClonedLineCount => IsCloningEngine ? CloneLineSet().Count : 0;
 
@@ -351,11 +365,12 @@ public partial class MainViewModel
             if (!IsCloningEngine) return string.Empty;
             int n = ClonedLineCount;
             if (n == 0) return "No lines are in the cloning scope yet.";
-            var total = TimeSpan.FromSeconds(n * SecondsPerClonedLine);
+            var total = TimeSpan.FromSeconds(EstimatedCloningSeconds(n));
             var rough = total.TotalHours >= 1 ? $"about {total.TotalHours:0.#} hour{(total.TotalHours >= 1.95 ? "s" : "")}"
                 : total.TotalMinutes >= 1 ? $"about {total.TotalMinutes:0} min"
                 : "under a minute";
-            return $"{n:N0} line{(n == 1 ? "" : "s")} to clone — roughly {rough} on this PC ({SecondsPerClonedLine:0} s/line). The rest are spoken by Kokoro.";
+            var how = CloningSidecarStore.SupportsBatch ? "the model loads once, then each line is quick" : $"{SecondsPerClonedLine:0} s/line";
+            return $"{n:N0} line{(n == 1 ? "" : "s")} to clone — roughly {rough} on this PC ({how}). The rest are spoken by Kokoro.";
         }
     }
 
@@ -375,12 +390,14 @@ public partial class MainViewModel
             SetStatus("Nothing is in the cloning scope — pick speakers or a line range, or switch scope to the whole dub.", StatusKind.Error);
             return false;
         }
-        var total = TimeSpan.FromSeconds(n * SecondsPerClonedLine);
+        var total = TimeSpan.FromSeconds(EstimatedCloningSeconds(n));
         if (total < CloningConfirmThreshold) return true;
+        var how = CloningSidecarStore.SupportsBatch
+            ? "the model loads once, then each line is quick"
+            : "cloning runs one line at a time on the processor";
         return _s.Dialogs.Confirm("Voice cloning is slow",
             $"Cloning {n:N0} line{(n == 1 ? "" : "s")} will take roughly {(total.TotalHours >= 1 ? $"{total.TotalHours:0.#} hours" : $"{total.TotalMinutes:0} minutes")} on this PC "
-            + $"(about {SecondsPerClonedLine:0} s per line; cloning runs one line at a time on the processor). "
-            + "The rest of the lines are spoken by Kokoro. Start the cloned dub?");
+            + $"({how}). The rest of the lines are spoken by Kokoro. Start the cloned dub?");
     }
 
     private AsyncRelayCommand? _downloadCloningCommand;
@@ -488,6 +505,19 @@ public partial class MainViewModel
     /// </summary>
     private async Task<IDubbingVoice> EnsureCloningCastAsync(string ffmpeg, Models.MediaItem video, double from, double share, CancellationToken ct, HashSet<int>? cloneSet = null)
     {
+        var (refClips, workDir) = await CutCloneRefClipsAsync(ffmpeg, video, from, share, ct, cloneSet);
+        var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
+        _gpu ??= gpu;
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+    }
+
+    /// <summary>
+    /// Cuts the reference clips cloning needs for the lines in scope (one per in-scope speaker, or one overall when no
+    /// speakers), returning the clip map (keyed as <see cref="LineCloneKeys"/>) and the work dir. Shared by the per-line
+    /// engine (CloningTts) and the batch engine (CloningBatch).
+    /// </summary>
+    private async Task<(Dictionary<string, string> RefClips, string WorkDir)> CutCloneRefClipsAsync(string ffmpeg, Models.MediaItem video, double from, double share, CancellationToken ct, HashSet<int>? cloneSet)
+    {
         if (!IsCloningReady)
             throw new InvalidOperationException("Download the voice-cloning engine first (step 1).");
         var workDir = Path.Combine(_s.CloningSidecar.Folder, "work");
@@ -526,9 +556,7 @@ public partial class MainViewModel
             _s.Log.Info("Dubbing", "Cloning: one reference clip cut (no speakers in use), used for every line.");
         }
 
-        var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
-        _gpu ??= gpu;
-        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+        return (refClips, workDir);
     }
 
     private static string SafeName(string name)

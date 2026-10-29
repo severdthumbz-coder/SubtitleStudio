@@ -587,34 +587,70 @@ public sealed partial class MainViewModel
         var cloneLines = new HashSet<int>(cues.Where(c => scopeSet.Contains(c.Index)).Select(c => c.Index));
         var kokoro = await EnsureKokoroAsync();
         int trackRate = kokoro.SampleRate;
-
-        // A small slice of this track's share goes to cutting the reference clips up front (only for in-scope speakers).
-        double prepShare = share * 0.1;
-        IDubbingVoice? clone = cloneLines.Count > 0 ? await EnsureCloningCastAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct, cloneLines) : null;
-        int cloneRate = clone?.SampleRate ?? trackRate;
         var cloneKeys = LineCloneKeys();
         var lineVoices = LineVoices();
         options = options with { Concurrency = 1, Place = placement is null ? null : placement.Gains, Shape = placement is null ? null : placement.Shape, Rate = trackRate };
 
+        double prepShare = share * 0.1;
         var started = DateTime.UtcNow;
-        _s.Log.Info("Dubbing", $"Cloned voice track: {cloneLines.Count} of {cues.Count} lines cloned ({SelectedCloningScope.Label}), the rest Kokoro; {(UsingSpeakers ? $"{SpeakerRows.Count} speakers" : "one voice")}, quality {SelectedCloningQuality.Id}, speed {speed:0.0#}, {(options.Fit ? "fitted" : "not fitted")}{(placement is null ? "" : ", each placed like the original")}, cloning on {clone?.DeviceLabel ?? "(none in scope)"} → {Path.GetFileName(path)}.");
         bool finished = false;
-        double speakFrom = from + prepShare * 100, speakShare = share - prepShare;
+
+        // Batch mode (new sidecar): the exe loads the model once and speaks all cloned lines in one run — the cloned
+        // samples are made up front, then the track is assembled (fitting/placement) with Kokoro filling the rest.
+        Dictionary<int, float[]>? clonedSamples = null;
+        int cloneRate = trackRate;
+        if (CloningSidecarStore.SupportsBatch && cloneLines.Count > 0)
+        {
+            var (refClips, workDir) = await CutCloneRefClipsAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct, cloneLines);
+            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+            cloneRate = batch.SampleRate;
+            var jobs = new List<CloningBatch.Job>(cloneLines.Count);
+            foreach (var cue in cues.Where(c => cloneLines.Contains(c.Index)))
+            {
+                var key = cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey;
+                if (refClips.TryGetValue(key, out var clip))
+                    jobs.Add(new CloningBatch.Job(cue.Index.ToString(), clip, cue.Text));
+            }
+            double batchFrom = from + prepShare * 100, batchShare = (share - prepShare) * 0.85; // speaking is the bulk of the work
+            DubbingStatus = $"Cloning {jobs.Count} lines (the model loads once, then speaks each)...";
+            var batchProgress = new Progress<double>(f =>
+            {
+                if (!_dubbingLive) return;
+                DubbingProgress = batchFrom + f * batchShare;
+                var elapsed = DateTime.UtcNow - started;
+                var eta = f > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - f) / f) : (TimeSpan?)null;
+                DubbingStatus = $"Cloning line {(int)Math.Round(f * jobs.Count)} of {jobs.Count}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
+            });
+            var byId = await batch.SpeakAllAsync(jobs, batchProgress, ct);
+            clonedSamples = new Dictionary<int, float[]>();
+            foreach (var (id, samples) in byId) if (int.TryParse(id, out var idx)) clonedSamples[idx] = samples;
+            _s.Log.Success("Dubbing", $"Cloning (batch): {clonedSamples.Count} of {jobs.Count} lines spoken in one model load.");
+        }
+
+        // Per-line engine (older sidecar): one exe process per line. Only loaded when batch isn't available.
+        IDubbingVoice? clone = null;
+        if (clonedSamples is null && cloneLines.Count > 0)
+        {
+            clone = await EnsureCloningCastAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct, cloneLines);
+            cloneRate = clone.SampleRate;
+        }
+
+        _s.Log.Info("Dubbing", $"Cloned voice track: {cloneLines.Count} of {cues.Count} lines cloned ({SelectedCloningScope.Label}), the rest Kokoro; {(UsingSpeakers ? $"{SpeakerRows.Count} speakers" : "one voice")}, quality {SelectedCloningQuality.Id}, speed {speed:0.0#}, {(options.Fit ? "fitted" : "not fitted")}{(placement is null ? "" : ", each placed like the original")}, mode {(clonedSamples is not null ? "batch" : cloneLines.Count > 0 ? "per-line" : "none in scope")} → {Path.GetFileName(path)}.");
+        double speakFrom = from + (clonedSamples is not null ? prepShare * 100 + (share - prepShare) * 0.85 : prepShare * 100);
+        double speakShare = clonedSamples is not null ? (share - prepShare) * 0.15 : share - prepShare;
         var progress = new Progress<EngineProgress>(p =>
         {
             if (!_dubbingLive || finished) return;
             DubbingProgress = speakFrom + p.Fraction * 100 * speakShare;
-            var elapsed = DateTime.UtcNow - started;
-            var eta = p.Fraction > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - p.Fraction) / p.Fraction) : (TimeSpan?)null;
-            DubbingStatus = $"Cloning {p.Message.ToLowerInvariant()}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
         });
 
         var result = await VoiceTrack.BuildAsync(cues, (cue, s) =>
         {
-            if (clone is not null && cloneLines.Contains(cue.Index))
+            if (cloneLines.Contains(cue.Index))
             {
-                var key = cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey;
-                var samples = clone.Speak(cue.Text, key, s);
+                float[] samples;
+                if (clonedSamples is not null) samples = clonedSamples.GetValueOrDefault(cue.Index) ?? Array.Empty<float>();
+                else samples = clone!.Speak(cue.Text, cloneKeys.GetValueOrDefault(cue.Index) ?? CloneAllKey, s);
                 return cloneRate == trackRate ? samples : Resample.Linear(samples, cloneRate, trackRate);
             }
             return kokoro.Speak(cue.Text, lineVoices?.GetValueOrDefault(cue.Index) ?? voice.Id, s);

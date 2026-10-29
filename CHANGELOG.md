@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.101] - 2026-10-29
+
+### Added
+- Dubbing, cloning batch mode (the real fix for cloning speed and the long-run crash). The app can now drive the cloning sidecar in a "load once, speak many" mode: it writes one job file for all the in-scope lines, the exe loads the 11.7 GB model a single time and speaks every line in one run, and the app reads the results back — instead of launching one process (and one model load) per line. On top of the single model load, lines that share a speaker reuse one pre-computed clone context, a second saving. This turns the dominant per-line cost (model load, ~130 s) into a one-time cost, so after the first line each line is just its synthesis time. It also removes the per-line process churn that caused the heap-corruption crash on long runs. Dormant until a batch-capable sidecar bundle is installed (`CloningSidecarStore.SupportsBatch`); until then the per-line path (build 100, hardened with retry/spacing) is used, unchanged. The time estimate and the pre-run confirm are batch-aware — when batch is active they show "the model loads once, then each line is quick" with a much shorter total.
+- Internal: `CloningBatch` (drives the exe's `batch` command: writes the jobs file, streams `DONE <id>` progress, reads outputs, cancels by ending the one process) and a shared reference-clip cutter used by both the per-line and batch paths.
+
+### Changed
+- Cloning quality "Balanced" now maps to the IndexTTS default of 25 diffusion steps (was left to the model default); Fast stays 10, Best 40.
+
 ## [1.0.0.100] - 2026-10-29
 
 ### Fixed
