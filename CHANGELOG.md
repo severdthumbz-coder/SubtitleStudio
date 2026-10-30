@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.105] - 2026-10-30
+
+### Added
+- Dubbing, speech-anchored timing now also works in the dub preview, not just the full dubbed video — so you can hear the effect in the fast preview loop instead of waiting for a long render. It turned out no offset juggling was needed: the preview rebases its lines to the stretch (LinesIn subtracts the start) and the separated voices begin at the same point, so the line times and the voice-activity levels are already in one timeline and SpeechStart lines up directly. The preview honours the "Place lines where the speech really is" option and "Removed" the same way the final dub does, and logs how many lines were moved onto the real speech.
+
 ## [1.0.0.104] - 2026-10-30
 
 ### Added

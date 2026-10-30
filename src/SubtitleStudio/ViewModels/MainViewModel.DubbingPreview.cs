@@ -120,11 +120,16 @@ public sealed partial class MainViewModel
             }
             else tts = await EnsureKokoroAsync();
 
+            DubBed.VoiceActivity? anchorActivity = null;
             if (removing)
             {
                 var sound = await PreviewVoicesAsync(video, ff.FfmpegPath!, start, length, ct);
                 separated = sound;
                 placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines));
+                // The preview's cues are rebased to the stretch (LinesIn subtracts `start`), and the separated voices
+                // here begin at the same point, so both are in one stretch-relative timeline — SpeechStart lines up
+                // directly, no offset. Anchor each line to where the original voice really starts within it.
+                anchorActivity = new DubBed.VoiceActivity(DubBed.VoiceActivity.Levels(sound.VoicesLeft, sound.VoicesRight), placement.Usual);
             }
             double speakFrom = clonePrep + (removing ? 25 : 0), speakShare = (removing ? 45 : 70) - clonePrep / 2;
             DubbingStatus = cloning && clone is not null
@@ -132,7 +137,10 @@ public sealed partial class MainViewModel
                 : $"Speaking {lines.Count} line{(lines.Count == 1 ? "" : "s")}...";
             int trackRate = tts.SampleRate; // Kokoro's rate is the track rate
             int cloneRate = clone?.SampleRate ?? trackRate;
-            var options = new VoiceTrackOptions(speed, fit, length, Math.Min(tts.Concurrency, clone?.Concurrency ?? int.MaxValue), placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: trackRate);
+            Func<Models.SubtitleCue, TimeSpan>? anchor = (anchorActivity is { } act && DubbingAnchorToSpeech)
+                ? cue => act.SpeechStart(cue.Start, cue.End)
+                : null;
+            var options = new VoiceTrackOptions(speed, fit, length, Math.Min(tts.Concurrency, clone?.Concurrency ?? int.MaxValue), placement is null ? null : placement.Gains, placement is null ? null : placement.Shape, Rate: trackRate, Anchor: anchor);
             var progress = new Progress<EngineProgress>(p => { if (_dubbingLive) DubbingProgress = speakFrom + p.Fraction * speakShare; });
             var lineVoices = LineVoices();
             var result = await VoiceTrack.BuildAsync(lines, (cue, s) =>
@@ -186,7 +194,7 @@ public sealed partial class MainViewModel
                 DubbingStatus = "Preview ready: press play.";
             }
             else DubbingStatus = $"Preview made, but the player isn't available here. The clip is {clip}.";
-            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {(UsingSpeakers ? "each speaker in their own voice" : voice.Id)}, speed {speed:0.0#}, {(fit ? "fitted" : "not fitted")}, {duck.Id}{(placement is null ? "" : "; " + placement.Describe())}.");
+            _s.Log.Info("Dubbing", $"Preview of {ClockText(start)}–{ClockText(start + length)}: {lines.Count} lines, {(UsingSpeakers ? "each speaker in their own voice" : voice.Id)}, speed {speed:0.0#}, {(fit ? "fitted" : "not fitted")}, {duck.Id}{(result.Anchored > 0 ? $"; {result.Anchored} moved onto the real speech" : "")}{(placement is null ? "" : "; " + placement.Describe())}.");
         });
     }
 
