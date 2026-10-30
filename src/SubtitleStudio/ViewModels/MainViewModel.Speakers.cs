@@ -58,6 +58,9 @@ public sealed partial class MainViewModel
             _s.Config.DubbingPerSpeaker = value;
             SaveSettings();
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CloningNeedsSpeakers));
+            OnPropertyChanged(nameof(CloningEstimateText));
+            OnPropertyChanged(nameof(ClonedLineCount));
         }
     }
 
@@ -183,6 +186,9 @@ public sealed partial class MainViewModel
             r.Refresh();
         }
         OnPropertyChanged(nameof(HasSpeakers));
+        OnPropertyChanged(nameof(CloningNeedsSpeakers));
+        OnPropertyChanged(nameof(CloningEstimateText));
+        OnPropertyChanged(nameof(ClonedLineCount));
         RaiseSelectedLineSpeaker();
     }
 

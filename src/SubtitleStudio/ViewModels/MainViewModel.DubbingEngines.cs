@@ -47,6 +47,7 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(IsCloningReady));
             OnPropertyChanged(nameof(CloningEstimateText));
             OnPropertyChanged(nameof(ClonedLineCount));
+            OnPropertyChanged(nameof(CloningNeedsSpeakers));
             RelayCommand.Refresh();
         }
     }
@@ -62,6 +63,13 @@ public partial class MainViewModel
 
     /// <summary>Whether the cloning sidecar exe has been downloaded (the ~11.7 GB model is fetched by the exe on first run).</summary>
     public bool IsCloningReady => _s.CloningSidecar.HasExe;
+
+    /// <summary>
+    /// Cloning is selected but speakers aren't in use (not found, or "A voice for each speaker" is off), so the whole
+    /// dub would be cloned from one voice — the longest line overall — rather than each speaker in their own voice.
+    /// Warn, because cloning's whole point is matching each original voice; a silent one-voice fallback is a trap.
+    /// </summary>
+    public bool CloningNeedsSpeakers => IsCloningEngine && !UsingSpeakers;
 
     // ---------------- Piper voices ----------------
 
@@ -455,10 +463,37 @@ public partial class MainViewModel
         var refClip = Path.Combine(workDir, "ref-preview.wav");
         await CutReferenceClipAsync(ff.FfmpegPath!, video.FullPath, line, refClip, CancellationToken.None);
 
-        var refClips = new Dictionary<string, string> { [ClonePreviewVoiceId] = refClip };
         var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
         _gpu ??= gpu;
+
+        // Batch-capable sidecar: speak the one preview line through the batch path too (load the model once), for the
+        // same engine on both previews and the dub. The single line is synthesised here and handed back as fixed
+        // samples; the per-line CloningTts is kept only for an older sidecar that doesn't answer "batch".
+        if (CloningSidecarStore.SupportsBatch)
+        {
+            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+            var jobs = new[] { new CloningBatch.Job(ClonePreviewVoiceId, refClip, _previewText.Trim()) };
+            var spoken = await batch.SpeakAllAsync(jobs, null, CancellationToken.None);
+            var samples = spoken.GetValueOrDefault(ClonePreviewVoiceId) ?? Array.Empty<float>();
+            return new PreparedVoice(samples, batch.SampleRate);
+        }
+
+        var refClips = new Dictionary<string, string> { [ClonePreviewVoiceId] = refClip };
         return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+    }
+
+    /// <summary>
+    /// A one-shot voice for the cloning preview: already-synthesised samples (made via the batch path) returned as-is,
+    /// so the preview uses the same batch engine as the dub. Speed and voice id are ignored — it's a single fixed clip.
+    /// </summary>
+    private sealed class PreparedVoice(float[] samples, int rate) : IDubbingVoice
+    {
+        public int SampleRate => rate;
+        public string DeviceLabel => "voice cloning (batch)";
+        public int Concurrency => 1;
+        public float[] Speak(string subtitleText, string voiceId, float speed = 1f) => samples;
+        public string Phonemes(string subtitleText) => subtitleText ?? string.Empty;
+        public void Dispose() { }
     }
 
     /// <summary>

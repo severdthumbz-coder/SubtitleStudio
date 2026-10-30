@@ -5,6 +5,14 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.103] - 2026-10-30
+
+### Added
+- Dubbing, cloning now warns when it would fall back to one voice. When voice cloning is selected but no speakers are in use (not found, or "A voice for each speaker" is off), the cloning panel shows a note that the whole dub would be cloned from a single voice, and points to Speakers → "Find the speakers" + "A voice for each speaker" to clone each character in their own voice. (Per-speaker cloning itself was already correct — each speaker in scope gets their own reference clip and cloned voice; this just makes the one-voice fallback visible instead of silent.)
+
+### Changed
+- Dubbing, the step-2 single-line cloning preview now uses the batch sidecar too, the same engine as the dub preview and the full dub. Before, the left-side "Preview" still drove the old one-process-per-line path while the dub used batch; now both go through the batch exe (load the model once), so the engine is consistent and a repeated preview of the same voice skips the redundant per-line process. Falls back to the per-line path only on an older sidecar that doesn't support batch.
+
 ## [1.0.0.102] - 2026-10-29
 
 ### Changed

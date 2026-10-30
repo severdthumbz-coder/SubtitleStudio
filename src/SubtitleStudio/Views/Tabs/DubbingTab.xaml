@@ -97,6 +97,12 @@
                                        Visibility="{Binding IsCloneScopeSpeakers, Converter={StaticResource Vis}}" />
                             <TextBlock Text="{Binding CloningEstimateText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Foreground="{DynamicResource Brush.Warning}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                        Visibility="{Binding CloningNeedsSpeakers, Converter={StaticResource Vis}}">
+                                <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,2,6,0" />
+                                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.Warning}"
+                                           Text="No speakers found yet, so the whole dub would be cloned from one voice. For each character in their own cloned voice, use Speakers below: &quot;Find the speakers&quot; and turn on &quot;A voice for each speaker&quot;." />
+                            </StackPanel>
                         </StackPanel>
                         <TextBlock Text="Speed" Style="{StaticResource Text.Label}" Margin="0,4,0,4" />
                         <ComboBox ItemsSource="{Binding DubbingSpeeds}" SelectedItem="{Binding SelectedDubbingSpeed, Mode=TwoWay}" IsEnabled="{Binding HasTtsModel}" />
