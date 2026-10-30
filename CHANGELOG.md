@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.104] - 2026-10-30
+
+### Added
+- Dubbing, speech-anchored timing (the "Still to come" roadmap item, now built). Subtitles are usually timed a little early — the cue appears before the actor speaks, especially when the voice is quiet or under music — so a dubbed line placed at the cue's start can land ahead of the voice it replaces. A new option, "Place lines where the speech really is" (on by default), moves each dubbed line to where the original voice actually begins within that line, using the separated-voices activity the dub already computes. The shift is bounded: never earlier than the subtitle's own start, and always held ~0.3 s off the next line so a line can't be pushed onto its neighbour. It applies to the dubbed video with "Removed" selected (the path that separates the voices, where speech can be detected); other paths place lines at the subtitle time as before. The Log reports how many lines were moved onto the real speech. Works for every engine — Kokoro, Piper and cloning.
+- `DubBed.VoiceActivity.SpeechStart` finds the first speaking step inside a line's window (same level test and syllable-gap bridging the voice-removal uses), returning the subtitle start unchanged when no isolated voice is found, so anchoring never moves a line it isn't sure about.
+
+### Changed
+- The dubbing tab's "Still to come" note now points to the next planned item (intonation transfer for the quick Kokoro/Piper voices), since speech-anchored timing is done.
+
 ## [1.0.0.103] - 2026-10-30
 
 ### Added

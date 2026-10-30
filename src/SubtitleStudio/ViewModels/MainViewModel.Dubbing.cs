@@ -339,6 +339,19 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Place each line where the original voice really starts, not the subtitle's (often early) cue.</summary>
+    public bool DubbingAnchorToSpeech
+    {
+        get => _s.Config.DubbingAnchorToSpeech;
+        set
+        {
+            if (_s.Config.DubbingAnchorToSpeech == value) return;
+            _s.Config.DubbingAnchorToSpeech = value;
+            SaveSettings();
+            OnPropertyChanged();
+        }
+    }
+
     public IReadOnlyList<DubbingDuckOption> DubbingDuckOptions { get; } = new[]
     {
         new DubbingDuckOption(DuckLevel.Removed, "removed", "Removed: music and effects kept"),
@@ -475,10 +488,13 @@ public sealed partial class MainViewModel
                     var cues = Cues.Select(r => r.Cue).ToList();
                     var placement = new VoicePlacement(await Task.Run(() => DubBed.MeasureLines(voices, cues), ct));
                     _s.Log.Info("Dubbing", "Lines placed like the original voices: " + placement.Describe() + ".");
-                    var (track, _) = await BuildVoiceTrackAsync(voicePath, 0.5, ct, from: 40, placement: placement);
+                    // The voice-activity levels, built here from the separated voices so lines can be anchored to where
+                    // the original voice really starts (the same levels are reused for the bed removal below).
+                    var anchorLevels = await Task.Run(() => DubBed.VoiceActivity.Levels(voices), ct);
+                    var anchorActivity = new DubBed.VoiceActivity(anchorLevels, placement.Usual);
+                    var (track, _) = await BuildVoiceTrackAsync(voicePath, 0.5, ct, from: 40, placement: placement, anchorActivity: anchorActivity);
                     DubbingStatus = "Taking the original voices out under the English lines...";
-                    var activity = new DubBed.VoiceActivity(await Task.Run(() => DubBed.VoiceActivity.Levels(voices), ct), placement.Usual);
-                    var removal = new DubBed.Removal(track.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero, DubBed.SampleRate, activity);
+                    var removal = new DubBed.Removal(track.Covered ?? Array.Empty<(TimeSpan, TimeSpan)>(), TimeSpan.Zero, DubBed.SampleRate, anchorActivity);
                     var bedProgress = new Progress<double>(f => { if (_dubbingLive) DubbingProgress = 90 + f * 5; });
                     await DubBed.WriteBedAsync(ff.FfmpegPath!, video.FullPath, 0, voices, removal, bedPath, video.Duration, bedProgress, ct);
                     _s.Log.Info("Dubbing", $"Original voices taken out in {removal.Spans.Count} stretches under the English lines ({TimeSpan.FromSeconds(removal.Spans.Sum(x => x.End - x.Start) / (double)DubBed.SampleRate).TotalMinutes:0.0} min); the rest of the sound is as it was. {removal.Extended} line ends stretched to follow the original voice ({removal.ExtendedBefore.TotalSeconds:0} s before lines, {removal.ExtendedAfter.TotalSeconds:0} s after, in all).");
@@ -512,12 +528,17 @@ public sealed partial class MainViewModel
     /// <paramref name="from"/> (percent). With a <paramref name="placement"/>, each line at the level and side of the original voice (stereo).
     /// </summary>
     private async Task<(VoiceTrackResult Result, TimeSpan Took)> BuildVoiceTrackAsync(string path, double share, CancellationToken ct,
-        double from = 0, VoicePlacement? placement = null)
+        double from = 0, VoicePlacement? placement = null, DubBed.VoiceActivity? anchorActivity = null)
     {
         var cues = Cues.Select(r => r.Cue.Clone()).ToList();
         var voice = SelectedDubbingVoice;
         float speed = (float)SelectedDubbingSpeed.Value;
-        var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration);
+        // Speech-anchoring: place each line where the original voice really starts (only with the separated voices, and
+        // only when turned on). Clamped inside the cue and held off the next line by VoiceTrack.
+        Func<SubtitleCue, TimeSpan>? anchor = (anchorActivity is { } act && DubbingAnchorToSpeech)
+            ? cue => act.SpeechStart(cue.Start, cue.End)
+            : null;
+        var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration, Anchor: anchor);
 
         // Voice cloning: cut a reference clip per speaker from the video, then speak each line from its speaker's clip.
         // Cloning copies the original voice, so it can't be mixed with the Kokoro/Piper paths — it's its own engine here.
@@ -559,6 +580,7 @@ public sealed partial class MainViewModel
         DubbingReport = VoiceTrackReport(result, options.Fit);
         _s.Log.Success("Dubbing", $"Voice track made: {result.Spoken} lines spoken ({result.SpeechTime.TotalMinutes:0.0} min of speech) in {took.TotalMinutes:0.0} min"
             + (options.Fit ? $"; {result.SpedUp} said faster and {result.Stretched} also shortened to fit" : string.Empty)
+            + (result.Anchored > 0 ? $"; {result.Anchored} moved onto where the original voice really starts" : string.Empty)
             + $"; {result.Silent} without words; {result.TooLong.Count} still longer than their time"
             + (result.LongestDelay > TimeSpan.Zero ? $", the most a line was pushed back {result.LongestDelay.TotalSeconds:0.0} s." : "."));
         if (tts.TakeUsage() is { } usage) _s.Log.Info("Dubbing", "Spoken: " + usage + ".");

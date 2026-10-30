@@ -48,6 +48,9 @@ public sealed class AppSettings
     /// <summary>Dubbing: each speaker found in their own voice (when speakers have been found).</summary>
     public bool DubbingPerSpeaker { get; set; } = true;
 
+    /// <summary>Dubbing: place each line where the original voice really starts (not the subtitle's often-early cue). Only when the original voices are removed (that path has the separated voice to detect speech in).</summary>
+    public bool DubbingAnchorToSpeech { get; set; } = true;
+
     /// <summary>AI Transcribe: listen to the voices alone (music and effects taken out first).</summary>
     public bool TranscribeVoicesAlone { get; set; } = true;
 

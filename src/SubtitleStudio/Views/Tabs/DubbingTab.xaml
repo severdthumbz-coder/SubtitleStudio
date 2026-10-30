@@ -131,6 +131,8 @@
                                    Foreground="{DynamicResource Brush.Warning}" Visibility="{Binding HasDubbingLanguageWarning, Converter={StaticResource Vis}}" />
                         <CheckBox Content="Fit lines into their time" IsChecked="{Binding DubbingFit, Mode=TwoWay}" Margin="0,10,0,0"
                                   ToolTip="Lines too long for the time before the next one are said faster (and, if needed, a little shorter)" />
+                        <CheckBox Content="Place lines where the speech really is" IsChecked="{Binding DubbingAnchorToSpeech, Mode=TwoWay}" Margin="0,6,0,0"
+                                  ToolTip="Subtitles are often timed a little early. When the original voices are removed, each dubbed line is moved to where the original voice actually starts, so it lands on the speech instead of ahead of it. Only applies to the dubbed video with &quot;Removed&quot; selected (that path separates the voices)." />
                     </StackPanel>
                 </Border>
 
@@ -291,7 +293,7 @@
                 <StackPanel>
                     <TextBlock Text="Still to come for dubbing" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
-                               Text="Subtitles placed where the speech really is (some lines are timed early when the original voice is quiet or in the background)." />
+                               Text="Intonation transfer: shaping each Kokoro or Piper line to follow the rise and fall of the original voice, so a non-cloned dub sounds less flat. (Cloning already carries much of the original's intonation; this is for the quick voices.)" />
                 </StackPanel>
             </Border>
         </Grid>

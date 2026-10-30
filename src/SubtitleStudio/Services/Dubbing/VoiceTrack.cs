@@ -15,7 +15,7 @@ public sealed record LongLine(int Number, TimeSpan Speech, TimeSpan Slot)
 /// <param name="TooLong">Lines still longer than their time: the next line waits for them.</param>
 /// <param name="Covered">Where each spoken line is in the video: from the earlier of its subtitle and its speech to the later end (time order).</param>
 public sealed record VoiceTrackResult(int Spoken, int Silent, IReadOnlyList<LongLine> TooLong, TimeSpan Length, TimeSpan LongestDelay, TimeSpan SpeechTime,
-    int SpedUp = 0, int Stretched = 0, IReadOnlyList<(TimeSpan Start, TimeSpan End)>? Covered = null);
+    int SpedUp = 0, int Stretched = 0, IReadOnlyList<(TimeSpan Start, TimeSpan End)>? Covered = null, int Anchored = 0);
 
 /// <param name="Speed">The chosen speaking speed (1 = normal).</param>
 /// <param name="Fit">Make lines that are too long fit their time (faster speech, then a little time-stretch).</param>
@@ -31,9 +31,15 @@ public sealed record VoiceTrackResult(int Spoken, int Silent, IReadOnlyList<Long
 /// speech used as Kokoro made it. Only meaningful with Place (the stereo, placed track).
 /// </param>
 /// <param name="Rate">The sample rate of the engine's samples (Kokoro 24 kHz, another engine may differ); the track is written at it.</param>
+/// <param name="Anchor">
+/// Each line's real start time: where the original voice actually begins within the line's window, so the dub sits on
+/// the speech rather than on the subtitle's (often early) cue. Given the cue, returns the time to place the line at —
+/// never earlier than the cue's start, and the caller keeps it before the next line. Null: place every line at its
+/// subtitle time, as before. Only meaningful with Place (the separated-voices path, where speech can be detected).
+/// </param>
 public sealed record VoiceTrackOptions(float Speed = 1f, bool Fit = true, TimeSpan? Length = null, int Concurrency = 1,
     Func<SubtitleCue, float[], (float Left, float Right)>? Place = null, Func<SubtitleCue, float[], float[]>? Shape = null,
-    int Rate = KokoroTts.SampleRate);
+    int Rate = KokoroTts.SampleRate, Func<SubtitleCue, TimeSpan>? Anchor = null);
 
 /// <summary>How a line was made to fit.</summary>
 public enum FitKind { Natural, SpedUp, Stretched, TooLong }
@@ -96,6 +102,9 @@ public static class VoiceTrack
     /// <summary>A line is fitted to end this much before the next one starts.</summary>
     public static readonly TimeSpan FitGap = TimeSpan.FromMilliseconds(80);
 
+    /// <summary>Speech-anchoring never pushes a line's start past this much before the next line's start.</summary>
+    public static readonly TimeSpan AnchorKeepBeforeNext = TimeSpan.FromMilliseconds(300);
+
     /// <param name="speak">Speech for a line at a Kokoro speed (24 kHz samples; empty: nothing to say).</param>
     public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<SubtitleCue, float, float[]> speak, VoiceTrackOptions options,
         string outputPath, IProgress<EngineProgress>? progress, CancellationToken ct)
@@ -104,12 +113,30 @@ public static class VoiceTrack
         var ordered = cues.Where(c => c.End > c.Start).OrderBy(c => c.Start).ThenBy(c => c.Index).ToList();
         var tooLong = new List<LongLine>();
         var covered = new List<(TimeSpan, TimeSpan)>();
-        int spoken = 0, silent = 0, spedUp = 0, stretched = 0;
+        int spoken = 0, silent = 0, spedUp = 0, stretched = 0, anchored = 0;
         long longestDelay = 0, speech = 0;
         long minPause = (long)(MinPause.TotalSeconds * rate);
 
-        // Time before the next line starts (to the end of the video for the last one).
-        TimeSpan Slot(int i) => (i + 1 < ordered.Count ? ordered[i + 1].Start : options.Length ?? TimeSpan.MaxValue) - ordered[i].Start;
+        // Where each line is placed: its subtitle start, or (with an Anchor) the time the original voice really begins
+        // within the line, so the dub sits on the speech instead of the cue's early mark. An anchored start is never
+        // before the cue's own start, and is held back off the next line so a line can't be pushed onto its neighbour.
+        var placeAt = ordered.Select(c => c.Start).ToArray();
+        if (options.Anchor is { } anchor)
+        {
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var a = anchor(ordered[i]);
+                if (a < ordered[i].Start) a = ordered[i].Start;                // never earlier than the cue
+                if (a > ordered[i].End) a = ordered[i].Start;                  // detection outside the cue: don't trust it
+                var nextCue = i + 1 < ordered.Count ? ordered[i + 1].Start : (TimeSpan?)null;
+                if (nextCue is { } n && a > n - AnchorKeepBeforeNext) a = TimeSpan.FromTicks(Math.Max(ordered[i].Start.Ticks, (n - AnchorKeepBeforeNext).Ticks));
+                if (a > ordered[i].Start + TimeSpan.FromMilliseconds(1)) anchored++;
+                placeAt[i] = a;
+            }
+        }
+
+        // Time before the next line starts (to the end of the video for the last one), from each line's placed start.
+        TimeSpan Slot(int i) => (i + 1 < ordered.Count ? placeAt[i + 1] : options.Length ?? TimeSpan.MaxValue) - placeAt[i];
 
         var tmp = outputPath + ".part";
         VoiceTrackResult result;
@@ -164,7 +191,7 @@ public static class VoiceTrack
                     if (line.Stretch > 1) stretched++;
                     else if (line.Speed > options.Speed + 0.001f) spedUp++;
 
-                    long at = (long)(cue.Start.TotalSeconds * rate);
+                    long at = (long)(placeAt[i].TotalSeconds * rate);
                     long earliest = wav.SamplesWritten + (wav.SamplesWritten > 0 && at < wav.SamplesWritten ? minPause : 0);
                     long start = Math.Max(at, earliest);
                     longestDelay = Math.Max(longestDelay, start - at);
@@ -187,7 +214,7 @@ public static class VoiceTrack
                 }
                 if (options.Length is { } total) wav.WriteSilence((long)(total.TotalSeconds * rate) - wav.SamplesWritten);
                 result = new VoiceTrackResult(spoken, silent, tooLong, TimeSpan.FromSeconds(wav.SamplesWritten / (double)rate),
-                    TimeSpan.FromSeconds(longestDelay / (double)rate), TimeSpan.FromSeconds(speech / (double)rate), spedUp, stretched, covered);
+                    TimeSpan.FromSeconds(longestDelay / (double)rate), TimeSpan.FromSeconds(speech / (double)rate), spedUp, stretched, covered, anchored);
             }
             File.Move(tmp, outputPath, overwrite: true);
             return result;

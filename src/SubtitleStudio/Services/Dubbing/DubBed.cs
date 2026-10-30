@@ -593,6 +593,27 @@ public static class DubBed
             }
             return levels;
         }
+
+        /// <summary>
+        /// Where the original voice actually starts speaking within a line's window, for speech-anchored timing.
+        /// Subtitles are commonly timed a little early (the cue appears before the actor speaks, especially when the
+        /// voice is quiet or under music), so the dubbed line placed at the cue's start can land ahead of the voice it
+        /// replaces. This finds the first 10 ms step inside [from, to] where the voice is speaking (same level test and
+        /// syllable-gap bridging the removal uses), so the dub can be nudged to sit on the real speech.
+        ///
+        /// Returns the detected speech start, clamped to the window. When no voice is found in the window (a line with
+        /// no isolated voice — narration over music, or a mis-timed cue), returns <paramref name="from"/> unchanged, so
+        /// anchoring never moves a line it isn't sure about.
+        /// </summary>
+        public TimeSpan SpeechStart(TimeSpan from, TimeSpan to)
+        {
+            long a = (long)Math.Floor(from.TotalSeconds * PerSecond), b = (long)Math.Ceiling(to.TotalSeconds * PerSecond);
+            if (b <= a) return from;
+            double threshold = Math.Max(LineLevel(a, b) - BelowLine, Floor);
+            for (long i = a; i < b; i++)
+                if (Speaking(i, threshold, +1)) return TimeSpan.FromSeconds(i / (double)PerSecond);
+            return from; // no voice found in the window: leave the line where its subtitle puts it
+        }
     }
 
     /// <summary>The sound under the English voices, in memory (a preview): the original less the voices where they're replaced.</summary>
