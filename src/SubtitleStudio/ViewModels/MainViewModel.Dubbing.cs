@@ -535,7 +535,7 @@ public sealed partial class MainViewModel
         float speed = (float)SelectedDubbingSpeed.Value;
         // Speech-anchoring: place each line where the original voice really starts (only with the separated voices, and
         // only when turned on). Clamped inside the cue and held off the next line by VoiceTrack.
-        Func<SubtitleCue, TimeSpan>? anchor = (anchorActivity is { } act && DubbingAnchorToSpeech)
+        Func<Models.SubtitleCue, TimeSpan>? anchor = (anchorActivity is { } act && DubbingAnchorToSpeech)
             ? cue => act.SpeechStart(cue.Start, cue.End)
             : null;
         var options = new VoiceTrackOptions(speed, DubbingFit, PairedVideo?.Duration, Anchor: anchor);
