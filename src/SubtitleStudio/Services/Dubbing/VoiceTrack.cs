@@ -102,8 +102,11 @@ public static class VoiceTrack
     /// <summary>A line is fitted to end this much before the next one starts.</summary>
     public static readonly TimeSpan FitGap = TimeSpan.FromMilliseconds(80);
 
-    /// <summary>Speech-anchoring never pushes a line's start past this much before the next line's start.</summary>
-    public static readonly TimeSpan AnchorKeepBeforeNext = TimeSpan.FromMilliseconds(300);
+    /// <summary>Speech-anchoring never eats more than this fraction of a line's original slot (so the line still fits).</summary>
+    public const double AnchorMaxSlotFraction = 0.4;
+
+    /// <summary>Speech-anchoring always leaves at least this much slot before the next line.</summary>
+    public static readonly TimeSpan AnchorMinSlot = TimeSpan.FromMilliseconds(700);
 
     /// <param name="speak">Speech for a line at a Kokoro speed (24 kHz samples; empty: nothing to say).</param>
     public static async Task<VoiceTrackResult> BuildAsync(IReadOnlyList<SubtitleCue> cues, Func<SubtitleCue, float, float[]> speak, VoiceTrackOptions options,
@@ -118,8 +121,13 @@ public static class VoiceTrack
         long minPause = (long)(MinPause.TotalSeconds * rate);
 
         // Where each line is placed: its subtitle start, or (with an Anchor) the time the original voice really begins
-        // within the line, so the dub sits on the speech instead of the cue's early mark. An anchored start is never
-        // before the cue's own start, and is held back off the next line so a line can't be pushed onto its neighbour.
+        // within the line, so the dub sits on the speech instead of the cue's early mark. Anchoring only moves a line
+        // LATER, so it shortens the line's slot (the time before the next line). It must not shorten the slot so much
+        // that the line no longer fits: a line like "When is the surgery?" at 04:38.100–04:39.670 whose next line
+        // starts 04:39.680 has a ~1.58 s slot, and moving it 0.6 s onto the real speech would leave under 1 s — too
+        // little. So the shift is capped: it never eats more than AnchorMaxSlotFraction of the original slot, and never
+        // leaves the slot shorter than AnchorMinSlot. (The old rule only kept the line AnchorKeepBeforeNext off the
+        // next line's start, which for a near-adjacent next line let the slot collapse and the line be lost.)
         var placeAt = ordered.Select(c => c.Start).ToArray();
         if (options.Anchor is { } anchor)
         {
@@ -128,8 +136,19 @@ public static class VoiceTrack
                 var a = anchor(ordered[i]);
                 if (a < ordered[i].Start) a = ordered[i].Start;                // never earlier than the cue
                 if (a > ordered[i].End) a = ordered[i].Start;                  // detection outside the cue: don't trust it
-                var nextCue = i + 1 < ordered.Count ? ordered[i + 1].Start : (TimeSpan?)null;
-                if (nextCue is { } n && a > n - AnchorKeepBeforeNext) a = TimeSpan.FromTicks(Math.Max(ordered[i].Start.Ticks, (n - AnchorKeepBeforeNext).Ticks));
+
+                // How far the line may move later, bounded so its slot stays usable.
+                var nextStart = i + 1 < ordered.Count ? ordered[i + 1].Start : (options.Length is { } len ? len : (TimeSpan?)null);
+                if (nextStart is { } n)
+                {
+                    var slot = n - ordered[i].Start;                           // the original slot for this line
+                    // Keep at least AnchorMinSlot, and at least (1 - fraction) of the original slot, before the next line.
+                    var keep = TimeSpan.FromTicks(Math.Max(AnchorMinSlot.Ticks, (long)(slot.Ticks * (1 - AnchorMaxSlotFraction))));
+                    var latest = n - keep;
+                    if (latest < ordered[i].Start) latest = ordered[i].Start;  // a tiny slot: don't move at all
+                    if (a > latest) a = latest;
+                }
+
                 if (a > ordered[i].Start + TimeSpan.FromMilliseconds(1)) anchored++;
                 placeAt[i] = a;
             }

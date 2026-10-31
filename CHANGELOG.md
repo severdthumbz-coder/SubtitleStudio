@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.106] - 2026-10-31
+
+### Fixed
+- Dubbing, speech-anchoring could drop a short line when the next line was almost adjacent. Anchoring only moves a line later, which shortens its slot (the time before the next line). The guard only kept the line 0.3 s off the next line's start, so for a line whose next line starts almost immediately after it, anchoring could shrink the slot to ~0.3 s — too little for the line's own speech — and the line was lost in the mix. Example: "When is the surgery?" (04:38.100–04:39.670) is followed by "Tomorrow." starting just 10 ms later; moving it onto the real speech left no room and the line went missing. Now the shift is bounded by the line's own slot: anchoring never eats more than 40% of the original slot and always leaves at least 0.7 s before the next line, so a moved line still fits. Lines with a roomy gap after them anchor as before.
+
 ## [1.0.0.105] - 2026-10-30
 
 ### Added
