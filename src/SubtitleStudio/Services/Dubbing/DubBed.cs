@@ -178,10 +178,14 @@ public sealed class VoicePlacement
         return lo <= 0 ? 0 : 20 * Math.Log10(hi / lo);
     }
 
+    /// <summary>How noticeable a line's intonation (pitch) contour is: the spread of its semitone offsets (0 = flat).</summary>
+    public double IntonationRange(int index)
+        => _levels.TryGetValue(index, out var level) && level.Contour is { Length: > 1 } c ? c.Max() - c.Min() : 0;
+
     /// <summary>"usual level −22 dB; 14 lines quieter by 6 dB or more, 9 off to one side, 5 set back in the room, 40 with the original's emphasis".</summary>
     public string Describe()
     {
-        int quiet = 0, side = 0, far = 0, shaped = 0;
+        int quiet = 0, side = 0, far = 0, shaped = 0, pitched = 0;
         foreach (var index in _levels.Keys)
         {
             var (db, angle) = Target(index);
@@ -189,8 +193,10 @@ public sealed class VoicePlacement
             if (Math.Abs(angle - Math.PI / 4) >= 10 * Math.PI / 180) side++;
             if (Distance(index) >= 0.3) far++;
             if (EmphasisRange(index) >= 3) shaped++; // a line with a loudness swing worth following (≥3 dB after smoothing)
+            if (_intonation && IntonationRange(index) >= 1.0) pitched++; // a line with a pitch swing worth following (≥1 semitone)
         }
-        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room, {shaped} shaped to the original's emphasis";
+        return $"the original voices' usual level {Usual:0} dB; {quiet} line{(quiet == 1 ? "" : "s")} quieter by 6 dB or more, {side} off to one side, {far} set back in the room, {shaped} shaped to the original's emphasis"
+            + (_intonation ? $", {pitched} pitched to the original's intonation" : string.Empty);
     }
 }
 

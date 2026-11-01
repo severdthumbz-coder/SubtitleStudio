@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.110] - 2026-11-01
+
+### Added
+- Dubbing, the log now reports intonation. The placement summary (and the "Removed" dub/preview log) now ends with "N pitched to the original's intonation" when intonation transfer is on, counting the lines that had a pitch swing of at least a semitone worth following — the counterpart to the existing "N shaped to the original's emphasis". Build 109 applied intonation but never said so, so there was no way to confirm from the log that it ran; now there is. If this reads 0 on a Kokoro/Piper "Removed" run with intonation on, the contours are measuring flat and that's the thing to look at.
+
 ## [1.0.0.109] - 2026-11-01
 
 ### Added
