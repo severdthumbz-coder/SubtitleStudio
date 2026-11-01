@@ -580,7 +580,7 @@ public partial class MainViewModel
                 await CutReferenceClipAsync(ffmpeg, video.FullPath, line, clip, ct);
                 refClips[s.Name] = clip;
             }
-            _s.Log.Info("Dubbing", $"Cloning: {refClips.Count} reference clips cut, one per speaker in scope (from each speaker's longest line).");
+            _s.Log.Info("Dubbing", $"Cloning: {refClips.Count} reference clips cut, one per speaker in scope (from each speaker's line nearest their typical pitch).");
         }
         else
         {

@@ -153,7 +153,17 @@
                         </WrapPanel>
                         <CheckBox Content="Ask me to confirm a speaker whose pitch is borderline" IsChecked="{Binding DubbingConfirmGender, Mode=TwoWay}" Margin="0,0,0,2"
                                   ToolTip="When a speaker's pitch is in the range where a higher-voiced man and a lower-voiced woman overlap (about 140–185 Hz), the speaker is marked &quot;check gender&quot; so you can confirm it. Off: the pitch decides, as before." />
-                        <TextBlock Text="{Binding SpeakersStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,6" />
+
+                        <!-- Miscast-check sensitivity: how unlike its speaker a line must sound to be flagged. Slide left to turn off. -->
+                        <StackPanel Margin="0,8,0,2">
+                            <TextBlock Text="Miscast check" Style="{StaticResource Text.Label}" />
+                            <Slider Minimum="30" Maximum="200" TickFrequency="10" IsSnapToTickEnabled="True"
+                                    Value="{Binding MiscastSensitivityHz, Mode=TwoWay}" Margin="0,2,0,0"
+                                    ToolTip="Flags lines whose voice pitch is far from their speaker's — a muffled, distant or emotional take, or a line grouped onto the wrong character (which, with cloning, uses the wrong voice). Slide fully left to turn flags off; right to flag only the most unlike lines." />
+                            <TextBlock Text="{Binding MiscastSensitivityText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding SpeakersStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,6" />
                         <ItemsControl ItemsSource="{Binding SpeakerRows}" Visibility="{Binding HasSpeakers, Converter={StaticResource Vis}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>

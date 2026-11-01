@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.108] - 2026-11-01
+
+### Changed
+- Dubbing, the miscast-line check is now a slider you control, not a fixed threshold. Build 107's fixed 45 Hz flagged far too many lines (87 on E03) because ordinary speech varies in pitch — questions rise, statements fall — so the warning was noise. The Speakers section now has a "Miscast check" slider: slide fully left to turn flags off, right to flag only the most unlike lines, with the default set lenient (90 Hz) so it isn't noisy out of the box. Moving the slider re-flags the shown speakers at once, so you can dial it to where only the real miscasts (a glass-muffled or wrongly-grouped line) show. The flagging detection and the representative-reference-clip fix from build 107 are unchanged underneath.
+- Fixed the cloning log line that still said reference clips were cut "from each speaker's longest line" — since build 107 they're cut from each speaker's line nearest their typical pitch (the code was already doing this; only the message was stale).
+
 ## [1.0.0.107] - 2026-11-01
 
 ### Added

@@ -24,8 +24,15 @@ public sealed partial class MainViewModel
     /// <summary>Each line's own median pitch (by cue Index), from the last Find speakers — for representative clips and outlier flags.</summary>
     private IReadOnlyDictionary<int, double> _linePitchHz = new Dictionary<int, double>();
 
-    /// <summary>A line's pitch this far (Hz) from its speaker's median marks it a possible miscast (a muffled/distant/split-off take).</summary>
-    private const double OutlierPitchHz = 45;
+    /// <summary>
+    /// How far (Hz) a line's pitch must be from its speaker's median to be flagged a possible miscast. User-set with the
+    /// Miscast-check slider: 0 turns flags off, higher flags only the most unlike lines. Below OutlierFloorHz the flags
+    /// would fire on ordinary pitch variation (questions rise, statements fall), so that end of the slider is "off".
+    /// </summary>
+    private double OutlierPitchHz => _s.Config.DubbingMiscastSensitivityHz;
+
+    /// <summary>Below this the slider counts as off (ordinary speech varies this much, so it would flag everything).</summary>
+    public const double OutlierFloorHz = 40;
 
     /// <summary>Loads the voiceprint model. Replaceable in tests.</summary>
     internal Func<string, IVoiceprintModel> LoadVoiceprintModel { get; set; } = path => new OnnxVoiceprintModel(path);
@@ -250,18 +257,45 @@ public sealed partial class MainViewModel
     /// </summary>
     private int FlagOutlierLines()
     {
+        double threshold = OutlierPitchHz;
+        bool off = threshold < OutlierFloorHz; // the slider's low end: flags off
         int flagged = 0;
         foreach (var r in SpeakerRows)
         {
-            if (r.Speaker.PitchHz is not { } median) { r.OutlierLineCount = 0; continue; }
+            if (off || r.Speaker.PitchHz is not { } median) { r.OutlierLineCount = 0; continue; }
             int n = 0;
             foreach (var c in r.Speaker.Lines)
-                if (_linePitchHz.TryGetValue(c.Index, out var p) && Math.Abs(p - median) >= OutlierPitchHz) n++;
+                if (_linePitchHz.TryGetValue(c.Index, out var p) && Math.Abs(p - median) >= threshold) n++;
             r.OutlierLineCount = n;
             flagged += n;
         }
         return flagged;
     }
+
+    /// <summary>
+    /// Miscast-check sensitivity (Hz): how unlike its speaker a line's pitch must be to be flagged. The slider runs
+    /// from off (OutlierFloorHz) to very strict; lower flags more lines, higher only the most unlike. Changing it
+    /// re-flags the shown speakers at once, so the user can dial it to where only the real miscasts show.
+    /// </summary>
+    public double MiscastSensitivityHz
+    {
+        get => _s.Config.DubbingMiscastSensitivityHz;
+        set
+        {
+            var v = Math.Round(Math.Clamp(value, OutlierFloorHz - 10, 200)); // just under the floor = off
+            if (Math.Abs(v - _s.Config.DubbingMiscastSensitivityHz) < 0.5) return;
+            _s.Config.DubbingMiscastSensitivityHz = v;
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MiscastSensitivityText));
+            if (_linePitchHz.Count > 0) FlagOutlierLines();
+        }
+    }
+
+    /// <summary>A plain label for the slider's current value: "Off", or "flag lines over N Hz from their speaker".</summary>
+    public string MiscastSensitivityText => _s.Config.DubbingMiscastSensitivityHz < OutlierFloorHz
+        ? "Off — no lines flagged"
+        : $"Flag lines more than {_s.Config.DubbingMiscastSensitivityHz:0} Hz from their speaker's pitch";
 
     /// <summary>
     /// The line to copy a speaker's voice from, for cloning: among their longer lines, the one whose own pitch is
