@@ -133,6 +133,8 @@
                                   ToolTip="Lines too long for the time before the next one are said faster (and, if needed, a little shorter)" />
                         <CheckBox Content="Place lines where the speech really is" IsChecked="{Binding DubbingAnchorToSpeech, Mode=TwoWay}" Margin="0,6,0,0"
                                   ToolTip="Subtitles are often timed a little early. When the original voices are removed, each dubbed line is moved to where the original voice actually starts, so it lands on the speech instead of ahead of it. Only applies to the dubbed video with &quot;Removed&quot; selected (that path separates the voices)." />
+                        <CheckBox Content="Match the original's intonation (Kokoro / Piper)" IsChecked="{Binding DubbingMatchIntonation, Mode=TwoWay}" Margin="0,6,0,0"
+                                  ToolTip="Carries the rise and fall of the original voice's pitch onto the dubbed line, so a question lifts and a statement settles like the original — a gentle, capped pitch glide. Only with the original voices removed (that path separates the voice to read its pitch), and only for the Kokoro and Piper voices: cloning already reproduces the original's intonation." />
                     </StackPanel>
                 </Border>
 
@@ -305,9 +307,9 @@
 
             <Border Grid.Row="2" Style="{StaticResource Card}">
                 <StackPanel>
-                    <TextBlock Text="Still to come for dubbing" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
+                    <TextBlock Text="About dubbing" Style="{StaticResource Text.H2}" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
-                               Text="Intonation transfer: shaping each Kokoro or Piper line to follow the rise and fall of the original voice, so a non-cloned dub sounds less flat. (Cloning already carries much of the original's intonation; this is for the quick voices.)" />
+                               Text="Each line is spoken by the chosen voice (or cloned from the original), placed where the original voice really is, at its level and side, following the original's loudness and — for the Kokoro and Piper voices — its intonation. The original voices can be removed under the English, or just turned down. The original video is never changed." />
                 </StackPanel>
             </Border>
         </Grid>

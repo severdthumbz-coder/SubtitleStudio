@@ -18,7 +18,13 @@ namespace SubtitleStudio.Services.Dubbing;
 /// a gain relative to the line's own average (1 = average, >1 where the actor pushes, &lt;1 where they ease off). It is
 /// the emphasis within the line, separate from how loud the line sits overall (Db). Null when there's no voice to read.
 /// </param>
-public sealed record LineLevel(double Db, double LeftRms, double RightRms, double Brightness = 0.5, float[]? Envelope = null);
+/// <param name="Contour">
+/// The shape of the voice's PITCH across the line — points (Intonation.Points) of semitone offset from the line's own
+/// median pitch (0 = median, &gt;0 higher, as a question lifts, &lt;0 lower). Carried onto the English voice so a question
+/// sounds like one. Null when there's no reliable pitch or the line is flat. Used only for Kokoro/Piper (cloning
+/// already carries intonation).
+/// </param>
+public sealed record LineLevel(double Db, double LeftRms, double RightRms, double Brightness = 0.5, float[]? Envelope = null, float[]? Contour = null);
 
 /// <summary>
 /// Each English line at the level and on the side of the original voice it replaces: a line spoken quietly or
@@ -35,10 +41,16 @@ public sealed class VoicePlacement
     public const double NoVoiceBelow = 30;
 
     private readonly IReadOnlyDictionary<int, LineLevel> _levels;
+    private readonly bool _intonation;
 
-    public VoicePlacement(IReadOnlyDictionary<int, LineLevel> levels)
+    /// <param name="intonation">
+    /// Carry the original voice's pitch contour onto each line (Kokoro/Piper only — cloning already has it). Off leaves
+    /// the engine's own melody. Default off so callers that don't want it (cloning) aren't changed.
+    /// </param>
+    public VoicePlacement(IReadOnlyDictionary<int, LineLevel> levels, bool intonation = false)
     {
         _levels = levels;
+        _intonation = intonation;
         var heard = levels.Values.Where(l => l.Db > -70).Select(l => l.Db).OrderBy(d => d).ToList();
         Usual = heard.Count > 0 ? heard[heard.Count / 2] : -24;
         // Distance is judged against this episode's own voices, not absolute thresholds: separation darkens every
@@ -141,10 +153,22 @@ public sealed class VoicePlacement
     }
 
     /// <summary>
-    /// The full per-line shaping, in order: emphasis within the line first (while the speech is still dry), then depth
-    /// (room and rolled-off highs for a distant voice). The level and side (Gains) are applied after this by the track.
+    /// The line's speech pitched to follow the original voice's intonation — the melody of the sentence (a rising
+    /// question, a falling statement), as a gentle capped pitch glide. On only when intonation was asked for (Kokoro/
+    /// Piper; cloning already carries it). No contour, or intonation off → unchanged.
     /// </summary>
-    public float[] Shape(SubtitleCue cue, float[] speech) => Depth(cue, Emphasis(cue, speech));
+    public float[] Intone(SubtitleCue cue, float[] speech)
+    {
+        if (!_intonation || !_levels.TryGetValue(cue.Index, out var level) || level.Contour is not { } c) return speech;
+        return Intonation.Apply(speech, c, KokoroTts.SampleRate);
+    }
+
+    /// <summary>
+    /// The full per-line shaping, in order: intonation first (the dry melody), then emphasis (loudness arc on the
+    /// re-pitched voice), then depth (room and rolled-off highs for a distant voice). Level and side (Gains) follow in
+    /// the track.
+    /// </summary>
+    public float[] Shape(SubtitleCue cue, float[] speech) => Depth(cue, Emphasis(cue, Intone(cue, speech)));
 
     /// <summary>How noticeable a line's emphasis shape is: the spread of its envelope, in dB (0 = flat).</summary>
     public double EmphasisRange(int index)
@@ -371,7 +395,11 @@ public static class DubBed
             r += right[i] * (double)right[i];
         }
         int n = Math.Max(1, left.Length);
-        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n), Brightness(left, right), Emphasis.Measure(left, right, SampleRate));
+        // The pitch contour (intonation) from the line's voice, mixed to mono. Null for an unvoiced/flat line.
+        var mono = new float[left.Length];
+        for (int i = 0; i < left.Length; i++) mono[i] = 0.5f * (left[i] + right[i]);
+        var contour = Intonation.Measure(mono, SampleRate);
+        return new LineLevel(ActiveDb(left, right, SampleRate), Math.Sqrt(l / n), Math.Sqrt(r / n), Brightness(left, right), Emphasis.Measure(left, right, SampleRate), contour);
     }
 
     /// <summary>

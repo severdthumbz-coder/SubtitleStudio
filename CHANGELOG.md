@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.109] - 2026-11-01
+
+### Added
+- Dubbing, intonation transfer for the Kokoro and Piper voices (the last "Still to come" item). The quick voices read English with their own fairly flat melody, so against the original's delivery a dub can sound monotone. Now, with the original voices removed, the pitch rise and fall of the original line is carried onto the dubbed line — a question lifts at the end, a statement settles, a stressed word peaks — as a gentle, capped pitch glide (±3 semitones, heavily smoothed and slew-limited, so it reads as melody, not a wobble). It's the pitch analogue of the loudness "emphasis" the dub already does, and plugs into the same per-line shaping (intonation first on the dry voice, then emphasis, then depth). A checkbox "Match the original's intonation (Kokoro / Piper)" (on by default) controls it. Only in the "Removed" path (which separates the voice to read its pitch), and only for Kokoro/Piper — cloning already reproduces the original's intonation, so it's skipped there to avoid doubling it.
+- Internal: `Intonation` (Measure a line's semitone-offset pitch contour via `Pitch.Track`; Apply it as a time-varying pitch shift built from the existing WSOLA time-stretch + resample), and a `Contour` on `LineLevel` measured alongside the loudness envelope.
+
 ## [1.0.0.108] - 2026-11-01
 
 ### Changed

@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>Dubbing: how far (Hz) a line's pitch must be from its speaker's median to be flagged a possible miscast. 0 = off (no flags); higher = only the most unlike lines. Default is lenient so it isn't noisy.</summary>
     public double DubbingMiscastSensitivityHz { get; set; } = 90;
 
+    /// <summary>Dubbing: carry the original voice's pitch rise and fall onto the Kokoro/Piper line (a question lifts, a statement settles). Only with the original voices removed; cloning already carries intonation.</summary>
+    public bool DubbingMatchIntonation { get; set; } = true;
+
     /// <summary>AI Transcribe: listen to the voices alone (music and effects taken out first).</summary>
     public bool TranscribeVoicesAlone { get; set; } = true;
 

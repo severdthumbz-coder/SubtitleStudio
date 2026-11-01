@@ -352,6 +352,22 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Carry the original voice's intonation (pitch rise and fall) onto the Kokoro/Piper line.</summary>
+    public bool DubbingMatchIntonation
+    {
+        get => _s.Config.DubbingMatchIntonation;
+        set
+        {
+            if (_s.Config.DubbingMatchIntonation == value) return;
+            _s.Config.DubbingMatchIntonation = value;
+            SaveSettings();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether intonation transfer applies now: wanted, and not cloning (cloning already has intonation).</summary>
+    private bool UseIntonation => DubbingMatchIntonation && !IsCloningEngine;
+
     public IReadOnlyList<DubbingDuckOption> DubbingDuckOptions { get; } = new[]
     {
         new DubbingDuckOption(DuckLevel.Removed, "removed", "Removed: music and effects kept"),
@@ -486,7 +502,7 @@ public sealed partial class MainViewModel
                     // then the sound without the voices where the English lines go.
                     var voices = await SeparatedVoicesAsync(video, ff.FfmpegPath!, 0, 40, ct);
                     var cues = Cues.Select(r => r.Cue).ToList();
-                    var placement = new VoicePlacement(await Task.Run(() => DubBed.MeasureLines(voices, cues), ct));
+                    var placement = new VoicePlacement(await Task.Run(() => DubBed.MeasureLines(voices, cues), ct), intonation: UseIntonation);
                     _s.Log.Info("Dubbing", "Lines placed like the original voices: " + placement.Describe() + ".");
                     // The voice-activity levels, built here from the separated voices so lines can be anchored to where
                     // the original voice really starts (the same levels are reused for the bed removal below).

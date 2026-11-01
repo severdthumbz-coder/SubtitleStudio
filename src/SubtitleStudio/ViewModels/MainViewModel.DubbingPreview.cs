@@ -125,7 +125,7 @@ public sealed partial class MainViewModel
             {
                 var sound = await PreviewVoicesAsync(video, ff.FfmpegPath!, start, length, ct);
                 separated = sound;
-                placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines));
+                placement = new VoicePlacement(DubBed.MeasureLines(sound.VoicesLeft, sound.VoicesRight, TimeSpan.Zero, lines), intonation: UseIntonation);
                 // The preview's cues are rebased to the stretch (LinesIn subtracts `start`), and the separated voices
                 // here begin at the same point, so both are in one stretch-relative timeline — SpeechStart lines up
                 // directly, no offset. Anchor each line to where the original voice really starts within it.
