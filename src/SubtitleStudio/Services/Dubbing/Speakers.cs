@@ -204,11 +204,8 @@ public static class SpeakerFinder
         // representative reference clip and flagging lines whose pitch is far from their speaker's.
         var linePitch = new Dictionary<int, double>();
         for (int i = 0; i < lines.Count; i++)
-            if (pitches[i] is { } p && p.Count >= MinPitchFrames)
-            {
-                var m = Pitch.Median(new List<double>(p));
-                if (m > 0) linePitch[lines[i].Index] = m;
-            }
+            if (pitches[i] is { } p && p.Count >= MinPitchFrames && Pitch.Median(new List<double>(p)) is { } m && m > 0)
+                linePitch[lines[i].Index] = m;
 
         return new SpeakerResult(speakers, measured.Count, byNeighbour, remembered, steps, linePitch);
     }
