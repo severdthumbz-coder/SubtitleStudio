@@ -451,8 +451,9 @@ public partial class MainViewModel
         if (!ff.IsComplete)
             throw new InvalidOperationException("ffmpeg is needed to take the reference clip: set it in Settings > Engines & tools.");
 
-        // Pick a line to copy the voice from: the selected line's speaker's longest line, else the longest line overall.
-        var speakerLine = SelectedLineSpeaker?.Speaker.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault();
+        // Pick a line to copy the voice from: the selected line's speaker's representative line (nearest their typical
+        // pitch, not just the longest), else the longest line overall.
+        var speakerLine = SelectedLineSpeaker is { } sls ? RepresentativeLine(sls.Speaker) : null;
         var line = speakerLine ?? Cues.Select(r => r.Cue).OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault();
         if (line is null)
             throw new InvalidOperationException("There are no lines to copy a voice from.");
@@ -572,7 +573,8 @@ public partial class MainViewModel
             {
                 ct.ThrowIfCancellationRequested();
                 var s = speakers[i];
-                var line = s.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).First();
+                // The line nearest the speaker's typical pitch (not just the longest, which may be an atypical take).
+                var line = RepresentativeLine(s) ?? s.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).First();
                 var clip = Path.Combine(workDir, $"ref-{SafeName(s.Name)}-{i}.wav");
                 if (_dubbingLive) { DubbingStatus = $"Taking a reference clip of {s.Name}..."; DubbingProgress = from + (i / (double)Math.Max(1, speakers.Count)) * share; }
                 await CutReferenceClipAsync(ffmpeg, video.FullPath, line, clip, ct);

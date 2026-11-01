@@ -45,7 +45,14 @@ public sealed class Speaker
 
 /// <summary>What Find speakers did.</summary>
 /// <param name="Steps">How the grouping went, for the Log: "212 reliable lines → 31 groups → 24 after joining alike → 12 characters".</param>
-public sealed record SpeakerResult(List<Speaker> Speakers, int Measured, int ByNeighbour, int Remembered, string Steps = "");
+/// <param name="LinePitchHz">
+/// Each line's own median pitch (by the cue's Index), when it had enough voiced frames to measure. Used to pick a
+/// representative reference clip for cloning (the line nearest the speaker's median pitch, not an atypical outlier)
+/// and to flag a line whose pitch is far from its speaker's — a glass-muffled or distant take the grouper may have
+/// split off. A line not in the map had too little pitch to judge.
+/// </param>
+public sealed record SpeakerResult(List<Speaker> Speakers, int Measured, int ByNeighbour, int Remembered, string Steps = "",
+    IReadOnlyDictionary<int, double>? LinePitchHz = null);
 
 /// <summary>
 /// Who speaks each line: a voiceprint of each line's audio (WeSpeaker), lines grouped by how alike they
@@ -192,7 +199,18 @@ public static class SpeakerFinder
         int remembered = book?.Recognise(speakers) ?? 0;
         AssignVoices(speakers);
         progress?.Report(1);
-        return new SpeakerResult(speakers, measured.Count, byNeighbour, remembered, steps);
+
+        // Each line's own median pitch (where it had enough voiced frames), keyed by the cue's Index — for choosing a
+        // representative reference clip and flagging lines whose pitch is far from their speaker's.
+        var linePitch = new Dictionary<int, double>();
+        for (int i = 0; i < lines.Count; i++)
+            if (pitches[i] is { } p && p.Count >= MinPitchFrames)
+            {
+                var m = Pitch.Median(new List<double>(p));
+                if (m > 0) linePitch[lines[i].Index] = m;
+            }
+
+        return new SpeakerResult(speakers, measured.Count, byNeighbour, remembered, steps, linePitch);
     }
 
     private static Speaker Renumber(Speaker s, int id)

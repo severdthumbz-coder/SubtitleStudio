@@ -125,6 +125,28 @@ public sealed class SpeakerRowViewModel : ObservableObject
         }
     }
 
+    private int _outlierLineCount;
+
+    /// <summary>How many of this speaker's lines have a pitch far from the speaker's own (a muffled/distant/split-off take).</summary>
+    public int OutlierLineCount
+    {
+        get => _outlierLineCount;
+        set
+        {
+            if (SetProperty(ref _outlierLineCount, value))
+            {
+                OnPropertyChanged(nameof(HasOutlierLines));
+                OnPropertyChanged(nameof(OutlierNote));
+            }
+        }
+    }
+
+    public bool HasOutlierLines => _outlierLineCount > 0;
+
+    /// <summary>"2 lines sound unlike this speaker — check them (a muffled or distant take may belong to someone else)."</summary>
+    public string OutlierNote => _outlierLineCount == 0 ? string.Empty
+        : $"{_outlierLineCount} line{(_outlierLineCount == 1 ? "" : "s")} sound{(_outlierLineCount == 1 ? "s" : "")} unlike this speaker — a muffled, distant or emotional take, or one that belongs to another character. With cloning, a mis-assigned line copies the wrong voice: select such a line in Subtitles and set its speaker here.";
+
     private bool _cloneThisSpeaker = true;
 
     /// <summary>

@@ -21,6 +21,12 @@ public sealed partial class MainViewModel
     private string _speakersStatus = string.Empty;
     private bool _changingLineSpeaker;
 
+    /// <summary>Each line's own median pitch (by cue Index), from the last Find speakers — for representative clips and outlier flags.</summary>
+    private IReadOnlyDictionary<int, double> _linePitchHz = new Dictionary<int, double>();
+
+    /// <summary>A line's pitch this far (Hz) from its speaker's median marks it a possible miscast (a muffled/distant/split-off take).</summary>
+    private const double OutlierPitchHz = 45;
+
     /// <summary>Loads the voiceprint model. Replaceable in tests.</summary>
     internal Func<string, IVoiceprintModel> LoadVoiceprintModel { get; set; } = path => new OnnxVoiceprintModel(path);
 
@@ -145,7 +151,11 @@ public sealed partial class MainViewModel
             _speakerBook = book;
             // The user doesn't want the borderline ones flagged: clear it, and pitch alone decides as before.
             if (!_s.Config.DubbingConfirmGender) foreach (var sp in result.Speakers) sp.GenderUncertain = false;
-            ShowSpeakers(result.Speakers);
+            _linePitchHz = result.LinePitchHz ?? new Dictionary<int, double>();
+            ShowSpeakers(result.Speakers); // RefreshSpeakerRows flags the outlier lines now that _linePitchHz is set
+            int outliers = SpeakerRows.Sum(r => r.OutlierLineCount);
+            if (outliers > 0)
+                _s.Log.Info("Dubbing", $"{outliers} line(s) have a pitch far from their speaker's (a muffled, distant or emotional take, or a split-off group): marked on the speakers so you can move them to the right character before dubbing — with cloning, a mis-assigned line uses the wrong voice.");
 
             var took = DateTime.UtcNow - started;
             int men = result.Speakers.Count(s => s.Gender == "male"), women = result.Speakers.Count(s => s.Gender == "female");
@@ -189,6 +199,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(CloningNeedsSpeakers));
         OnPropertyChanged(nameof(CloningEstimateText));
         OnPropertyChanged(nameof(ClonedLineCount));
+        if (_linePitchHz.Count > 0) FlagOutlierLines(); // keep the miscast flags current after lines move between speakers
         RaiseSelectedLineSpeaker();
     }
 
@@ -230,6 +241,44 @@ public sealed partial class MainViewModel
         RefreshSpeakerRows();
         SpeakersStatus = $"{from.Name} and {into.Name} are now one speaker, {into.Name}.";
         _s.Log.Info("Dubbing", $"Speakers joined: {from.Name} into {into.Name} ({into.Speaker.Lines.Count} lines).");
+    }
+
+    /// <summary>
+    /// Lines whose own pitch is far from their assigned speaker's median — a glass-muffled, distant or emotional take
+    /// the grouper may have split onto the wrong speaker, which for cloning means the wrong reference clip. Flagged on
+    /// the speaker rows (and counted in the status) so the user can reassign them to the right character before dubbing.
+    /// </summary>
+    private int FlagOutlierLines()
+    {
+        int flagged = 0;
+        foreach (var r in SpeakerRows)
+        {
+            if (r.Speaker.PitchHz is not { } median) { r.OutlierLineCount = 0; continue; }
+            int n = 0;
+            foreach (var c in r.Speaker.Lines)
+                if (_linePitchHz.TryGetValue(c.Index, out var p) && Math.Abs(p - median) >= OutlierPitchHz) n++;
+            r.OutlierLineCount = n;
+            flagged += n;
+        }
+        return flagged;
+    }
+
+    /// <summary>
+    /// The line to copy a speaker's voice from, for cloning: among their longer lines, the one whose own pitch is
+    /// closest to the speaker's median — so the reference is the speaker's typical voice, not an atypical outlier (a
+    /// glass-muffled or shouted take). Falls back to the longest line when no per-line pitch is known.
+    /// </summary>
+    public SubtitleCue? RepresentativeLine(Speaker speaker)
+    {
+        if (speaker.Lines.Count == 0) return null;
+        var longest = speaker.Lines.OrderByDescending(l => (l.End - l.Start).Ticks).First();
+        if (speaker.PitchHz is not { } median || _linePitchHz.Count == 0) return longest;
+
+        // Among lines long enough to be a clean reference (≥ 1.5 s, or the longest if none), the nearest to the median.
+        var candidates = speaker.Lines.Where(l => (l.End - l.Start).TotalSeconds >= 1.5 && _linePitchHz.ContainsKey(l.Index)).ToList();
+        if (candidates.Count == 0) candidates = speaker.Lines.Where(l => _linePitchHz.ContainsKey(l.Index)).ToList();
+        if (candidates.Count == 0) return longest;
+        return candidates.OrderBy(l => Math.Abs(_linePitchHz[l.Index] - median)).First();
     }
 
     /// <summary>The voice for each line (by its index) with a voice per speaker; null: everyone in one voice.</summary>

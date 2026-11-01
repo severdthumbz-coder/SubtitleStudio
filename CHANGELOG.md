@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.107] - 2026-11-01
+
+### Added
+- Dubbing, better reference clips for cloning. A speaker's cloning reference clip was the speaker's longest line, which can be an atypical take — a line shouted, whispered, or (as in a scene behind a glass wall) muffled and pitched low — so the cloned voice copied that oddity. Now the reference is the line whose own pitch is closest to the speaker's typical (median) pitch, among their longer lines, so the clone copies the character's normal voice. Falls back to the longest line when per-line pitch isn't known.
+- Dubbing, miscast-line flags. "Find the speakers" now keeps each line's own pitch and marks the lines whose pitch is far (≥45 Hz) from their assigned speaker's — a muffled, distant or emotional take, or a line the grouper split onto the wrong character. These are shown on the speaker in the Speakers list (and counted in the Log), because with cloning a mis-assigned line copies the wrong voice. Selecting such a line in Subtitles and setting its speaker here re-routes its cloned voice to the right character; the flags update as lines move. This is what caused "When is the surgery?" (spoken from behind glass) to clone in a lower voice — it had been grouped as a separate, lower speaker.
+
+### Changed
+- `SpeakerResult` now carries each line's median pitch (`LinePitchHz`) so the view-model can choose representative reference clips and flag outliers without re-analysing the audio.
+
 ## [1.0.0.106] - 2026-10-31
 
 ### Fixed

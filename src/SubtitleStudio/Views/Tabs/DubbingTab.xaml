@@ -172,6 +172,10 @@
                                                 <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,5,0" />
                                                 <TextBlock Text="Check gender: the pitch is hard to read here (a higher-voiced man, a lower-voiced woman, or only a few short lines). Read the line above, play it, and set it." Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" />
                                             </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5" Visibility="{Binding HasOutlierLines, Converter={StaticResource Vis}}">
+                                                <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,2,5,0" />
+                                                <TextBlock Text="{Binding OutlierNote}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" />
+                                            </StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="90" />
