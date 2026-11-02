@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.111] - 2026-11-02
+
+### Added
+- Dubbing, an optional "Ease off the CPU during cloning (slower, gentler on the system)" setting. Cloning is a long, all-core job; on a machine with firmware/driver fragility that sustained full load can contribute to instability (a DPC-watchdog bug-check seen in testing was in the motherboard's ACPI/embedded-controller driver, not the app — but heavy sustained load can expose such latent faults). When this is on, the cloning sidecar uses about half the processor's threads (passed to the engine) and runs at below-normal priority, so Windows schedules it around other work instead of pegging every core. Roughly 1.5× slower, reflected in the time estimate. Off by default — it doesn't slow cloning for anyone whose machine is fine. Works with the current bundle (no re-freeze); the thread count uses the batch jobs file's existing `threads` field.
+
 ## [1.0.0.110] - 2026-11-01
 
 ### Added

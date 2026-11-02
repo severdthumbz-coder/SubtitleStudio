@@ -28,14 +28,18 @@ public sealed class CloningBatch
     private readonly string _device;
     private readonly int _timesteps;
     private readonly string _workDir;
+    private readonly int _threads;   // CPU inference threads; 0 = the exe's default (4). Lower eases sustained load.
+    private readonly bool _easeCpu;  // run the sidecar below normal priority so the OS schedules around other work.
     private readonly Action<string>? _log;
 
-    public CloningBatch(string exePath, string device, int timesteps, string workDir, Action<string>? log = null)
+    public CloningBatch(string exePath, string device, int timesteps, string workDir, Action<string>? log = null, int threads = 0, bool easeCpu = false)
     {
         _exePath = exePath;
         _device = device;
         _timesteps = timesteps;
         _workDir = workDir;
+        _threads = Math.Max(0, threads);
+        _easeCpu = easeCpu;
         _log = log;
         Directory.CreateDirectory(workDir);
     }
@@ -69,9 +73,9 @@ public sealed class CloningBatch
                 outById[j.Id] = outPath;
                 payloadJobs.Add(new { id = j.Id, @ref = j.RefClip, text = j.Text, @out = outPath });
             }
-            var payload = _timesteps > 0
-                ? (object)new { n_timesteps = _timesteps, jobs = payloadJobs }
-                : new { jobs = payloadJobs };
+            var payload = new Dictionary<string, object> { ["jobs"] = payloadJobs };
+            if (_timesteps > 0) payload["n_timesteps"] = _timesteps;
+            if (_threads > 0) payload["threads"] = _threads; // fewer CPU threads = lower sustained load (the ease-CPU option)
             await File.WriteAllTextAsync(jobsPath, JsonSerializer.Serialize(payload), ct).ConfigureAwait(false);
 
             int done = 0;
@@ -116,6 +120,13 @@ public sealed class CloningBatch
             psi.ArgumentList.Add(a);
 
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the voice-cloning sidecar (batch).");
+        if (_easeCpu)
+        {
+            // Below-normal priority so Windows schedules the sidecar around other work rather than pegging the cores,
+            // which eases the sustained-load pressure. Best-effort — ignore if the OS won't let us set it.
+            try { p.PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal; }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        }
         var errTask = p.StandardError.ReadToEndAsync(ct);
 
         // Read stdout line by line so "DONE <id>" advances the bar as each line finishes.

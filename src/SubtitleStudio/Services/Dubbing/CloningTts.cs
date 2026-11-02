@@ -23,9 +23,10 @@ public sealed class CloningTts : IDubbingVoice
     private readonly int _timesteps;      // cfm diffusion steps (lower = faster, slightly rougher); 0 = the model default
     private readonly string _workDir;     // temp folder for per-line in/out wavs
     private readonly int _spacingMs;      // pause between line launches so pressure doesn't accumulate over a long dub
+    private readonly bool _easeCpu;       // run below normal priority to ease sustained CPU load
     private readonly Action<string>? _log;
 
-    public CloningTts(string exePath, IReadOnlyDictionary<string, string> refClips, string device, int timesteps, string workDir, Action<string>? log = null, int spacingMs = 400)
+    public CloningTts(string exePath, IReadOnlyDictionary<string, string> refClips, string device, int timesteps, string workDir, Action<string>? log = null, int spacingMs = 400, bool easeCpu = false)
     {
         _exePath = exePath;
         _refClips = refClips;
@@ -33,6 +34,7 @@ public sealed class CloningTts : IDubbingVoice
         _timesteps = timesteps;
         _workDir = workDir;
         _spacingMs = Math.Max(0, spacingMs);
+        _easeCpu = easeCpu;
         _log = log;
         Directory.CreateDirectory(workDir);
     }
@@ -107,6 +109,11 @@ public sealed class CloningTts : IDubbingVoice
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the voice-cloning sidecar.");
+        if (_easeCpu)
+        {
+            try { p.PriorityClass = ProcessPriorityClass.BelowNormal; }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        }
         // Drain both streams so the process can't block on a full pipe.
         var err = p.StandardError.ReadToEndAsync();
         _ = p.StandardOutput.ReadToEndAsync();

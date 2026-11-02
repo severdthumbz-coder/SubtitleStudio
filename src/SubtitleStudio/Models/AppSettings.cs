@@ -75,6 +75,9 @@ public sealed class AppSettings
     /// <summary>Dubbing cloning: what gets cloned — "all" (every line), "speakers" (only chosen speakers) or "lines" (only the selected line range); the rest is spoken by Kokoro.</summary>
     public string CloningScope { get; set; } = "all";
 
+    /// <summary>Dubbing cloning: ease off the CPU — fewer inference threads and below-normal priority, so a long cloning run doesn't peg every core. Slower, but gentler on the system. Off by default.</summary>
+    public bool CloningEaseCpu { get; set; }
+
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

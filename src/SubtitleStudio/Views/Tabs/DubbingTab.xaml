@@ -97,6 +97,8 @@
                                        Visibility="{Binding IsCloneScopeSpeakers, Converter={StaticResource Vis}}" />
                             <TextBlock Text="{Binding CloningEstimateText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Foreground="{DynamicResource Brush.Warning}" />
+                            <CheckBox Content="Ease off the CPU during cloning (slower, gentler on the system)" IsChecked="{Binding CloningEaseCpu, Mode=TwoWay}" Margin="0,8,0,0"
+                                      ToolTip="Uses fewer processor threads and runs the cloning engine at a lower priority, so a long cloning run doesn't keep every core at full load. Slower (about 1.5×), but easier on a machine that struggles under sustained full load. Off by default." />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                         Visibility="{Binding CloningNeedsSpeakers, Converter={StaticResource Vis}}">
                                 <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Brush.Warning}" VerticalAlignment="Top" Margin="0,2,6,0" />

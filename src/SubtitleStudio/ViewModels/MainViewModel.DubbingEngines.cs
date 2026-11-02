@@ -240,6 +240,27 @@ public partial class MainViewModel
 
     public string CloningDeviceArg => _gpu?.Primary is { Vendor: GpuVendor.Nvidia } && _gpu.Backend != AiBackend.Cpu ? "cuda" : "cpu";
 
+    /// <summary>
+    /// Ease off the CPU during cloning: fewer inference threads and below-normal process priority, so a long cloning
+    /// run doesn't peg every core and keep the system (and its firmware/EC) under sustained strain. Slower, but a
+    /// gentler neighbour — useful on a machine that struggles under a long full-load job. Off by default.
+    /// </summary>
+    public bool CloningEaseCpu
+    {
+        get => _s.Config.CloningEaseCpu;
+        set
+        {
+            if (_s.Config.CloningEaseCpu == value) return;
+            _s.Config.CloningEaseCpu = value;
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CloningEstimateText)); // easing is slower, so the estimate changes
+        }
+    }
+
+    /// <summary>The inference threads to ask the sidecar for: 0 (its default) normally, or about half the cores when easing.</summary>
+    private int CloningThreads => CloningEaseCpu ? Math.Max(2, Environment.ProcessorCount / 2) : 0;
+
     // ---------------- Cloning quality (speed knob) ----------------
 
     /// <summary>A cloning quality choice: a label and the IndexTTS --n-timesteps it maps to (0 = the model default).</summary>
@@ -359,9 +380,15 @@ public partial class MainViewModel
         _ => 48,        // ~25 steps (measured)
     };
 
+    /// <summary>
+    /// Rough slowdown when easing off the CPU (fewer threads): work scales inversely with the thread fraction, but not
+    /// perfectly, so about 1.5× longer. CUDA isn't thread-bound, so easing barely changes it there.
+    /// </summary>
+    private double EaseCpuFactor => CloningEaseCpu && CloningDeviceArg != "cuda" ? 1.5 : 1.0;
+
     /// <summary>Estimated total seconds for the current cloning scope, batch or per-line depending on the sidecar.</summary>
     private double EstimatedCloningSeconds(int n)
-        => CloningSidecarStore.SupportsBatch ? BatchLoadSeconds + n * BatchSynthSecondsPerLine : n * SecondsPerClonedLine;
+        => (CloningSidecarStore.SupportsBatch ? BatchLoadSeconds + n * BatchSynthSecondsPerLine : n * SecondsPerClonedLine) * EaseCpuFactor;
 
     /// <summary>The number of lines cloning will actually speak under the current scope (the rest go to Kokoro).</summary>
     public int ClonedLineCount => IsCloningEngine ? CloneLineSet().Count : 0;
@@ -472,7 +499,7 @@ public partial class MainViewModel
         // samples; the per-line CloningTts is kept only for an older sidecar that doesn't answer "batch".
         if (CloningSidecarStore.SupportsBatch)
         {
-            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), threads: CloningThreads, easeCpu: CloningEaseCpu);
             var jobs = new[] { new CloningBatch.Job(ClonePreviewVoiceId, refClip, _previewText.Trim()) };
             var spoken = await batch.SpeakAllAsync(jobs, null, CancellationToken.None);
             var samples = spoken.GetValueOrDefault(ClonePreviewVoiceId) ?? Array.Empty<float>();
@@ -480,7 +507,7 @@ public partial class MainViewModel
         }
 
         var refClips = new Dictionary<string, string> { [ClonePreviewVoiceId] = refClip };
-        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), easeCpu: CloningEaseCpu);
     }
 
     /// <summary>
@@ -545,7 +572,7 @@ public partial class MainViewModel
         var (refClips, workDir) = await CutCloneRefClipsAsync(ffmpeg, video, from, share, ct, cloneSet);
         var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
         _gpu ??= gpu;
-        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+        return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), easeCpu: CloningEaseCpu);
     }
 
     /// <summary>

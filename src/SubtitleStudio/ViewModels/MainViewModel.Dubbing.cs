@@ -640,7 +640,7 @@ public sealed partial class MainViewModel
         if (CloningSidecarStore.SupportsBatch && cloneLines.Count > 0)
         {
             var (refClips, workDir) = await CutCloneRefClipsAsync(ff.FfmpegPath!, video, from, prepShare * 100, ct, cloneLines);
-            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m));
+            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), threads: CloningThreads, easeCpu: CloningEaseCpu);
             cloneRate = batch.SampleRate;
             var jobs = new List<CloningBatch.Job>(cloneLines.Count);
             foreach (var cue in cues.Where(c => cloneLines.Contains(c.Index)))
