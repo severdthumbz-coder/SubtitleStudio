@@ -56,6 +56,10 @@ public partial class App : Application
         var settingsService = new SettingsService(AppPaths.SettingsFile);
         var config = settingsService.Load();
 
+        // Firmware-safety: before any video player is created, apply the software-video-only choice so the players
+        // decode on the processor rather than the graphics card (see VlcPlaybackService.SoftwareVideoOnly).
+        Services.Playback.VlcPlaybackService.SoftwareVideoOnly = config.SoftwareVideoOnly;
+
         var log = new ActivityLog(Path.Combine(AppPaths.ExeDirectory, "subt_activity.log"));
         _services = new AppServices
         {

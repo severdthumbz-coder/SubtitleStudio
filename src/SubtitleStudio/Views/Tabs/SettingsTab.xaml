@@ -189,6 +189,21 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Graphics card and stability" Style="{StaticResource Text.H2}" />
+                                <ctl:HintMarker Margin="8,0,0,0"
+                                                Text="On some AMD laptops, the graphics card being spun up for video or the voice model and then powered back down can make the system blue-screen during the power change (Windows DRIVER_POWER_STATE_FAILURE 0x9F or DPC_WATCHDOG 0x133, in the AMD/ACPI power firmware — not the app). Turning this on keeps dubbing off the graphics card: previews decode and encode video on the processor, and the voice model runs on the processor too, so the card is left idle. The real fix is a firmware/driver update, but on a machine whose BIOS can't be updated safely this avoids the trigger." />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,10" TextWrapping="Wrap"
+                                       Text="Keep dubbing off the graphics card: previews use the processor for video (decode and encode), and the voice model runs on the processor instead of the card. Slower, but it leaves the card idle — a safety net for PCs that crash on a graphics-card power change." />
+                            <CheckBox Content="Use the processor instead of the graphics card for dubbing (avoids a GPU power-change crash on some AMD PCs)" IsChecked="{Binding SoftwareVideoOnly, Mode=TwoWay}" />
+                            <TextBlock Text="{Binding SoftwareVideoNote}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Warning}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding SoftwareVideoOnly, Converter={StaticResource Vis}}" />
+                        </StackPanel>
+                    </Border>
+
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">

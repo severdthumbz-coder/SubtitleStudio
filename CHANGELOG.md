@@ -5,7 +5,20 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
-## [1.0.0.111] - 2026-11-02
+## [1.0.0.113] - 2026-11-02
+
+### Changed
+- The firmware-safety option now keeps the voice model off the graphics card too, not just preview video. A third crash dump was the same AMD power-firmware fault (0x133, around the AMD CpmPowerGate / AmdPPM / ACPI wake routines) — the class of power-state deadlock the option is meant to avoid. Since that firmware chokes on the graphics card powering up and down, "Use the processor instead of the graphics card for dubbing" (renamed from the video-only wording) now also runs the Kokoro voice model on the processor via a CPU-backed device choice, so the card is left idle during dubbing rather than being spun up by DirectML. Video decode/encode on the processor (from build 112) and the preview-player release are unchanged. Off by default; the voice-model side, like playback, takes effect on the next run if the model is already loaded. This remains a trigger-avoidance safety net, not a fix for the firmware itself.
+
+## [1.0.0.112] - 2026-11-02
+
+### Fixed
+- Dubbing, release the preview player when leaving the Dubbing tab. The dub-preview video player kept the clip loaded (and the graphics card's hardware video-decode block powered) after a preview, until the next preview replaced it. Now leaving the tab fully unloads it, so the GPU's video block isn't held awake into an idle/sleep transition. (Diagnosed from two crash dumps that were both AMD power-firmware bugchecks — DRIVER_POWER_STATE_FAILURE 0x9F and DPC_WATCHDOG 0x133 — firing on a device power-down shortly after a preview, not in the app.)
+
+### Added
+- A "Use the processor for preview video" safety option (Settings → Engines and tools → Video and stability), off by default. When on, preview playback decodes on the processor (hardware decoding off) and the preview render encodes with x264 instead of the AMD AMF graphics-card encoder — so neither of the GPU's video blocks is used, and they can't be left powered into the power-down transition that bugchecks on some AMD laptops (0x9F / 0x133 in the ACPI/power firmware). Slower previews, but a safety net; the encode side applies at once, the decode side after a restart. The real cure for the firmware bug is a BIOS / AMD chipset-driver update — this makes the app a far gentler trigger in the meantime.
+
+
 
 ### Added
 - Dubbing, an optional "Ease off the CPU during cloning (slower, gentler on the system)" setting. Cloning is a long, all-core job; on a machine with firmware/driver fragility that sustained full load can contribute to instability (a DPC-watchdog bug-check seen in testing was in the motherboard's ACPI/embedded-controller driver, not the app — but heavy sustained load can expose such latent faults). When this is on, the cloning sidecar uses about half the processor's threads (passed to the engine) and runs at below-normal priority, so Windows schedules it around other work instead of pegging every core. Roughly 1.5× slower, reflected in the time estimate. Off by default — it doesn't slow cloning for anyone whose machine is fine. Works with the current bundle (no re-freeze); the thread count uses the batch jobs file's existing `threads` field.

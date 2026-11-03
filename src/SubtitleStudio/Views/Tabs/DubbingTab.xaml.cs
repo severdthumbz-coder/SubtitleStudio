@@ -35,6 +35,10 @@ public partial class DubbingTab : UserControl
         if (_vm is null) return;
         _vm.PropertyChanged -= OnViewModelChanged;
         DetachPlayer();
+        // Fully release the preview clip (not just the video surface) when leaving the tab, so the graphics card's
+        // video-decode block isn't kept powered into an idle/sleep transition — the condition behind the AMD power
+        // bugchecks (0x9F / 0x133). The next preview reloads it.
+        _vm.DubPlayer?.Unload();
         _vm = null;
     }
 

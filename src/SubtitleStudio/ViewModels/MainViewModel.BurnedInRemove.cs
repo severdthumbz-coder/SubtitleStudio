@@ -262,6 +262,10 @@ public sealed partial class MainViewModel
 
     private async Task<VideoEncoder> EncoderAsync(string ffmpeg, CancellationToken ct)
     {
+        // Firmware-safety: when software video is forced, always encode on the processor (x264) so the graphics card's
+        // video-encode block (AMD AMF) is never used — one half of avoiding the AMD power-down bugcheck; the other half
+        // is software decode in the player. Not cached, so toggling the setting takes effect without a restart.
+        if (_s.Config.SoftwareVideoOnly) return VideoEncoders.X264;
         if (_encoder is null)
         {
             BurnedInStatus = "Checking which video encoder works on this PC...";

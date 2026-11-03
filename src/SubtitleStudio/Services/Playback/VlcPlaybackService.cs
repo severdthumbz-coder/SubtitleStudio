@@ -31,6 +31,13 @@ public sealed class VlcPlaybackService : IPlaybackService
     private static readonly object CoreGate = new();
     private static bool _coreInitialized;
 
+    /// <summary>
+    /// When true, players decode on the processor instead of the graphics card (EnableHardwareDecoding = false), so the
+    /// GPU's video-decode block isn't kept powered. A firmware-safety option for machines that bugcheck on a device
+    /// power-down after video work (AMD 0x9F / 0x133). Set once at startup from settings, before any player starts.
+    /// </summary>
+    public static bool SoftwareVideoOnly { get; set; }
+
     public bool IsAvailable => _player is not null;
     public string? UnavailableReason { get; private set; }
     public object? NativePlayer => _player;
@@ -65,7 +72,11 @@ public sealed class VlcPlaybackService : IPlaybackService
             }
 
             _libVlc = new LibVLC("--no-video-title-show", "--no-sub-autodetect-file", "--no-snapshot-preview", "--quiet");
-            _player = new MediaPlayer(_libVlc) { EnableHardwareDecoding = true };
+            // Hardware (GPU) video decoding is fast, but it keeps the graphics card's video-decode block powered while a
+            // clip is loaded. On some AMD laptops a device-power-down transition shortly after (0x9F / 0x133 bugchecks in
+            // the ACPI/power firmware) can deadlock the firmware. SoftwareVideoOnly turns it off so previews decode on
+            // the processor and the GPU video block isn't held awake — a firmware-safety option, off by default.
+            _player = new MediaPlayer(_libVlc) { EnableHardwareDecoding = !SoftwareVideoOnly };
 
             _player.TimeChanged += (_, e) => OnTimeChanged(TimeSpan.FromMilliseconds(Math.Max(0, e.Time)));
             _player.LengthChanged += (_, e) => LengthChanged?.Invoke(TimeSpan.FromMilliseconds(Math.Max(0, e.Length)));

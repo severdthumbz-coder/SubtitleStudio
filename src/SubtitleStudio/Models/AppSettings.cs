@@ -78,6 +78,9 @@ public sealed class AppSettings
     /// <summary>Dubbing cloning: ease off the CPU — fewer inference threads and below-normal priority, so a long cloning run doesn't peg every core. Slower, but gentler on the system. Off by default.</summary>
     public bool CloningEaseCpu { get; set; }
 
+    /// <summary>Use the processor for video decode (preview playback) and encode (preview render) instead of the graphics card, so the GPU's video blocks aren't kept powered. A firmware-safety option for PCs that crash on a power-down after video work (AMD 0x9F / 0x133). Off by default; needs a restart for the decode side to take effect.</summary>
+    public bool SoftwareVideoOnly { get; set; }
+
     /// <summary>Listen for scenes in another language and transcribe each in its own language.</summary>
     public bool TranscribeSceneLanguages { get; set; } = true;
     /// <summary>Remembered answer to "which engine?" when several can transcribe (engine id; empty: ask).</summary>

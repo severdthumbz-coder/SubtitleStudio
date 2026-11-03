@@ -101,6 +101,30 @@ public sealed partial class MainViewModel
         ProbeMissingDurations();
     }
 
+    /// <summary>
+    /// Decode and encode video on the processor instead of the graphics card, so the GPU's video blocks aren't kept
+    /// powered — a firmware-safety option for PCs that bugcheck on a device power-down after video work (AMD 0x9F /
+    /// 0x133). The encode side takes effect at once; the decode side (the player) needs a restart.
+    /// </summary>
+    public bool SoftwareVideoOnly
+    {
+        get => _s.Config.SoftwareVideoOnly;
+        set
+        {
+            if (_s.Config.SoftwareVideoOnly == value) return;
+            _s.Config.SoftwareVideoOnly = value;
+            Services.Playback.VlcPlaybackService.SoftwareVideoOnly = value; // applies to players made after this
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SoftwareVideoNote));
+        }
+    }
+
+    /// <summary>A hint that the decode and voice-model sides of the option take effect after a restart.</summary>
+    public string SoftwareVideoNote => _s.Config.SoftwareVideoOnly
+        ? "Preview rendering moves to the processor now. For playback and the voice model to also stop using the graphics card, restart the app (if the voice model is already loaded this session)."
+        : string.Empty;
+
     // ---------------- Output defaults ----------------
 
     public string DefaultOutputFormat

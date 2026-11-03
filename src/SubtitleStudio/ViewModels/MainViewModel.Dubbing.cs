@@ -116,6 +116,12 @@ public sealed partial class MainViewModel
         DubbingStatus = "Loading the voice model...";
         string modelPath = _s.TtsModels.ModelPath, voicesPath = _s.TtsModels.VoicesPath;
         var gpu = _gpu ?? await Task.Run(GpuDetector.Detect);
+        // Firmware-safety: when "use the processor for video" is on, also run the voice model on the processor rather
+        // than the graphics card (DirectML). It's a broader "keep off the GPU" choice — the same AMD power-gating the
+        // crashes trip on is driven by DirectML spinning the compute block up and down, so a machine with that firmware
+        // fault is steadier with the GPU left idle. A CPU-backed GpuInfo makes OnnxKokoroModel.Load pick the processor.
+        if (_s.Config.SoftwareVideoOnly)
+            gpu = new GpuInfo(gpu?.Adapters ?? Array.Empty<GpuAdapter>(), gpu?.Primary, AiBackend.Cpu, gpu?.Error);
         var started = DateTime.UtcNow;
         var tts = await Task.Run(() =>
         {
