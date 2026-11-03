@@ -9,10 +9,13 @@ current FullVersion has no entry here.
 
 ### Added
 - Dubbing, re-clone a single line. If one cloned line comes out garbled, you can now redo just that line instead of re-running the whole dub. Select the line in the Subtitles tab and press "Re-clone the selected line" on the Dubbing panel: it cuts that speaker's reference clip, synthesises the one line fresh, replaces it in the cache under the same key, and plays the new take so you can judge it. Every other cached line is kept as-is, so the next dub or preview uses the new take with no other work. Available only with the cloning engine, once its sidecar is ready and a line is selected on a video-paired subtitle.
-- Guided tour. A short, self-contained walk through the main tabs and what each does, shown as a single themed card that navigates between its own steps — "Step N of 9", a title and description, with "Skip tour", "← Back" and "Next →" ("Finish ✓" on the last step), matching Video Metadata Editor's tour. It runs automatically the first time you open Subtitle Studio (this can be turned off under Settings > Behaviour) and can be replayed any time from the new "Replay the tour" button at the top of the Help tab.
+- Guided tour. A short, self-contained walk through the main tabs and what each does, shown as a single themed card over a translucent backdrop that dims the rest of the window to keep your focus on the card — "Step N of 9", a title and description, with "Skip tour", "← Back" and "Next →" ("Finish ✓" on the last step), matching Video Metadata Editor's tour. As you move through the steps, the tab each one describes is brought forward behind the backdrop, so you see the real tab while you read about it. It runs automatically the first time you open Subtitle Studio (this can be turned off under Settings > Behaviour) and can be replayed any time from the new "Replay the tour" button at the top of the Help tab.
 
 ### Changed
 - Help tab, Dubbing tile now reads "Available" and describes the finished dubbing feature: a quick voice per speaker (Kokoro or Piper) or each speaker's cloned voice, speaker finding and gender voices, per-line timing, level/side/emphasis/intonation matching, original-voice removal, preview, cloning cost preview, resumable cloned dubs and per-line re-clone.
+
+### Fixed
+- Title bar showed a double space between "Subtitle Studio" and the version ("Subtitle Studio  v1.0.0 build 115"); it's now a single space.
 
 ## [1.0.0.114] - 2026-11-02
 

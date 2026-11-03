@@ -71,7 +71,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>"v1.0.0 build 5": shown under the app name, in the title bar and the status bar.</summary>
     public string DisplayVersion => AppInfo.DisplayVersion;
 
-    public string WindowTitle => $"{AppInfo.ProductName}  {DisplayVersion}";
+    public string WindowTitle => $"{AppInfo.ProductName} {DisplayVersion}";
 
     public int SelectedTabIndex
     {
