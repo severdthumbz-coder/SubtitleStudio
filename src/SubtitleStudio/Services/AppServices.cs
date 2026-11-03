@@ -44,6 +44,9 @@ public sealed class AppServices
     /// <summary>The voice-cloning sidecar (IndexTTS exe bundle), under models/tts/cloning. Opt-in, personal use.</summary>
     public Dubbing.CloningSidecarStore CloningSidecar { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts", "cloning"));
 
+    /// <summary>Cache of cloned line audio (models/tts/cloning/cache), so a stopped or re-run cloned dub reuses finished lines.</summary>
+    public Dubbing.CloningCache CloningCache { get; init; } = new(Path.Combine(AppPaths.ExeDirectory, "models", "tts", "cloning"));
+
     /// <summary>Loads the Kokoro voice model on the given graphics card, tested and timed with a voice style for a given number of phonemes (ONNX Runtime in the app). Null: dubbing voices unavailable.</summary>
     public Func<string, Func<int, float[]>, Gpu.GpuInfo?, Dubbing.IKokoroModel>? LoadKokoroModel { get; init; }
 

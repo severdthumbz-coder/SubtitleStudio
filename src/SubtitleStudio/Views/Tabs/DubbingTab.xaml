@@ -97,6 +97,31 @@
                                        Visibility="{Binding IsCloneScopeSpeakers, Converter={StaticResource Vis}}" />
                             <TextBlock Text="{Binding CloningEstimateText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Foreground="{DynamicResource Brush.Warning}" />
+
+                            <!-- Cost preview: which speakers dominate the time (so the big ones can be unticked) -->
+                            <StackPanel Margin="0,6,0,0" Visibility="{Binding HasCloningCostRows, Converter={StaticResource Vis}}">
+                                <TextBlock Text="Where the time goes" Style="{StaticResource Text.Label}" Margin="0,0,0,2" />
+                                <ItemsControl ItemsSource="{Binding CloningCostRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,1,0,1">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="8,0,0,0" />
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Lines, StringFormat='{}{0} lines'}" Style="{StaticResource Text.Caption}" Margin="8,0,0,0" />
+                                                <TextBlock Text="{Binding Speaker}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="Untick a speaker's &quot;Clone&quot; box below to drop their time (they'll be spoken by Kokoro)." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" Opacity="0.8" />
+                            </StackPanel>
+
+                            <!-- Resume cache: finished lines are kept so a stopped or re-run dub doesn't redo them -->
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="{Binding HasCloningCache, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding CloningCacheText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Style="{StaticResource GhostButton}" Tag="&#xE74D;" Content="Clear" Command="{Binding ClearCloningCacheCommand}" Margin="8,0,0,0"
+                                        ToolTip="Deletes the cached cloned lines. A cloned dub keeps each finished line so a stopped or re-run dub reuses them instead of redoing them; clear this to free the space or to force every line to be spoken again." />
+                            </StackPanel>
+
                             <CheckBox Content="Ease off the CPU during cloning (slower, gentler on the system)" IsChecked="{Binding CloningEaseCpu, Mode=TwoWay}" Margin="0,8,0,0"
                                       ToolTip="Uses fewer processor threads and runs the cloning engine at a lower priority, so a long cloning run doesn't keep every core at full load. Slower (about 1.5×), but easier on a machine that struggles under sustained full load. Off by default." />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"

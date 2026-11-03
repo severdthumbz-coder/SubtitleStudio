@@ -73,7 +73,7 @@ public sealed partial class MainViewModel
             OnPropertyChanged();
             OnPropertyChanged(nameof(CloningNeedsSpeakers));
             OnPropertyChanged(nameof(CloningEstimateText));
-            OnPropertyChanged(nameof(ClonedLineCount));
+            OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows));
         }
     }
 
@@ -205,7 +205,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(HasSpeakers));
         OnPropertyChanged(nameof(CloningNeedsSpeakers));
         OnPropertyChanged(nameof(CloningEstimateText));
-        OnPropertyChanged(nameof(ClonedLineCount));
+        OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows));
         if (_linePitchHz.Count > 0) FlagOutlierLines(); // keep the miscast flags current after lines move between speakers
         RaiseSelectedLineSpeaker();
     }
@@ -236,7 +236,7 @@ public sealed partial class MainViewModel
         row.Refresh();
         foreach (var r in SpeakerRows) r.SetOthers(SpeakerRows);
         OnPropertyChanged(nameof(CloningEstimateText));
-        OnPropertyChanged(nameof(ClonedLineCount));
+        OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows));
     }
 
     private void MergeSpeakers(SpeakerRowViewModel from, SpeakerRowViewModel into)

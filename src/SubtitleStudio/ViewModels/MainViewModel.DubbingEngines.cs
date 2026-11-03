@@ -46,8 +46,9 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(CloningBundleAvailable));
             OnPropertyChanged(nameof(IsCloningReady));
             OnPropertyChanged(nameof(CloningEstimateText));
-            OnPropertyChanged(nameof(ClonedLineCount));
+            OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows));
             OnPropertyChanged(nameof(CloningNeedsSpeakers));
+            OnPropertyChanged(nameof(CloningCacheText)); OnPropertyChanged(nameof(HasCloningCache));
             RelayCommand.Refresh();
         }
     }
@@ -409,6 +410,81 @@ public partial class MainViewModel
             return $"{n:N0} line{(n == 1 ? "" : "s")} to clone — roughly {rough} on this PC ({how}). The rest are spoken by Kokoro.";
         }
     }
+
+    // ---------------- Cost preview (per-speaker breakdown) ----------------
+
+    /// <summary>One row of the cloning cost preview: a speaker, how many of their lines are in scope, and the rough time.</summary>
+    public sealed record CloningCostRow(string Speaker, int Lines, string Time);
+
+    /// <summary>
+    /// A per-speaker breakdown of the current cloning scope: how many lines each speaker contributes and roughly how
+    /// long those take, biggest first — so a long job's cost is visible and the user can untick the speakers that
+    /// dominate it (in the Speakers list, with scope "only the speakers I pick"). Empty unless cloning with speakers.
+    /// </summary>
+    public IReadOnlyList<CloningCostRow> CloningCostRows
+    {
+        get
+        {
+            if (!IsCloningEngine || !UsingSpeakers) return Array.Empty<CloningCostRow>();
+            var scope = CloneLineSet();
+            double perLine = CloningSidecarStore.SupportsBatch ? BatchSynthSecondsPerLine * EaseCpuFactor : SecondsPerClonedLine * EaseCpuFactor;
+            var rows = new List<CloningCostRow>();
+            foreach (var r in SpeakerRows)
+            {
+                int n = r.Speaker.Lines.Count(c => scope.Contains(c.Index));
+                if (n == 0) continue;
+                rows.Add(new CloningCostRow(r.Name, n, ShortTime(n * perLine)));
+            }
+            return rows.OrderByDescending(x => x.Lines).ToList();
+        }
+    }
+
+    public bool HasCloningCostRows => CloningCostRows.Count > 0;
+
+    /// <summary>"3.4 h", "26 min", "45 s" — a compact duration for the cost rows.</summary>
+    private static string ShortTime(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1 ? $"{t.TotalHours:0.#} h" : t.TotalMinutes >= 1 ? $"{t.TotalMinutes:0} min" : $"{t.TotalSeconds:0} s";
+    }
+
+    private void RaiseCloningCost()
+    {
+        OnPropertyChanged(nameof(CloningCostRows));
+        OnPropertyChanged(nameof(HasCloningCostRows));
+    }
+
+    // ---------------- Resume cache ----------------
+
+    /// <summary>How much cloned audio is cached for reuse, as text — e.g. "Reusing 420 MB of finished lines".</summary>
+    public string CloningCacheText
+    {
+        get
+        {
+            long bytes = _s.CloningCache.SizeBytes();
+            if (bytes <= 0) return string.Empty;
+            double mb = bytes / (1024.0 * 1024);
+            return mb >= 1024 ? $"Finished lines kept for re-runs: {mb / 1024:0.0} GB" : $"Finished lines kept for re-runs: {mb:0} MB";
+        }
+    }
+
+    public bool HasCloningCache => _s.CloningCache.SizeBytes() > 0;
+
+    private void RaiseCloningCacheSize()
+    {
+        OnPropertyChanged(nameof(CloningCacheText));
+        OnPropertyChanged(nameof(HasCloningCache));
+        RelayCommand.Refresh();
+    }
+
+    private RelayCommand? _clearCloningCacheCommand;
+    public RelayCommand ClearCloningCacheCommand => _clearCloningCacheCommand ??= new RelayCommand(() =>
+    {
+        _s.CloningCache.Clear();
+        _s.Log.Info("Dubbing", "Cleared the voice-cloning cache (re-runs will synthesise every line again).");
+        SetStatus("Cleared the voice-cloning cache.", StatusKind.Success);
+        RaiseCloningCacheSize();
+    }, () => HasCloningCache && !DubbingBusy);
 
     /// <summary>Above this, ask the user to confirm before starting (a long job they might not mean to launch).</summary>
     private static readonly TimeSpan CloningConfirmThreshold = TimeSpan.FromMinutes(20);

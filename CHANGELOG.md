@@ -5,7 +5,13 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
-## [1.0.0.113] - 2026-11-02
+## [1.0.0.114] - 2026-11-02
+
+### Added
+- Dubbing, cloning cost preview. With cloning and per-speaker voices, the panel now shows a "Where the time goes" breakdown — each speaker in scope with their line count and rough time, biggest first — so you can see what a long job is made of and untick the speakers that dominate it (their "Clone" box, in the Speakers list) to cut the time. Updates live as the scope, quality, ease-CPU and ticked speakers change.
+- Dubbing, resumable / partial cloned dubs. Each cloned line is now cached (under models\tts\cloning\cache) keyed by its voice, text and quality, and written the moment the line finishes. So a cloned dub that's stopped partway, or re-run after an unrelated change, reuses every line it already spoke and only synthesises the rest — a big saving on long jobs where cloning is slow. The cloning panel shows how much is cached with a "Clear" button; the cache is pruned to a 2 GB cap (oldest first) after each dub. Changing a line's text, speaker or the quality naturally misses the cache and re-synthesises that line.
+
+
 
 ### Changed
 - The firmware-safety option now keeps the voice model off the graphics card too, not just preview video. A third crash dump was the same AMD power-firmware fault (0x133, around the AMD CpmPowerGate / AmdPPM / ACPI wake routines) — the class of power-state deadlock the option is meant to avoid. Since that firmware chokes on the graphics card powering up and down, "Use the processor instead of the graphics card for dubbing" (renamed from the video-only wording) now also runs the Kokoro voice model on the processor via a CPU-backed device choice, so the card is left idle during dubbing rather than being spun up by DirectML. Video decode/encode on the processor (from build 112) and the preview-player release are unchanged. Off by default; the voice-model side, like playback, takes effect on the next run if the model is already loaded. This remains a trigger-avoidance safety net, not a fix for the firmware itself.

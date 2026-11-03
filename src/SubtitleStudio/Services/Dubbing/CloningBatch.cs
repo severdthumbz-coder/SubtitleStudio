@@ -55,10 +55,31 @@ public sealed class CloningBatch
     /// for a line the exe couldn't speak. Reports progress as a fraction 0..1 as each line finishes. Cancellation kills
     /// the exe (a long batch is stopped by ending the one process).
     /// </summary>
-    public async Task<IReadOnlyDictionary<string, float[]>> SpeakAllAsync(IReadOnlyList<Job> jobs, IProgress<double>? progress, CancellationToken ct)
+    public async Task<IReadOnlyDictionary<string, float[]>> SpeakAllAsync(IReadOnlyList<Job> jobs, IProgress<double>? progress, CancellationToken ct, CloningCache? cache = null)
     {
         var result = new Dictionary<string, float[]>();
         if (jobs.Count == 0) return result;
+
+        // Resume: any job whose audio is already cached (same voice, text, quality) is reused and not sent to the exe.
+        // So a dub stopped partway, or re-run after an unrelated change, only synthesises the lines it hasn't done.
+        var keyById = new Dictionary<string, string>();
+        var toRun = new List<Job>();
+        int fromCache = 0;
+        foreach (var j in jobs)
+        {
+            if (cache is not null)
+            {
+                var key = cache.Key(j.RefClip, j.Text, _timesteps, Rate);
+                keyById[j.Id] = key;
+                if (cache.Get(key, Rate) is { } cached) { result[j.Id] = cached; fromCache++; continue; }
+            }
+            toRun.Add(j);
+        }
+        if (fromCache > 0) _log?.Invoke($"Cloning (batch): {fromCache} of {jobs.Count} line(s) reused from an earlier run; {toRun.Count} to synthesise.");
+        int total = jobs.Count;
+        void ReportProgress(int done) => progress?.Report((fromCache + done) / (double)total);
+        ReportProgress(0);
+        if (toRun.Count == 0) return result;
 
         var runDir = Path.Combine(_workDir, "batch-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(runDir);
@@ -66,8 +87,8 @@ public sealed class CloningBatch
         var outById = new Dictionary<string, string>();
         try
         {
-            var payloadJobs = new List<object>(jobs.Count);
-            foreach (var j in jobs)
+            var payloadJobs = new List<object>(toRun.Count);
+            foreach (var j in toRun)
             {
                 var outPath = Path.Combine(runDir, $"{j.Id}.wav");
                 outById[j.Id] = outPath;
@@ -78,20 +99,50 @@ public sealed class CloningBatch
             if (_threads > 0) payload["threads"] = _threads; // fewer CPU threads = lower sustained load (the ease-CPU option)
             await File.WriteAllTextAsync(jobsPath, JsonSerializer.Serialize(payload), ct).ConfigureAwait(false);
 
+            // Read and cache each line the moment the exe finishes it (on the DONE callback), so a cancel keeps every
+            // line already done — the dub resumes from there next time instead of starting over.
             int done = 0;
-            await RunBatchAsync(jobsPath, id =>
+            void OnLineDone(string id)
             {
+                if (outById.TryGetValue(id, out var outPath) && File.Exists(outPath))
+                {
+                    try
+                    {
+                        var (samples, rate) = WavFile.Read(outPath);
+                        var s = rate == Rate ? samples : Resample.Linear(samples, rate, Rate);
+                        result[id] = s;
+                        if (cache is not null && keyById.TryGetValue(id, out var key)) cache.Put(key, s, Rate);
+                    }
+                    catch (Exception ex) when (ex is IOException or InvalidDataException)
+                    {
+                        _log?.Invoke($"Cloning (batch): couldn't read line {id} ({ex.Message}); left silent.");
+                    }
+                }
                 done++;
-                progress?.Report(done / (double)jobs.Count);
-            }, ct).ConfigureAwait(false);
+                ReportProgress(done);
+            }
 
+            try
+            {
+                await RunBatchAsync(jobsPath, OnLineDone, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelled: the lines already cached above are kept, so this isn't wasted — rethrow to the caller.
+                throw;
+            }
+
+            // Any line the exe reported but the DONE handler didn't capture (rare), swept up here.
             foreach (var (id, outPath) in outById)
             {
+                if (result.ContainsKey(id)) continue;
                 if (!File.Exists(outPath)) { _log?.Invoke($"Cloning (batch): line {id} produced no output; left silent."); continue; }
                 try
                 {
                     var (samples, rate) = WavFile.Read(outPath);
-                    result[id] = rate == Rate ? samples : Resample.Linear(samples, rate, Rate);
+                    var s = rate == Rate ? samples : Resample.Linear(samples, rate, Rate);
+                    result[id] = s;
+                    if (cache is not null && keyById.TryGetValue(id, out var key)) cache.Put(key, s, Rate);
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException)
                 {

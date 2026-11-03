@@ -665,10 +665,12 @@ public sealed partial class MainViewModel
                 var eta = f > 0.02 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - f) / f) : (TimeSpan?)null;
                 DubbingStatus = $"Cloning line {(int)Math.Round(f * jobs.Count)} of {jobs.Count}" + (eta is { } e ? $", about {FormatEta(e)} left" : string.Empty) + ".";
             });
-            var byId = await batch.SpeakAllAsync(jobs, batchProgress, ct);
+            var byId = await batch.SpeakAllAsync(jobs, batchProgress, ct, _s.CloningCache);
             clonedSamples = new Dictionary<int, float[]>();
             foreach (var (id, samples) in byId) if (int.TryParse(id, out var idx)) clonedSamples[idx] = samples;
-            _s.Log.Success("Dubbing", $"Cloning (batch): {clonedSamples.Count} of {jobs.Count} lines spoken in one model load.");
+            _s.Log.Success("Dubbing", $"Cloning (batch): {clonedSamples.Count} of {jobs.Count} lines spoken (reused from the cache where already done).");
+            await Task.Run(() => _s.CloningCache.Prune());
+            RaiseCloningCacheSize();
         }
 
         // Per-line engine (older sidecar): one exe process per line. Only loaded when batch isn't available.
@@ -797,7 +799,7 @@ public sealed partial class MainViewModel
             if (e.PropertyName is nameof(SelectedCue))
             {
                 TakeSelectedLine(force: false);
-                if (IsCloningEngine && SelectedCloningScope.Id == "lines") { OnPropertyChanged(nameof(CloningEstimateText)); OnPropertyChanged(nameof(ClonedLineCount)); }
+                if (IsCloningEngine && SelectedCloningScope.Id == "lines") { OnPropertyChanged(nameof(CloningEstimateText)); OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows)); }
             }
         };
     }
