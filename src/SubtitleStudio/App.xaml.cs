@@ -72,7 +72,7 @@ public partial class App : Application
             Ffmpeg = new FfmpegLocator(),
             Probe = new MediaProbeService(),
             Dialogs = dialogs,
-            Tour = new GuidedTourService(dialogs),
+            Tour = new GuidedTourService(),
             Playback = new VlcPlaybackService(),
             CreatePlayer = () => new VlcPlaybackService(),
             LoadInpaintModel = (path, gpu, batch) => OnnxInpaintModel.Load(path, gpu, batch, m => log.Info("AI", m)),

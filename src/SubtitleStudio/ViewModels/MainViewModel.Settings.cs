@@ -63,6 +63,7 @@ public sealed partial class MainViewModel
         StartTourCommand = new AsyncRelayCommand(
             () => _s.Tour.StartAsync(System.Windows.Application.Current?.MainWindow!),
             () => _s.Tour.IsAvailable);
+        // Note: a null MainWindow is tolerated by the tour service (it falls back to Application.Current.MainWindow).
 
         HintService.Current.IsEnabled = _s.Config.ShowHints;
         RefreshFfmpegStatus();
