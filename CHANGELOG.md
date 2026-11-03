@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.115] - 2026-11-03
+
+### Added
+- Dubbing, re-clone a single line. If one cloned line comes out garbled, you can now redo just that line instead of re-running the whole dub. Select the line in the Subtitles tab and press "Re-clone the selected line" on the Dubbing panel: it cuts that speaker's reference clip, synthesises the one line fresh, replaces it in the cache under the same key, and plays the new take so you can judge it. Every other cached line is kept as-is, so the next dub or preview uses the new take with no other work. Available only with the cloning engine, once its sidecar is ready and a line is selected on a video-paired subtitle.
+- Guided tour. A short, self-contained walk through the main tabs and what each does. It runs automatically the first time you open Subtitle Studio (this can be turned off under Settings > Behaviour) and can be replayed any time from the new "Replay the tour" button at the top of the Help tab — the same first-run-and-anytime pattern as Video Metadata Editor. Each step is a simple card: OK for the next, Cancel to stop.
+
+### Changed
+- Help tab, Dubbing tile now reads "Available" and describes the finished dubbing feature: a quick voice per speaker (Kokoro or Piper) or each speaker's cloned voice, speaker finding and gender voices, per-line timing, level/side/emphasis/intonation matching, original-voice removal, preview, cloning cost preview, resumable cloned dubs and per-line re-clone.
+
 ## [1.0.0.114] - 2026-11-02
 
 ### Added

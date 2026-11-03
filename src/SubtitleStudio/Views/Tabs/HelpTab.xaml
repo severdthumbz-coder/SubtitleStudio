@@ -20,6 +20,20 @@
                 </StackPanel>
             </DockPanel>
 
+            <!-- Guided tour -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,4">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE8FB;"
+                            Content="Replay the tour" Command="{Binding StartTourCommand}"
+                            VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Guided tour" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Text="A quick walk through the main tabs and what each one does. It runs the first time you open Subtitle Studio; replay it here whenever you like. You can turn the first-run tour off in Settings > Behaviour." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
             <!-- Features -->
             <TextBlock Text="Features" Style="{StaticResource Text.H2}" Margin="0,0,0,10" />
             <UniformGrid Columns="3" Margin="-6,0,-6,0">
@@ -92,11 +106,11 @@
                 <Border Style="{StaticResource FeatureCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="In progress" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Warning}" />
+                            <TextBlock DockPanel.Dock="Right" Text="Available" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Success}" />
                             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE767;" Style="{StaticResource Text.Icon}" FontSize="14" Foreground="{DynamicResource Brush.Accent}" Margin="0,0,8,0" /><TextBlock Text="Dubbing" FontWeight="SemiBold" /></StackPanel>
                         </DockPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                   Text="English AI voices (Kokoro, in the app), a voice per speaker of their gender (a speaker whose pitch is borderline is flagged for you to confirm), fitted to each line's time. The original voices are taken out under the English lines (music and effects kept), each line as loud as the voice it replaces and on its side, and the result added as an extra English track." />
+                                   Text="English AI voices in the app — a quick voice per speaker (Kokoro or Piper), or each speaker's own voice cloned from the original audio. It finds the speakers and gives each a voice of their gender (a borderline pitch is flagged to confirm), fits every line to its time, and follows the original's level, side, emphasis and — for the quick voices — its intonation. The original voices are taken out under the English (music and effects kept) and the dub added as an extra English track. Preview a stretch first; with cloning, see where the time will go before you start, pick up where a cancelled run left off, and re-clone a single line that came out wrong without redoing the rest." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource FeatureCard}">

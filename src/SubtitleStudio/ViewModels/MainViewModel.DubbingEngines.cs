@@ -586,6 +586,74 @@ public partial class MainViewModel
         return new CloningTts(_s.CloningSidecar.ExePath, refClips, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), easeCpu: CloningEaseCpu);
     }
 
+    // ---------------- Per-line redo (re-clone one garbled line) ----------------
+
+    /// <summary>Can the selected line be re-cloned on its own: cloning is the engine, it's ready, a line is selected, and it has a speaker.</summary>
+    public bool CanRedoClonedLine => IsCloningEngine && IsCloningReady && CloningSidecarStore.SupportsBatch
+        && !DubbingBusy && SelectedCue is not null && PairedVideo is not null;
+
+    private AsyncRelayCommand? _redoClonedLineCommand;
+    public AsyncRelayCommand RedoClonedLineCommand => _redoClonedLineCommand ??= new AsyncRelayCommand(RedoClonedLineAsync, () => CanRedoClonedLine);
+
+    /// <summary>
+    /// Re-clones just the selected line: cuts its speaker's reference clip, synthesises the one line fresh, and replaces
+    /// it in the cache under the same key. So if a line came out garbled, you redo that line alone — the next dub (or
+    /// preview) uses the new take and keeps every other cached line as-is, instead of re-running the whole dub.
+    /// </summary>
+    private async Task RedoClonedLineAsync()
+    {
+        if (SelectedCue is not { } sel) return;
+        var cue = sel.Cue;
+        var text = Services.Subtitles.SubtitleText.StripTags(cue.Text).Replace("\r", string.Empty).Replace('\n', ' ').Trim();
+        if (text.Length == 0) { SetStatus("That line has nothing to speak (only sound labels or punctuation).", StatusKind.Error); return; }
+
+        await RunDubbingWorkAsync("Re-cloning the line", async ct =>
+        {
+            if (PairedVideo is not { } video) throw new InvalidOperationException("Pair the subtitles with a video first.");
+            var ff = _s.Ffmpeg.Resolve(_s.Config.FfmpegPath);
+            if (!ff.IsComplete) throw new InvalidOperationException("ffmpeg is needed to take the reference clip: set it in Settings > Engines & tools.");
+
+            // The line's speaker's reference clip (same choice the full dub makes), or, with no speakers, the overall one.
+            var speaker = SpeakerRows.FirstOrDefault(r => r.Speaker.Lines.Contains(cue))?.Speaker;
+            var refLine = speaker is not null ? RepresentativeLine(speaker)
+                : Cues.Select(r => r.Cue).OrderByDescending(l => (l.End - l.Start).Ticks).FirstOrDefault();
+            if (refLine is null) throw new InvalidOperationException("There's no line to copy a voice from.");
+
+            var workDir = Path.Combine(_s.CloningSidecar.Folder, "work");
+            Directory.CreateDirectory(workDir);
+            var refClip = Path.Combine(workDir, $"ref-redo-{Guid.NewGuid():N}.wav");
+            DubbingStatus = "Taking a reference clip...";
+            await CutReferenceClipAsync(ff.FfmpegPath!, video.FullPath, refLine, refClip, ct);
+
+            // Drop the old cached take for this exact line (voice+text+quality), then synthesise it fresh and re-cache.
+            var key = _s.CloningCache.Key(refClip, text, CloningTimesteps, CloningBatch.Rate);
+            _s.CloningCache.Remove(key);
+
+            DubbingStatus = "Cloning the line (one line, so a model load then the line)...";
+            var batch = new CloningBatch(_s.CloningSidecar.ExePath, CloningDeviceArg, CloningTimesteps, workDir, m => _s.Log.Info("Dubbing", m), threads: CloningThreads, easeCpu: CloningEaseCpu);
+            var jobs = new[] { new CloningBatch.Job("redo", refClip, text) };
+            var spoken = await batch.SpeakAllAsync(jobs, null, ct, _s.CloningCache); // caches under the same key
+            try { if (File.Exists(refClip)) File.Delete(refClip); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+
+            if (spoken.TryGetValue("redo", out var samples) && samples.Length > 0)
+            {
+                // Play the new take so you can judge it, and keep it for the next dub (it's now in the cache).
+                var path = Path.Combine(Path.GetTempPath(), "SubtitleStudio-redo.wav");
+                _s.AudioPreview.Stop();
+                WavFile.Write(path, samples, batch.SampleRate);
+                _s.AudioPreview.Play(path);
+                DubbingStatus = $"Line {cue.Index} re-cloned ({samples.Length / (double)batch.SampleRate:0.0} s). The new take is saved; it'll be used in the dub.";
+                SetStatus($"Re-cloned line {cue.Index}. Playing the new take.", StatusKind.Success);
+                RaiseCloningCacheSize();
+            }
+            else
+            {
+                DubbingStatus = $"Line {cue.Index} couldn't be cloned (the sidecar returned nothing).";
+                SetStatus("The line couldn't be re-cloned.", StatusKind.Error);
+            }
+        });
+    }
+
     /// <summary>
     /// A one-shot voice for the cloning preview: already-synthesised samples (made via the batch path) returned as-is,
     /// so the preview uses the same batch engine as the dub. Speed and voice id are ignored — it's a single fixed clip.

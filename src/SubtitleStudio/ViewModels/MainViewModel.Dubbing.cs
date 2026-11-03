@@ -799,6 +799,8 @@ public sealed partial class MainViewModel
             if (e.PropertyName is nameof(SelectedCue))
             {
                 TakeSelectedLine(force: false);
+                OnPropertyChanged(nameof(CanRedoClonedLine));
+                RelayCommand.Refresh();
                 if (IsCloningEngine && SelectedCloningScope.Id == "lines") { OnPropertyChanged(nameof(CloningEstimateText)); OnPropertyChanged(nameof(ClonedLineCount)); OnPropertyChanged(nameof(CloningCostRows)); OnPropertyChanged(nameof(HasCloningCostRows)); }
             }
         };

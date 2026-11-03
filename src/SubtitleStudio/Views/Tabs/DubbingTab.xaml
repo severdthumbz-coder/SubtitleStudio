@@ -122,6 +122,13 @@
                                         ToolTip="Deletes the cached cloned lines. A cloned dub keeps each finished line so a stopped or re-run dub reuses them instead of redoing them; clear this to free the space or to force every line to be spoken again." />
                             </StackPanel>
 
+                            <!-- Per-line redo: re-clone just the selected line if it came out garbled -->
+                            <StackPanel Margin="0,8,0,0">
+                                <Button Style="{StaticResource GhostButton}" Tag="&#xE72C;" Content="Re-clone the selected line" Command="{Binding RedoClonedLineCommand}" HorizontalAlignment="Left"
+                                        ToolTip="If one cloned line came out garbled, select it in the Subtitles tab and re-clone just that line. The new take is saved and used in the dub; every other line is left as it was, so you don't re-run the whole dub." />
+                                <TextBlock Text="Select the line in the Subtitles tab first. Only that line is re-done." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" Opacity="0.8" />
+                            </StackPanel>
+
                             <CheckBox Content="Ease off the CPU during cloning (slower, gentler on the system)" IsChecked="{Binding CloningEaseCpu, Mode=TwoWay}" Margin="0,8,0,0"
                                       ToolTip="Uses fewer processor threads and runs the cloning engine at a lower priority, so a long cloning run doesn't keep every core at full load. Slower (about 1.5×), but easier on a machine that struggles under sustained full load. Off by default." />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"

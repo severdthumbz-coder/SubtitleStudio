@@ -61,6 +61,7 @@ public partial class App : Application
         Services.Playback.VlcPlaybackService.SoftwareVideoOnly = config.SoftwareVideoOnly;
 
         var log = new ActivityLog(Path.Combine(AppPaths.ExeDirectory, "subt_activity.log"));
+        var dialogs = new WpfDialogService();
         _services = new AppServices
         {
             Config = config,
@@ -70,8 +71,8 @@ public partial class App : Application
             Import = new FileImportService(),
             Ffmpeg = new FfmpegLocator(),
             Probe = new MediaProbeService(),
-            Dialogs = new WpfDialogService(),
-            Tour = new NullGuidedTourService(),
+            Dialogs = dialogs,
+            Tour = new GuidedTourService(dialogs),
             Playback = new VlcPlaybackService(),
             CreatePlayer = () => new VlcPlaybackService(),
             LoadInpaintModel = (path, gpu, batch) => OnnxInpaintModel.Load(path, gpu, batch, m => log.Info("AI", m)),

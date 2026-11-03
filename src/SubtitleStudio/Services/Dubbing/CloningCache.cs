@@ -81,6 +81,14 @@ public sealed class CloningCache
         catch (UnauthorizedAccessException) { }
     }
 
+    /// <summary>Removes one line's cached audio, so it is re-synthesised next time (the per-line redo).</summary>
+    public void Remove(string key)
+    {
+        try { var p = PathFor(key); if (File.Exists(p)) File.Delete(p); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     /// <summary>Drops the oldest files when the cache is over its cap. Cheap; run after a dub.</summary>
     public void Prune()
     {
