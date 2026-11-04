@@ -108,6 +108,7 @@ public sealed partial class MainViewModel
             int selected = SelectedCue is { } cue ? Cues.IndexOf(cue) : 0;
             snapshot.Editor = EditorSession.From(doc, IsDirty, PairedVideo?.FullPath, Math.Max(0, selected), _standaloneBaseName);
         }
+        snapshot.Batch = CaptureBatchSession();
         return snapshot;
     }
 
@@ -173,6 +174,11 @@ public sealed partial class MainViewModel
             var restored = "Previous session restored" + (missing > 0 ? $" ({missing} file(s) no longer found)" : string.Empty) + ".";
             SetStatus(restored, missing > 0 ? StatusKind.Warning : StatusKind.Success);
             _s.Log.Info("Session", restored + " Saved " + snapshot.SavedUtc.ToLocalTime().ToString("g") + (snapshot.AppVersion is { } v ? $" by build {v}." : "."));
+
+            // A batch that didn't finish: put its queue and options back on the Batch tab (the user presses Start to
+            // carry on). Done last so its own status message is the one left on screen.
+            if (snapshot.Batch is { Files.Count: > 0 } batch)
+                await RestoreBatchSession(batch);
         }
         finally
         {

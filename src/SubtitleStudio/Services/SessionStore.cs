@@ -77,6 +77,20 @@ public sealed class EditorSession
     }
 }
 
+/// <summary>
+/// The Batch tab's queue, so an unfinished season run can be offered back. Only the queue and its options are
+/// kept — which episodes are already done is read from the subtitles on disk when the run continues, so resuming
+/// is just "put the list and options back, then press Start" (SeasonQueue reuses/skips what's already written).
+/// </summary>
+public sealed class BatchSession
+{
+    public List<string> Files { get; set; } = new();
+    public string? SpokenLanguageCode { get; set; }
+    public string? TargetLanguageCode { get; set; }
+    public bool Redo { get; set; }
+    public DateTime StartedUtc { get; set; }
+}
+
 /// <summary>The Burned-in tab: the video, what Detect found (so it needn't run again) and the settings.</summary>
 public sealed class BurnedInSession
 {
@@ -104,10 +118,11 @@ public sealed class SessionSnapshot
     public BurnedInSession? BurnedIn { get; set; }
     public EditorSession? Editor { get; set; }
     public SessionJob? Job { get; set; }
+    public BatchSession? Batch { get; set; }
 
     /// <summary>Anything worth offering to restore (an empty app isn't).</summary>
     [JsonIgnore]
-    public bool HasContent => Files.Count > 0 || Editor is { Cues.Count: > 0 } || Job is not null;
+    public bool HasContent => Files.Count > 0 || Editor is { Cues.Count: > 0 } || Job is not null || Batch is { Files.Count: > 0 };
 
     /// <summary>One line per item for the restore prompt.</summary>
     public IReadOnlyList<string> Describe()
@@ -120,6 +135,9 @@ public sealed class SessionSnapshot
             var name = e.SourcePath is not null ? Path.GetFileName(e.SourcePath) : e.StandaloneBaseName ?? "Untitled subtitle";
             lines.Add($"Subtitle {name}: {e.Cues.Count:N0} cues" + (e.Dirty ? ", with unsaved changes" : string.Empty));
         }
+        if (Batch is { Files.Count: > 0 } batch)
+            lines.Add((batch.Files.Count == 1 ? "A batch of 1 episode" : $"A batch of {batch.Files.Count} episodes")
+                + " that didn't finish (already-done episodes are kept; it carries on from where it stopped)");
         return lines;
     }
 }

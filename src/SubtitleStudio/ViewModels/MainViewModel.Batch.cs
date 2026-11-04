@@ -26,6 +26,9 @@ public sealed partial class MainViewModel
     private IReadOnlyList<string> _batchTranslatedFiles = Array.Empty<string>();
     private string _batchNamesShow = string.Empty;
     private string _batchNameReport = string.Empty;
+    // Set to the run's queue + options while a batch is in flight, so a crash mid-run leaves it in the session to
+    // offer back. Null when no batch is running (so a queue the user built but never started isn't offered).
+    private Services.BatchSession? _batchInFlight;
 
     public ObservableCollection<QueueRowViewModel> BatchRows { get; } = new();
 
@@ -226,6 +229,33 @@ public sealed partial class MainViewModel
             added.Count > 0 ? StatusKind.Success : StatusKind.Info);
     }
 
+    /// <summary>The batch to persist in the session: the in-flight run, or null when nothing is running.</summary>
+    internal Services.BatchSession? CaptureBatchSession() => _batchInFlight;
+
+    /// <summary>
+    /// Put a crashed batch's queue and options back (restore flow). Missing files are dropped. It does NOT start the
+    /// run — the user reviews the queue and presses Start, which continues from where it stopped (SeasonQueue reuses
+    /// or skips the episodes already written to disk).
+    /// </summary>
+    internal async Task RestoreBatchSession(Services.BatchSession batch)
+    {
+        var existing = batch.Files.Where(File.Exists).ToList();
+        if (existing.Count == 0) return;
+
+        if (batch.SpokenLanguageCode is { } spoken && TranscribeLanguages.FirstOrDefault(l => l.Code == spoken) is { } sl)
+            SelectedTranscribeLanguage = sl;
+        if (BatchTargetLanguages.FirstOrDefault(l => l.Code == batch.TargetLanguageCode) is { } tl)
+            SelectedBatchTarget = tl;
+        BatchRedo = batch.Redo;
+
+        await BatchAddAsync(existing);
+        int missing = batch.Files.Count - existing.Count;
+        BatchStatus = $"Restored a batch of {existing.Count} episode{(existing.Count == 1 ? "" : "s")} that didn't finish"
+            + (missing > 0 ? $" ({missing} no longer on disk)" : string.Empty)
+            + ". Press Start to carry on — episodes already done are kept.";
+        SetStatus(BatchStatus, StatusKind.Info);
+    }
+
     private void AddBatchItems(IEnumerable<MediaItem> items)
     {
         foreach (var item in items)
@@ -383,6 +413,16 @@ public sealed partial class MainViewModel
 
         var options = new QueueOptions(SelectedTranscribeLanguage.Code, whisperModel, target, _s.Config.DefaultOutputFormat, BatchRedo);
         var queue = new SeasonQueue(_s.SubtitleFormats, _s.Log);
+        // Remember this run so a crash mid-batch can offer it back (which episodes are done is read from disk on resume).
+        _batchInFlight = new Services.BatchSession
+        {
+            Files = rows.Select(r => r.FullPath).ToList(),
+            SpokenLanguageCode = SelectedTranscribeLanguage.Code,
+            TargetLanguageCode = target,
+            Redo = BatchRedo,
+            StartedUtc = DateTime.UtcNow,
+        };
+        SaveSessionNow(); // persist the queue at once, so even an immediate crash leaves it to resume
         _batchCts = new CancellationTokenSource();
         BatchBusy = true;
         BatchProgress = 0;
@@ -444,6 +484,9 @@ public sealed partial class MainViewModel
         {
             _batchLive = false;
             BatchBusy = false;
+            // The run ended (finished or stopped): drop the in-flight record so it isn't offered back next start.
+            _batchInFlight = null;
+            SaveSessionNow();
             _batchCts.Dispose();
             _batchCts = null;
             foreach (var folder in rows.Select(r => r.Item.Folder).Distinct(StringComparer.OrdinalIgnoreCase)) RefreshSidecarsIn(folder);

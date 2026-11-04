@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.119] - 2026-11-04
+
+### Added
+- Season batch resume after a crash. If a batch (transcribe / translate a whole folder) is interrupted by a crash or a power cut, the next start now offers the queue back alongside the usual session restore — one prompt lists both. Choosing to restore puts the episode list and its options (spoken language, target language, redo) back on the Batch tab; you press Start to carry on. Episodes already finished are kept and skipped (their subtitles are read from disk), so the run continues from where it stopped rather than starting over. A batch that finished or was stopped on purpose is not offered back, and files no longer on disk are dropped from the restored queue.
+
 ## [1.0.0.118] - 2026-11-04
 
 ### Fixed
