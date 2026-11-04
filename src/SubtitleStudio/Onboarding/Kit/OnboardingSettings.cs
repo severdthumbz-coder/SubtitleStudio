@@ -11,7 +11,7 @@ namespace OnboardingKit;
 /// </summary>
 public interface IOnboardingSettingsStore
 {
-    /// <summary>Master switch for the ⓘ hints, the ❔ legend button and the first-run tour. Default: true.</summary>
+    /// <summary>Master switch for the ⓘ hints, the Legend button button and the first-run tour. Default: true.</summary>
     bool ShowOnboardingHelpers { get; set; }
 
     /// <summary>Set to true once the tour has been finished or skipped, so it never auto-starts again.</summary>

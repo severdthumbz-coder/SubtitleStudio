@@ -178,7 +178,7 @@ public sealed partial class MainViewModel
         {
             if (_s.Config.ShowHints == value) return;
             // Routed through the onboarding controller's master switch, which writes ShowHints, toggles HintService and
-            // closes the legend / any running tour — so the ⓘ hints, the ❔ legend and the first-run tour stay together.
+            // closes the legend / any running tour — so the ⓘ hints, the Legend button and the first-run tour stay together.
             OnboardingKit.OnboardingController.Current.ShowHelpers = value;
             OnPropertyChanged();
             SaveSettings();

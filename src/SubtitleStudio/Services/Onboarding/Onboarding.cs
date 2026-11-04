@@ -6,7 +6,7 @@ namespace SubtitleStudio.Services.Onboarding;
 /// Global on/off switch for the contextual (i) hint markers. HintMarker controls bind to
 /// <see cref="Current"/> directly so no view has to thread the setting through.
 /// Kept in step with the OnboardingKit master switch (OnboardingController.ShowHelpers) so the
-/// hints, the ❔ legend and the first-run tour all turn on and off together.
+/// hints, the Legend button and the first-run tour all turn on and off together.
 /// </summary>
 public sealed class HintService : ObservableObject
 {

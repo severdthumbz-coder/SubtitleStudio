@@ -1,7 +1,7 @@
 <!--
-    The ❔ toolbar button + its Legend flyout. Drop it in your toolbar:  <ob:LegendButton/>
+    The legend toolbar button + its Legend flyout. Drop it in your toolbar:  <ob:LegendButton/>
     Hidden automatically when "Show onboarding helpers" is off.
-    Glyph="…" changes the icon (default ❔); ButtonStyle="{StaticResource YourToggleStyle}"
+    Glyph="…" changes the icon (default is a Fluent grid glyph); ButtonStyle="{StaticResource YourToggleStyle}"
     swaps in your own toolbar look (Style TargetType="ToggleButton").
 -->
 <UserControl x:Class="OnboardingKit.LegendButton"

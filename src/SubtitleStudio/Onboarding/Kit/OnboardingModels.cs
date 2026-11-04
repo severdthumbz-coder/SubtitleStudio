@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  OnboardingKit — drop-in guided tour, ⓘ hint bubbles and ❔ legend for WPF.
+//  OnboardingKit — drop-in guided tour, ⓘ hint bubbles and legend for WPF.
 //  Ported from Video Metadata Editor (build 151–154). MIT licensed.
 // ─────────────────────────────────────────────────────────────────────────────
 using System;

@@ -9,6 +9,8 @@ current FullVersion has no entry here.
 
 ### Fixed
 - The guided tour card and legend flyout were see-through (the page showed through them) and the tour's dim backdrop barely darkened the window. The onboarding colours were defined as aliases to the theme's brushes, which didn't resolve reliably when the theme dictionary is loaded on its own and left the card and scrim unpainted. They're now concrete colours per theme, so the card and legend are solid and the backdrop dims properly — in both light and dark.
+- Tour and Settings text that still referred to the legend as a "❔" button now matches the toolbar's new grid icon, so nothing points at a question mark that isn't there.
+- Wording that still called the toolbar legend a "❔ Legend" (in the tour's Settings and final steps, and the Settings > Behaviour caption) now just says "Legend button", matching the new grid glyph that replaced the question mark.
 
 ## [1.0.0.117] - 2026-11-04
 

@@ -106,7 +106,7 @@ public partial class App : Application
         _services.Theme.Apply(config.Theme);
         _services.Log.Info("App", $"Subtitle Studio {AppInfo.DisplayVersion} started on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}, .NET {Environment.Version}.");
 
-        // Onboarding kit: the guided tour (dimmed overlay card), the ❔ legend and the ⓘ hints share one master switch,
+        // Onboarding kit: the guided tour (dimmed overlay card), the Legend button and the ⓘ hints share one master switch,
         // "Show onboarding helpers", stored as ShowHints; HasSeenTour is the first-run flag (FirstRunCompleted). Keeping
         // HintService in step means the app's own ⓘ markers follow the same switch.
         var onboardingStore = new OnboardingKit.DelegateOnboardingStore(

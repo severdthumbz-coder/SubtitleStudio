@@ -36,10 +36,10 @@ public static class OnboardingContent
             "Run the same job over many files at once — transcribe, translate or dub a whole folder unattended. Files that already have subtitles are skipped, so a stopped queue carries on.",
             Tabs.Batch),
         new("Settings",
-            "API keys, the ffmpeg path, engine choices, output defaults and stability options — including \"Use the processor instead of the graphics card\" if your machine is unstable during dubbing. You can turn these onboarding helpers (the ⓘ hints, the ❔ legend and this first-run tour) off here under Behaviour.",
+            "API keys, the ffmpeg path, engine choices, output defaults and stability options — including \"Use the processor instead of the graphics card\" if your machine is unstable during dubbing. You can turn these onboarding helpers (the ⓘ hints, the Legend button — the grid icon in the toolbar — and this first-run tour) off here under Behaviour.",
             Tabs.Settings),
         new("You're all set",
-            "That's the tour. The ❔ Legend in the toolbar explains the icons and colours, and the ⓘ markers explain each section on hover. Replay this tour any time from the Help tab. Enjoy."),
+            "That's the tour. The Legend button — the grid icon in the toolbar — explains the icons and colours, and the ⓘ markers explain each section on hover. Replay this tour any time from the Help tab. Enjoy."),
     };
 
     public static readonly LegendItem[] LegendItems =

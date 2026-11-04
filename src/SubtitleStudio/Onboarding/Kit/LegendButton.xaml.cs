@@ -7,9 +7,9 @@ namespace OnboardingKit;
 public partial class LegendButton : UserControl
 {
     public static readonly DependencyProperty GlyphProperty = DependencyProperty.Register(
-        nameof(Glyph), typeof(object), typeof(LegendButton), new PropertyMetadata("❔")); // ❔
+        nameof(Glyph), typeof(object), typeof(LegendButton), new PropertyMetadata("")); // Fluent "ViewAll" grid
 
-    /// <summary>What the button shows. Default ❔.</summary>
+    /// <summary>What the button shows. Default is the Fluent "view all" grid glyph (set per app via Glyph="...").</summary>
     public object Glyph
     {
         get => GetValue(GlyphProperty);
@@ -24,7 +24,7 @@ public partial class LegendButton : UserControl
         }));
 
     /// <summary>
-    /// Optional: a Style with TargetType="ToggleButton" (or ButtonBase) so the ❔ matches
+    /// Optional: a Style with TargetType="ToggleButton" (or ButtonBase) so the glyph matches
     /// your other toolbar buttons, e.g. ButtonStyle="{StaticResource IconToggleButton}".
     /// </summary>
     public Style? ButtonStyle

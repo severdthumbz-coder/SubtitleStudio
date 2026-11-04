@@ -377,7 +377,7 @@
                             <CheckBox IsChecked="{Binding ShowHints}">
                                 <StackPanel>
                                     <TextBlock Text="Show onboarding helpers (hints, legend, first-run tour)" />
-                                    <TextBlock Style="{StaticResource Text.Caption}" Text="The small ⓘ info markers next to options, the ❔ Legend button in the toolbar, and the guided tour that runs on first launch. Replaying the tour from the Help tab works even with this off." />
+                                    <TextBlock Style="{StaticResource Text.Caption}" Text="The small ⓘ info markers next to options, the Legend button in the toolbar, and the guided tour that runs on first launch. Replaying the tour from the Help tab works even with this off." />
                                 </StackPanel>
                             </CheckBox>
                             <Separator />

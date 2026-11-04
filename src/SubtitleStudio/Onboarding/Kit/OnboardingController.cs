@@ -39,7 +39,7 @@ public sealed class OnboardingController : INotifyPropertyChanged
 
     /// <param name="store">Where ShowOnboardingHelpers / HasSeenTour persist.</param>
     /// <param name="steps">The tour cards, in order.</param>
-    /// <param name="legendItems">Rows for the ❔ Legend (optional).</param>
+    /// <param name="legendItems">Rows for the Legend button (optional).</param>
     /// <param name="selectTab">How to switch tabs for a step's TabIndex, e.g. <c>i => vm.SelectedTabIndex = i</c>
     /// or <c>i => MainTabs.SelectedIndex = i</c>. Optional.</param>
     public void Initialize(IOnboardingSettingsStore store,
@@ -66,7 +66,7 @@ public sealed class OnboardingController : INotifyPropertyChanged
     // ───────────────────────── master switch ─────────────────────────
 
     /// <summary>
-    /// Bind your Settings checkbox to this. Off = hides every ⓘ hint and the ❔ legend button,
+    /// Bind your Settings checkbox to this. Off = hides every ⓘ hint and the Legend button button,
     /// stops the first-run tour, and closes anything open. Persists immediately.
     /// The Help-tab "Replay tour" button keeps working either way.
     /// </summary>

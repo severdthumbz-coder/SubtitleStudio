@@ -1,5 +1,5 @@
 <!--
-    The legend rows (glyph or colour swatch + meaning). Used inside the ❔ popup,
+    The legend rows (glyph or colour swatch + meaning). Used inside the legend popup,
     and you can drop it on your Help tab too:  <ob:LegendList/>
 -->
 <UserControl x:Class="OnboardingKit.LegendList"
