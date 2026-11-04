@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.116] - 2026-11-03
+
+### Changed
+- Guided tour rebuilt on a shared onboarding framework (ported from Video Metadata Editor's OnboardingKit). The tour now dims the whole window with a backdrop and shows a centred card over it — and, importantly, it covers the window correctly whether the window is normal or maximised. The previous version was a separate top-level window positioned by hand, which sat offset and undersized when the main window was maximised; hosting the tour as an overlay inside the window fixes that. Each step still brings its tab forward behind the backdrop, and arrow keys move between steps (→ / Enter next, ← back, Esc skip).
+- Onboarding helpers now share one master switch. Settings > Behaviour's first checkbox, "Show onboarding helpers (hints, legend, first-run tour)", turns the ⓘ hints, the new ❔ legend and the first-run tour on and off together. The separate "Show the guided tour on first run" still gates only the automatic first-run start, and replaying from the Help tab always works regardless of either.
+
+### Added
+- ❔ Legend button in the toolbar. Opens a flyout explaining the app's status icons and colours (the same reference that's on the Help tab). It hides when onboarding helpers are off.
+
 ## [1.0.0.115] - 2026-11-03
 
 ### Added

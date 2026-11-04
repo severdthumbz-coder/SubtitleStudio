@@ -36,9 +36,6 @@ public sealed partial class MainViewModel
     public RelayCommand DetectFfmpegCommand { get; private set; } = null!;
     public RelayCommand OpenSettingsFolderCommand { get; private set; } = null!;
 
-    /// <summary>Replay the guided tour on demand (Help tab / Settings), regardless of the first-run state.</summary>
-    public AsyncRelayCommand StartTourCommand { get; private set; } = null!;
-
     private void InitSettings()
     {
         ApiKeyEntries.Add(new ApiKeyEntryViewModel(
@@ -60,10 +57,6 @@ public sealed partial class MainViewModel
             SetStatus(FfmpegStatus.Summary, FfmpegStatus.IsComplete ? StatusKind.Success : StatusKind.Warning);
         });
         OpenSettingsFolderCommand = new RelayCommand(() => _s.Dialogs.RevealInExplorer(SettingsFilePath));
-        StartTourCommand = new AsyncRelayCommand(
-            () => _s.Tour.StartAsync(System.Windows.Application.Current?.MainWindow!),
-            () => _s.Tour.IsAvailable);
-        // Note: a null MainWindow is tolerated by the tour service (it falls back to Application.Current.MainWindow).
 
         HintService.Current.IsEnabled = _s.Config.ShowHints;
         RefreshFfmpegStatus();
@@ -184,8 +177,9 @@ public sealed partial class MainViewModel
         set
         {
             if (_s.Config.ShowHints == value) return;
-            _s.Config.ShowHints = value;
-            HintService.Current.IsEnabled = value;
+            // Routed through the onboarding controller's master switch, which writes ShowHints, toggles HintService and
+            // closes the legend / any running tour — so the ⓘ hints, the ❔ legend and the first-run tour stay together.
+            OnboardingKit.OnboardingController.Current.ShowHelpers = value;
             OnPropertyChanged();
             SaveSettings();
         }

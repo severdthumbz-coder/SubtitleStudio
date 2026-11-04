@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:inf="clr-namespace:SubtitleStudio.Infrastructure"
         xmlns:tabs="clr-namespace:SubtitleStudio.Views.Tabs"
+        xmlns:ob="clr-namespace:OnboardingKit"
         Title="{Binding WindowTitle}"
         Icon="/Assets/app.ico"
         Width="1400" Height="880"
@@ -62,6 +63,9 @@
                             Command="{Binding ShowSettingsCommand}" />
                     <Button Style="{StaticResource ToolbarButton}" Tag="&#xE897;" Content="Help"
                             Command="{Binding ShowHelpCommand}" />
+
+                    <!-- ❔ Legend: explains the icons and colours. Hidden when onboarding helpers are off. -->
+                    <ob:LegendButton VerticalAlignment="Center" Margin="4,0,0,0" />
                 </StackPanel>
             </ScrollViewer>
         </Border>
@@ -158,5 +162,9 @@
                 </DockPanel>
             </DockPanel>
         </Border>
+
+        <!-- Guided-tour overlay: a dim backdrop + centred card that covers the whole window (all rows), so it fills the
+             client area correctly whether the window is normal or maximised, unlike a separate top-level window. -->
+        <ob:TourOverlay Grid.Row="0" Grid.RowSpan="99" Panel.ZIndex="500" />
     </Grid>
 </Window>

@@ -53,4 +53,14 @@
     <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#E7E9EE" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#4F8CFF" />
     <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#737B8B" />
+
+    <!-- OnboardingKit aliases: map the kit's Onb* keys onto this theme's brushes so the guided tour, legend and hints
+         match the app and follow light/dark switching (ThemeService swaps this whole dictionary). -->
+    <StaticResource x:Key="OnbSurfaceBrush"    ResourceKey="Brush.SurfaceRaised" />
+    <StaticResource x:Key="OnbForegroundBrush" ResourceKey="Brush.Text" />
+    <StaticResource x:Key="OnbMutedBrush"      ResourceKey="Brush.TextMuted" />
+    <StaticResource x:Key="OnbBorderBrush"     ResourceKey="Brush.Border" />
+    <StaticResource x:Key="OnbAccentBrush"     ResourceKey="Brush.Accent" />
+    <StaticResource x:Key="OnbOnAccentBrush"   ResourceKey="Brush.OnAccent" />
+    <SolidColorBrush x:Key="OnbScrimBrush" Color="#B0000000" />
 </ResourceDictionary>

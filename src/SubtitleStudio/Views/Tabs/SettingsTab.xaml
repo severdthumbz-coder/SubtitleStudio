@@ -376,15 +376,15 @@
                             <Separator />
                             <CheckBox IsChecked="{Binding ShowHints}">
                                 <StackPanel>
-                                    <TextBlock Text="Show (i) hints" />
-                                    <TextBlock Style="{StaticResource Text.Caption}" Text="Small info markers next to options that explain what they do." />
+                                    <TextBlock Text="Show onboarding helpers (hints, legend, first-run tour)" />
+                                    <TextBlock Style="{StaticResource Text.Caption}" Text="The small ⓘ info markers next to options, the ❔ Legend button in the toolbar, and the guided tour that runs on first launch. Replaying the tour from the Help tab works even with this off." />
                                 </StackPanel>
                             </CheckBox>
                             <Separator />
                             <CheckBox IsChecked="{Binding ShowGuidedTourOnFirstRun}">
                                 <StackPanel>
                                     <TextBlock Text="Show the guided tour on first run" />
-                                    <TextBlock Style="{StaticResource Text.Caption}" Text="Master switch for the onboarding tour. The tour itself arrives in a later build." />
+                                    <TextBlock Style="{StaticResource Text.Caption}" Text="Run the guided tour automatically the first time Subtitle Studio opens. You can always replay it from the Help tab." />
                                 </StackPanel>
                             </CheckBox>
                         </StackPanel>

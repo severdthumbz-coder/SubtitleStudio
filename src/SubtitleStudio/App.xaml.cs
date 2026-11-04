@@ -72,7 +72,6 @@ public partial class App : Application
             Ffmpeg = new FfmpegLocator(),
             Probe = new MediaProbeService(),
             Dialogs = dialogs,
-            Tour = new GuidedTourService(),
             Playback = new VlcPlaybackService(),
             CreatePlayer = () => new VlcPlaybackService(),
             LoadInpaintModel = (path, gpu, batch) => OnnxInpaintModel.Load(path, gpu, batch, m => log.Info("AI", m)),
@@ -107,6 +106,18 @@ public partial class App : Application
         _services.Theme.Apply(config.Theme);
         _services.Log.Info("App", $"Subtitle Studio {AppInfo.DisplayVersion} started on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}, .NET {Environment.Version}.");
 
+        // Onboarding kit: the guided tour (dimmed overlay card), the ❔ legend and the ⓘ hints share one master switch,
+        // "Show onboarding helpers", stored as ShowHints; HasSeenTour is the first-run flag (FirstRunCompleted). Keeping
+        // HintService in step means the app's own ⓘ markers follow the same switch.
+        var onboardingStore = new OnboardingKit.DelegateOnboardingStore(
+            () => config.ShowHints,
+            v => { config.ShowHints = v; Services.Onboarding.HintService.Current.IsEnabled = v; },
+            () => config.FirstRunCompleted,
+            v => config.FirstRunCompleted = v,
+            () => settingsService.ScheduleSave(config));
+        OnboardingKit.OnboardingController.Current.Initialize(
+            onboardingStore, Onboarding.OnboardingContent.TourSteps, Onboarding.OnboardingContent.LegendItems);
+
         // Libraries unpacked by older builds of the single-file EXE (never removed by .NET).
         var appLog = _services.Log;
         _ = Task.Run(() =>
@@ -123,6 +134,8 @@ public partial class App : Application
         });
 
         _viewModel = new MainViewModel(_services);
+        // Each tour step can bring its tab forward behind the dimmed overlay.
+        OnboardingKit.OnboardingController.Current.SetTabSelector(i => _viewModel!.SelectedTabIndex = i);
         AsyncRelayCommand.UnhandledError = ex =>
         {
             LogError(ex);
@@ -145,7 +158,10 @@ public partial class App : Application
 
         _ = StartSessionAsync(handoffPaths);
 
-        _ = MaybeStartGuidedTourAsync();
+        // First-run guided tour, after the window has finished drawing (ApplicationIdle). Honours both the master
+        // "Show onboarding helpers" switch (inside the controller) and the "Show the guided tour on first run" setting.
+        if (config.ShowGuidedTourOnFirstRun)
+            OnboardingKit.OnboardingController.Current.ScheduleAutoStart(Dispatcher);
     }
 
     /// <summary>
@@ -214,17 +230,6 @@ public partial class App : Application
         var resolved = HandoffService.ParseArgs(paths);
         if (resolved.Count > 0)
             _ = _viewModel.ImportAsync(resolved, "hand-off");
-    }
-
-    private async Task MaybeStartGuidedTourAsync()
-    {
-        if (_services is null || _window is null) return;
-        var config = _services.Config;
-        if (!config.ShowGuidedTourOnFirstRun || config.FirstRunCompleted || !_services.Tour.IsAvailable) return;
-
-        await _services.Tour.StartAsync(_window);
-        config.FirstRunCompleted = true;
-        _services.Settings.ScheduleSave(config);
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

@@ -23,7 +23,6 @@ public sealed class AppServices
     public required FfmpegLocator Ffmpeg { get; init; }
     public required MediaProbeService Probe { get; init; }
     public required IDialogService Dialogs { get; init; }
-    public required IGuidedTourService Tour { get; init; }
     public required IPlaybackService Playback { get; init; }
 
     /// <summary>Makes an extra, independent player (the burned-in before/after view). Null: not available.</summary>
