@@ -5,6 +5,15 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.117] - 2026-11-04
+
+### Fixed
+- The guided tour card and the ❔ legend now follow the light/dark theme instead of staying dark. The onboarding colours were defined as fixed dark defaults that sat ahead of the theme in lookup order, so a light-mode window still drew a dark card; the colours now come only from the theme's own brushes, which switch live with the rest of the app.
+- Legend icons render again. The legend rows used the app's icon glyphs but didn't set the icon font, so they showed as empty boxes; they now use Segoe Fluent Icons like the rest of the app, in the current theme's colour.
+
+### Changed
+- The legend toolbar button now uses a distinct "view all" glyph instead of a second question mark, so it no longer looks like a duplicate of the Help button beside it.
+
 ## [1.0.0.116] - 2026-11-03
 
 ### Changed

@@ -1,20 +1,14 @@
 <!--
     OnboardingKit resources.
-    Merge this FIRST in App.xaml's MergedDictionaries (before your theme dictionaries),
-    so any Onb* keys your theme defines override these defaults. See HANDOFF.md → "Theming".
+    Merge this FIRST in App.xaml's MergedDictionaries (before your theme dictionaries).
+    The Onb* COLOUR brushes are intentionally NOT defined here — Subtitle Studio defines them in its
+    Tokens.Dark.xaml / Tokens.Light.xaml (aliased to the app's own brushes), which ThemeService swaps
+    at runtime. Defining dark defaults here would sit ahead of the swapped dictionary in lookup order and
+    freeze the tour/legend to dark; leaving them out lets DynamicResource follow the live theme.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ob="clr-namespace:OnboardingKit">
-
-    <!-- ── Default palette (dark). Override any of these keys in your theme. ── -->
-    <SolidColorBrush x:Key="OnbSurfaceBrush"    Color="#FF23262E"/>
-    <SolidColorBrush x:Key="OnbForegroundBrush" Color="#FFE8EAED"/>
-    <SolidColorBrush x:Key="OnbMutedBrush"      Color="#FF9AA0A6"/>
-    <SolidColorBrush x:Key="OnbBorderBrush"     Color="#FF3A3F4B"/>
-    <SolidColorBrush x:Key="OnbAccentBrush"     Color="#FF4F8EF7"/>
-    <SolidColorBrush x:Key="OnbOnAccentBrush"   Color="#FFFFFFFF"/>
-    <SolidColorBrush x:Key="OnbScrimBrush"      Color="#B0000000"/>
 
     <ob:OnbBoolToVisibilityConverter x:Key="OnbBoolVis"/>
     <ob:OnbInverseBoolConverter      x:Key="OnbInverseBool"/>

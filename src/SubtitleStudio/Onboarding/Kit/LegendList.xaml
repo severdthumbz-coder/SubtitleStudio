@@ -27,7 +27,8 @@
                             Visibility="{Binding HasSwatch, Converter={StaticResource BoolVis}}"/>
 
                     <TextBlock Text="{Binding Glyph}" FontSize="14"
-                               VerticalAlignment="Center"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
+                               VerticalAlignment="Center" HorizontalAlignment="Left"
                                Foreground="{DynamicResource OnbForegroundBrush}"
                                Visibility="{Binding HasGlyph, Converter={StaticResource BoolVis}}"/>
 

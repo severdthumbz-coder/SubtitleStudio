@@ -64,8 +64,9 @@
                     <Button Style="{StaticResource ToolbarButton}" Tag="&#xE897;" Content="Help"
                             Command="{Binding ShowHelpCommand}" />
 
-                    <!-- ❔ Legend: explains the icons and colours. Hidden when onboarding helpers are off. -->
-                    <ob:LegendButton VerticalAlignment="Center" Margin="4,0,0,0" />
+                    <!-- Legend: explains the icons and colours. A grid/key glyph (not another "?") to avoid sitting next
+                         to the Help "?". Hidden when onboarding helpers are off. -->
+                    <ob:LegendButton Glyph="&#xE8A9;" VerticalAlignment="Center" Margin="4,0,0,0" />
                 </StackPanel>
             </ScrollViewer>
         </Border>

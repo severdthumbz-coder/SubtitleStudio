@@ -16,6 +16,7 @@
         <Style x:Key="OnbLegendToggle" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"/>
             <Setter Property="Padding" Value="6,2"/>
             <Setter Property="Foreground" Value="{DynamicResource OnbForegroundBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
