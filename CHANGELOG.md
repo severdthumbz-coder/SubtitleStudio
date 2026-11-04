@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.118] - 2026-11-04
+
+### Fixed
+- The guided tour card and legend flyout were see-through (the page showed through them) and the tour's dim backdrop barely darkened the window. The onboarding colours were defined as aliases to the theme's brushes, which didn't resolve reliably when the theme dictionary is loaded on its own and left the card and scrim unpainted. They're now concrete colours per theme, so the card and legend are solid and the backdrop dims properly — in both light and dark.
+
 ## [1.0.0.117] - 2026-11-04
 
 ### Fixed

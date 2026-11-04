@@ -5,7 +5,7 @@
     Version / AssemblyVersion / FileVersion / InformationalVersion all derive from it.
   -->
   <PropertyGroup>
-    <FullVersion>1.0.0.117</FullVersion>
+    <FullVersion>1.0.0.118</FullVersion>
   </PropertyGroup>
 
   <PropertyGroup>
