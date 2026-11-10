@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.120] - 2026-11-09
+
+### Fixed
+- Burned-in removal no longer blurs scenes that have no subtitle. Two causes are addressed. First, the decision that a video's subtitles are white/yellow (which lets the remover work per frame and leave subtitle-free frames untouched) is now made from the brighter subtitle samples rather than the median — a few dim catches in a dark scene could drag the median down and wrongly switch the whole video to the fallback that blurs the band on every frame, including frames with nothing to remove. Second, even on the per-frame path, a busy picture (people walking, bright clothing, background highlights) could leave enough scattered bright specks in the subtitle band to be mistaken for text and filled; the remover now checks that the leftover pixels actually sit as a row on a baseline and span wider than one line is tall before treating a frame as having a subtitle, so scattered specks or a lone bright patch are left alone. A genuine short subtitle such as "Yes." still passes.
+
 ## [1.0.0.119] - 2026-11-04
 
 ### Added

@@ -103,7 +103,69 @@ public sealed class SubtitleRemover
         var band = frame.CropRows(bandY, bandH);
         var text = SubtitleImageCleaner.RemoveNonText(SubtitleImageCleaner.LightTextMask(band, linePx), linePx);
         if (text.Count < Math.Max(30, (int)(linePx * linePx * 0.15))) return null;
+        // RemoveNonText drops blob-shaped survivors component by component, but a busy scene (people walking, bright
+        // clothing, background highlights) can still leave several letter-sized survivors scattered through the band,
+        // whose pixels together clear the count above and get filled — smearing an area that has no subtitle. Real
+        // subtitle text instead sits as a row on a baseline. So require the surviving pixels to look like a text row
+        // before treating the frame as having a subtitle; otherwise leave the frame untouched.
+        if (!LooksLikeTextRow(text.Bits, band.Width, band.Height, linePx)) return null;
         return Dilate(text.Bits, band.Width, band.Height, Math.Max(2, (int)Math.Round(linePx * 0.14)));
+    }
+
+    /// <summary>
+    /// True when the set text pixels form a subtitle-like row: most of them fall inside a horizontal strip about one
+    /// to two lines tall (a baseline), and within that strip they span wider than one line is tall (a row of letters)
+    /// rather than sitting in one small clump. Scattered bright survivors from a moving picture fail the first test;
+    /// a lone square-ish survivor fails the second. A short real subtitle such as "Yes." passes both.
+    /// </summary>
+    public static bool LooksLikeTextRow(byte[] bits, int w, int h, double linePx)
+    {
+        int total = 0;
+        var rowSum = new int[h];
+        for (int y = 0; y < h; y++)
+        {
+            int s = 0, row = y * w;
+            for (int x = 0; x < w; x++) s += bits[row + x];
+            rowSum[y] = s;
+            total += s;
+        }
+        if (total <= 0) return false;
+
+        // The strip (up to ~2 lines tall) holding the most text pixels: subtitles concentrate there, scatter doesn't.
+        int strip = Math.Clamp((int)Math.Round(linePx * 2.0), 1, h);
+        int windowSum = 0;
+        for (int y = 0; y < strip; y++) windowSum += rowSum[y];
+        int bestSum = windowSum, bestTop = 0;
+        for (int y = strip; y < h; y++)
+        {
+            windowSum += rowSum[y] - rowSum[y - strip];
+            if (windowSum > bestSum) { bestSum = windowSum; bestTop = y - strip + 1; }
+        }
+        // A real subtitle keeps most of its ink on its baseline; scattered survivors spread down the whole band.
+        if (bestSum < total * 0.75) return false;
+
+        // Within that strip, the ink should be sparse and spread along the row like strokes of letters, not a solid
+        // clump. RemoveNonText has already dropped solid blobs component by component, so the remaining risk is a
+        // single tight clump of survivors. Reject a strip whose covered columns are packed almost solid over a narrow
+        // span; accept anything that spreads out (even a short real subtitle like "Yes." covers a run of columns at
+        // low density because letter strokes leave gaps).
+        int bottom = Math.Min(h, bestTop + strip);
+        int covered = 0, minX = w, maxX = -1;
+        for (int x = 0; x < w; x++)
+        {
+            bool any = false;
+            for (int y = bestTop; y < bottom; y++) if (bits[y * w + x] != 0) { any = true; break; }
+            if (!any) continue;
+            covered++;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+        }
+        if (maxX < 0) return false;
+        int spanCols = maxX - minX + 1;
+        // A letter row is wider than it is tall; a clump is roughly square or taller. Require the covered span to be at
+        // least a bit over one line tall, so one small square-ish survivor (a bright window, a face highlight that
+        // slipped the component filter) doesn't count as a subtitle on its own.
+        return spanCols >= Math.Max(4, (int)(linePx * 1.3)) && covered >= 3;
     }
 
     /// <summary>

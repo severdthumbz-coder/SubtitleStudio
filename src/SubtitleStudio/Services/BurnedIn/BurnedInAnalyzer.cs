@@ -113,8 +113,14 @@ public static class BurnedInAnalyzer
         int distinct = DistinctTexts(chosen.Select(b => b.Text));
         bool likely = hits >= Math.Max(3, (int)Math.Ceiling(n * 0.1)) && distinct >= 3;
 
+        // White/yellow subtitles let the per-frame text finder run (frames without text pass through untouched);
+        // coloured subtitles fall back to blurring the whole band on every frame, which also smears frames that have
+        // no subtitle. That fallback is destructive, so only choose it on clear evidence: judge by the BRIGHTER
+        // subtitle samples (75th percentile), not the median. A few dim catches (a dark scene, low contrast) would
+        // otherwise drag the median under the threshold and flip a genuinely white-subtitle video to blur-everything.
+        // Truly coloured subtitles stay low even at the 75th percentile, so they still take the fallback.
         var light = chosen.SelectMany(b => b.Light).OrderBy(v => v).ToList();
-        bool lightText = light.Count == 0 || Percentile(light, 0.5) >= 0.06;
+        bool lightText = light.Count == 0 || Percentile(light, 0.75) >= 0.06;
 
         var examples = chosen.OrderBy(b => b.Sample).Take(12).Select(b => new DetectedLine(samples[b.Sample].Time, b.Text)).ToList();
         // Preview: prefer a two-line subtitle (shows the full height of the area), else the longest text.
