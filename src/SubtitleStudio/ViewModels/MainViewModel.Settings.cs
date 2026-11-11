@@ -49,7 +49,7 @@ public sealed partial class MainViewModel
         ApiKeyEntries.Add(new ApiKeyEntryViewModel(
             ProviderIds.DeepL,
             "DeepL",
-            "Online translation with DeepL. Optional — Translate runs on this PC without a key. With a key saved, DeepL becomes a second Translate engine and the app asks which to use. Get a free key (500,000 characters a month) from the DeepL API Free plan; a Free key ends in \":fx\". The subtitle text is sent to DeepL's servers.",
+            "Online translation with DeepL. Optional — Translate runs on this PC without a key. With a key saved, DeepL becomes a second Translate engine and the app asks which to use. Get a free key from the DeepL API Free plan, which includes a monthly character allowance (shown below once a key is saved); a Free key ends in \":fx\". The subtitle text is sent to DeepL's servers.",
             _s.ApiKeys,
             _s.Dialogs,
             SetStatus,

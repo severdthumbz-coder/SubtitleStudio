@@ -38,7 +38,7 @@ public sealed class DeepLTranslator : ITranslationService
 
     public string Id => EngineId;
     public string DisplayName => "DeepL (online)";
-    public string Description => "High-quality online translation with your DeepL key. Sends the subtitle text to DeepL's servers (so it isn't private or offline), but is fast and often reads more naturally. The Free plan covers 500,000 characters a month.";
+    public string Description => "High-quality online translation with your DeepL key. Sends the subtitle text to DeepL's servers (so it isn't private or offline), but is fast and often reads more naturally. The Free plan includes a monthly character allowance.";
     public bool IsLocal => false;
     public bool RequiresApiKey => true;
     public string? ApiKeyProviderId => ProviderIds.DeepL;
@@ -119,7 +119,7 @@ public sealed class DeepLTranslator : ITranslationService
         if (response.StatusCode == HttpStatusCode.Forbidden)
             throw new InvalidOperationException("DeepL rejected the key (403). Check the key in Settings > API keys — a Free key must end in \":fx\".");
         if (response.StatusCode == (HttpStatusCode)456)
-            throw new ServiceQuotaException(ProviderIds.DeepL, "DeepL's character limit for this plan has been reached (the Free plan allows 500,000 characters a month). It resets at the start of your billing month.");
+            throw new ServiceQuotaException(ProviderIds.DeepL, "DeepL's monthly character limit for this plan has been reached. It resets at the start of your billing month (see the DeepL card in Settings for how much is left).");
         if (response.StatusCode == (HttpStatusCode)429)
             throw new ServiceQuotaException(ProviderIds.DeepL, "DeepL is rate-limiting the requests (429). Try again in a moment.");
         if (!response.IsSuccessStatusCode)

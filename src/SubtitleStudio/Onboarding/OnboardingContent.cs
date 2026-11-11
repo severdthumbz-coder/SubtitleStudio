@@ -27,7 +27,7 @@ public static class OnboardingContent
             "Turn speech into timed subtitles with Whisper, running in the app on the graphics card or the processor. It finds the speech, can listen to the voices alone to catch background talk, marks sung lines, and can detect or translate the language.",
             Tabs.Transcribe),
         new("Translate",
-            "Translate subtitles into another language with a language model in the app, keeping timings, positions and italics. Review it next to the original — lines worth a look are flagged, with alternative wordings on tap — or use an online service if you add a key in Settings.",
+            "Translate subtitles into another language on this PC with a language model, keeping timings, positions and italics. Review it next to the original — lines worth a look are flagged, with alternative wordings on tap. Add a DeepL key in Settings for a fast online option too; when both can run, an Engine box here lets you pick which to use.",
             Tabs.Translate),
         new("Dubbing",
             "Speak the subtitles with an AI voice and mix it over the video. Pick a quick voice per speaker (Kokoro or Piper) or clone each speaker's own voice from the original audio. The dub follows the original's level, side, emphasis and — for the quick voices — intonation, and can remove the original voices under the English. Preview a stretch first, and with cloning you can see where the time will go, resume a stopped run, and re-clone a single line that came out wrong.",

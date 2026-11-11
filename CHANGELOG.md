@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.123] - 2026-11-11
+
+### Changed
+- DeepL Free plan allowance is no longer stated as a fixed number. DeepL's own Free plan limit has changed (now 1,000,000 characters a month for some accounts), so the app no longer hardcodes "500,000" in the DeepL descriptions or the limit-reached message. The real figure is read live from DeepL and shown on the DeepL card in Settings ("This month: X of Y characters used"), which already reflected the correct limit.
+- Guided tour: the Translate step now names DeepL and the on-tab Engine box, instead of a vague "use an online service", so the first-run tour matches what the app does.
+
 ## [1.0.0.122] - 2026-11-11
 
 ### Added
