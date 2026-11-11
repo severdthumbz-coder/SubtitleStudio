@@ -103,6 +103,11 @@ public partial class App : Application
                 else log.Detail("llama.cpp", message);
             }), log));
 
+        // Translate (online, optional): DeepL with the user's own key. Becomes usable the moment a key is saved in
+        // Settings; when both this and the local engine can run, the app asks which to use (and can remember it).
+        _services.TranslationEngines.Add(new Services.Translation.DeepLTranslator(
+            () => _services.ApiKeys.GetKey(Services.Abstractions.ProviderIds.DeepL), log));
+
         _services.Theme.Apply(config.Theme);
         _services.Log.Info("App", $"Subtitle Studio {AppInfo.DisplayVersion} started on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}, .NET {Environment.Version}.");
 

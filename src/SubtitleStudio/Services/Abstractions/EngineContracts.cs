@@ -115,6 +115,7 @@ public sealed record EngineChoice(string Id, string Title, string Description);
 public static class ProviderIds
 {
     public const string OpenAI = "openai";
+    public const string DeepL = "deepl";
 }
 
 /// <summary>A provider refused the request because of a quota or rate limit.</summary>

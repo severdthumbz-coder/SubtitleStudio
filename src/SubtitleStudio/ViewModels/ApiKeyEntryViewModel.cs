@@ -131,6 +131,7 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
         PendingKey = string.Empty;
         IsEditing = false;
         Refresh();
+        RelayCommand.Refresh(); // an engine that needs this key may now be usable (e.g. Translate with DeepL)
         _status($"{DisplayName} key saved (encrypted with Windows DPAPI).", StatusKind.Success);
     }
 
@@ -147,6 +148,7 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
         PendingKey = string.Empty;
         IsEditing = false;
         Refresh();
+        RelayCommand.Refresh(); // an engine that needed this key is no longer usable
         _status($"{DisplayName} key removed.", StatusKind.Info);
     }
 }

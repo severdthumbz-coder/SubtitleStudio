@@ -46,6 +46,14 @@ public sealed partial class MainViewModel
             _s.Dialogs,
             SetStatus));
 
+        ApiKeyEntries.Add(new ApiKeyEntryViewModel(
+            ProviderIds.DeepL,
+            "DeepL",
+            "Online translation with DeepL. Optional — Translate runs on this PC without a key. With a key saved, DeepL becomes a second Translate engine and the app asks which to use. Get a free key (500,000 characters a month) from the DeepL API Free plan; a Free key ends in \":fx\". The subtitle text is sent to DeepL's servers.",
+            _s.ApiKeys,
+            _s.Dialogs,
+            SetStatus));
+
         BrowseFfmpegCommand = new RelayCommand(() =>
         {
             var picked = _s.Dialogs.PickFile("Locate ffmpeg.exe", "ffmpeg|ffmpeg.exe|Programs|*.exe", FfmpegPath);

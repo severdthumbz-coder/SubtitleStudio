@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.121] - 2026-11-10
+
+### Added
+- DeepL online translation (optional). Save a DeepL API key under Settings > API keys and DeepL becomes a second Translate engine alongside the on-this-PC language model. When both can run, Translate (and Batch) ask which to use and can remember the choice — the same picker the app already uses. Translate still runs fully on this PC without a key; DeepL sends the subtitle text to DeepL's servers in exchange for fast, high-quality translation. A Free key (ending ":fx") uses DeepL's free endpoint and its 500,000-characters-a-month allowance; the key is DPAPI-encrypted like the others. Formatting (italics, speaker dashes, line wrapping, override tags) is preserved exactly as with the local engine, and name-consistency still runs over DeepL's output in Batch. Quota and rate-limit responses, a rejected key, and no-internet are reported plainly.
+
 ## [1.0.0.120] - 2026-11-09
 
 ### Fixed

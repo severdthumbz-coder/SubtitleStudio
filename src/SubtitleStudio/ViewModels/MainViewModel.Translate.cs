@@ -315,10 +315,14 @@ public sealed partial class MainViewModel
     public RelayCommand CancelTranslateCommand { get; private set; } = null!;
 
     private bool CanTranslate => HasTranslateSource && !TranslateBusy && !TranscribeBusy && !BatchBusy && !ReviewBusy
-                                 && (HasTranslationModel || _s.TranslationEngines.Any(e => e.RequiresApiKey));
+                                 && (HasTranslationModel || HasUsableOnlineTranslator);
+
+    /// <summary>An online translation engine whose API key is saved (so it can actually run), e.g. DeepL with a key.</summary>
+    private bool HasUsableOnlineTranslator => _s.TranslationEngines.Any(e =>
+        e.RequiresApiKey && e.ApiKeyProviderId is { } p && _s.ApiKeys.GetKey(p) is not null);
 
     public string TranslateBlockedText => !HasTranslateSource ? "Open subtitles first (Subtitles tab), or transcribe a video."
-        : !HasTranslationModel ? "Add a language model first (step 2)."
+        : !HasTranslationModel && !HasUsableOnlineTranslator ? "Add a language model first (step 2), or save a DeepL key in Settings > API keys."
         : TranscribeBusy ? "Wait for AI Transcribe to finish."
         : BatchBusy ? "Wait for the Batch queue to finish." : string.Empty;
 

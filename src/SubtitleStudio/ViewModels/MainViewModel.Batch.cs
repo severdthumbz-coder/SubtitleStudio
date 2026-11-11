@@ -345,7 +345,7 @@ public sealed partial class MainViewModel
 
     private bool CanStartBatch => BatchRows.Any(r => r.Include) && !BatchBusy && !TranscribeBusy && !TranslateBusy && !ReviewBusy && FfmpegStatus.HasFfmpeg
                                   && (HasWhisperModel || _s.TranscriptionEngines.Any(e => e.RequiresApiKey))
-                                  && (BatchTarget is null || HasTranslationModel || _s.TranslationEngines.Any(e => e.RequiresApiKey));
+                                  && (BatchTarget is null || HasTranslationModel || HasUsableOnlineTranslator);
 
     public string BatchBlockedText => !FfmpegStatus.HasFfmpeg ? "FFmpeg is needed to read the audio: set it in Settings > Engines and tools."
         : !HasWhisperModel ? "Add a Whisper model first (AI Transcribe, step 2)."
