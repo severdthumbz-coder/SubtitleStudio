@@ -5,6 +5,12 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.122] - 2026-11-11
+
+### Added
+- DeepL usage shown in Settings. The DeepL card in Settings > API keys now shows this month's character use against the plan's allowance (e.g. "This month: 120,340 of 500,000 characters used (24%)"), with a Refresh button. It updates when you save the key and whenever you press Refresh, so you can see how much of the Free plan's 500,000 characters is left before hitting the limit mid-job.
+- Engine selector on the Translate tab. When more than one engine can translate (this PC, and DeepL with a saved key), the Translate tab shows an "Engine" box: pick "Ask each time" to get the chooser each time you press Translate, or pick an engine to use it every time without asking. It's the same remembered choice shown in Settings > Engines and tools, so changing it in either place keeps them in step, and choosing "Ask each time" is how you turn the remembered choice off.
+
 ## [1.0.0.121] - 2026-11-10
 
 ### Added

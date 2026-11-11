@@ -127,6 +127,13 @@
                                                        Foreground="{DynamicResource Brush.Warning}" Margin="0,0,8,0" VerticalAlignment="Top" />
                                             <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Muted}" MaxWidth="700" />
                                         </StackPanel>
+
+                                        <!-- Usage line (providers that report it, e.g. DeepL's monthly character allowance). -->
+                                        <DockPanel Margin="0,10,0,0" Visibility="{Binding HasUsage, Converter={StaticResource Vis}}">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Tag="&#xE72C;"
+                                                    Content="Refresh" Command="{Binding RefreshUsageCommand}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding UsageText}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        </DockPanel>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>

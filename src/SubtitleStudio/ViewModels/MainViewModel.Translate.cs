@@ -251,6 +251,53 @@ public sealed partial class MainViewModel
 
     // ---------------- Engine choice ----------------
 
+    /// <summary>One entry in the engine selector. A null <see cref="Id"/> is the "ask each time" option.</summary>
+    public sealed record EngineOption(string? Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>The engines that can translate right now (local, and online ones with a saved key).</summary>
+    private IReadOnlyList<ITranslationService> UsableTranslationEngines => _s.TranslationEngines
+        .Where(e => !e.RequiresApiKey || (e.ApiKeyProviderId is { } p && _s.ApiKeys.GetKey(p) is not null)).ToList();
+
+    /// <summary>The engine selector shows only when there's a real choice (more than one usable engine).</summary>
+    public bool ShowEngineSelector => UsableTranslationEngines.Count > 1;
+
+    /// <summary>"Ask each time" plus one entry per usable engine. Rebuilt when keys or engines change.</summary>
+    public IReadOnlyList<EngineOption> EngineOptions => new[] { new EngineOption(null, "Ask each time") }
+        .Concat(UsableTranslationEngines.Select(e => new EngineOption(e.Id, e.DisplayName))).ToList();
+
+    public EngineOption SelectedEngineOption
+    {
+        get
+        {
+            var id = _s.Config.TranslationEngine;
+            return EngineOptions.FirstOrDefault(o => o.Id == (string.IsNullOrEmpty(id) ? null : id)) ?? EngineOptions[0];
+        }
+        set
+        {
+            var id = value?.Id ?? string.Empty;
+            if (_s.Config.TranslationEngine == id) return;
+            _s.Config.TranslationEngine = id;        // empty = ask each time; otherwise remembered
+            SaveSettings();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RememberedTranslationEngineText));
+            OnPropertyChanged(nameof(HasRememberedTranslationEngine));
+            RelayCommand.Refresh();
+        }
+    }
+
+    /// <summary>Refreshes the engine selector after a key is added/removed or engines change.</summary>
+    public void RaiseEngineSelector()
+    {
+        OnPropertyChanged(nameof(ShowEngineSelector));
+        OnPropertyChanged(nameof(EngineOptions));
+        OnPropertyChanged(nameof(SelectedEngineOption));
+        OnPropertyChanged(nameof(RememberedTranslationEngineText));
+        OnPropertyChanged(nameof(HasRememberedTranslationEngine));
+    }
+
     public string RememberedTranslationEngineText
     {
         get

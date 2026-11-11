@@ -139,6 +139,39 @@ public sealed class DeepLTranslator : ITranslationService
 
     private static string Trim(string body) => body.Length <= 200 ? body : body[..200] + "...";
 
+    /// <summary>This month's character use for a DeepL key: characters used and the plan's limit.</summary>
+    public readonly record struct Usage(long Used, long Limit)
+    {
+        public double Fraction => Limit <= 0 ? 0 : Math.Clamp((double)Used / Limit, 0, 1);
+    }
+
+    /// <summary>
+    /// Asks DeepL how much of the character allowance this key has used this month (the /v2/usage endpoint).
+    /// Returns null when there's no key or the request fails. Picks the Free or Pro host from the key, like translation.
+    /// </summary>
+    public static async Task<Usage?> GetUsageAsync(string? key, CancellationToken ct = default)
+    {
+        key = key?.Trim();
+        if (string.IsNullOrEmpty(key)) return null;
+        string host = key.EndsWith(":fx", StringComparison.OrdinalIgnoreCase) ? FreeHost : ProHost;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("DeepL-Auth-Key", key);
+            using var response = await http.GetAsync($"{host}/v2/usage", ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return null;
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            long used = doc.RootElement.TryGetProperty("character_count", out var c) ? c.GetInt64() : 0;
+            long limit = doc.RootElement.TryGetProperty("character_limit", out var l) ? l.GetInt64() : 0;
+            return new Usage(used, limit);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>App language code (ISO 639-1) to a DeepL target code; null when DeepL can't translate into it.</summary>
     public static string? DeepLTarget(string code) => (code ?? string.Empty).ToLowerInvariant() switch
     {

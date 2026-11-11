@@ -52,7 +52,8 @@ public sealed partial class MainViewModel
             "Online translation with DeepL. Optional — Translate runs on this PC without a key. With a key saved, DeepL becomes a second Translate engine and the app asks which to use. Get a free key (500,000 characters a month) from the DeepL API Free plan; a Free key ends in \":fx\". The subtitle text is sent to DeepL's servers.",
             _s.ApiKeys,
             _s.Dialogs,
-            SetStatus));
+            SetStatus,
+            usageFetcher: DeepLUsageTextAsync));
 
         BrowseFfmpegCommand = new RelayCommand(() =>
         {
@@ -68,6 +69,14 @@ public sealed partial class MainViewModel
 
         HintService.Current.IsEnabled = _s.Config.ShowHints;
         RefreshFfmpegStatus();
+    }
+
+    /// <summary>The DeepL card's usage line: this month's characters used against the plan's allowance.</summary>
+    private static async Task<string?> DeepLUsageTextAsync(string? key, CancellationToken ct)
+    {
+        if (await Services.Translation.DeepLTranslator.GetUsageAsync(key, ct) is not { } usage || usage.Limit <= 0)
+            return null;
+        return $"This month: {usage.Used:N0} of {usage.Limit:N0} characters used ({usage.Fraction:P0}).";
     }
 
     // ---------------- Engines & tools ----------------

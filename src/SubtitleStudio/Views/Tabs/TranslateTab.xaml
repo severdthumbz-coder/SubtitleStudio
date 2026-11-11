@@ -67,6 +67,18 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Engine (shown only when more than one can translate, e.g. this PC and DeepL with a saved key). -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12"
+                        Visibility="{Binding ShowEngineSelector, Converter={StaticResource Vis}}">
+                    <StackPanel>
+                        <TextBlock Text="Engine" Style="{StaticResource Text.H2}" />
+                        <ComboBox ItemsSource="{Binding EngineOptions}" SelectedItem="{Binding SelectedEngineOption, Mode=TwoWay}" Margin="0,10,0,6"
+                                  ToolTip="Which engine translates. 'Ask each time' shows the chooser when you press Translate; picking an engine here uses it without asking." />
+                        <TextBlock Text="'Ask each time' pops the chooser on Translate. Pick an engine to use it every time (change it here or in Settings &gt; Engines and tools)."
+                                   Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="3. Where it runs" Style="{StaticResource Text.H2}" />

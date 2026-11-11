@@ -650,7 +650,7 @@ public sealed partial class MainViewModel
     private void OnTabSelected(int tab)
     {
         if (tab == Tabs.Transcribe || tab == Tabs.Translate || tab == Tabs.Settings) EnsureVulkanListed();
-        if (tab == Tabs.Translate) RaiseTranslateSource();
+        if (tab == Tabs.Translate) { RaiseTranslateSource(); RaiseEngineSelector(); }
         if (tab == Tabs.Dubbing) { RefreshTtsModels(); RaiseDubbingSource(); }
     }
 

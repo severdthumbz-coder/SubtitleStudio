@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using SubtitleStudio.Infrastructure;
 using SubtitleStudio.Services;
 
@@ -12,20 +15,26 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
     private readonly ApiKeyStore _store;
     private readonly IDialogService _dialogs;
     private readonly Action<string, StatusKind> _status;
+    private readonly Func<string?, CancellationToken, Task<string?>>? _usageFetcher;
 
     private ApiKeyState _state;
     private bool _isEditing;
     private string _pendingKey = string.Empty;
     private string _maskedValue = string.Empty;
     private string _message = string.Empty;
+    private string _usageText = string.Empty;
+    private CancellationTokenSource? _usageCts;
 
+    /// <param name="usageFetcher">Optional: given the current key, returns a one-line usage string (e.g. DeepL's
+    /// character allowance), or null when unavailable. Providers without one show no usage line.</param>
     public ApiKeyEntryViewModel(
         string providerId,
         string displayName,
         string description,
         ApiKeyStore store,
         IDialogService dialogs,
-        Action<string, StatusKind> status)
+        Action<string, StatusKind> status,
+        Func<string?, CancellationToken, Task<string?>>? usageFetcher = null)
     {
         ProviderId = providerId;
         DisplayName = displayName;
@@ -33,13 +42,44 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
         _store = store;
         _dialogs = dialogs;
         _status = status;
+        _usageFetcher = usageFetcher;
 
         EditCommand = new RelayCommand(BeginEdit);
         SaveCommand = new RelayCommand(Save, () => !string.IsNullOrWhiteSpace(PendingKey));
         CancelCommand = new RelayCommand(CancelEdit);
         RemoveCommand = new RelayCommand(Remove, () => HasKey);
+        RefreshUsageCommand = new RelayCommand(() => _ = LoadUsageAsync(), () => _usageFetcher is not null && IsSaved);
 
         Refresh();
+        _ = LoadUsageAsync();
+    }
+
+    public bool SupportsUsage => _usageFetcher is not null;
+
+    public string UsageText
+    {
+        get => _usageText;
+        private set { if (SetProperty(ref _usageText, value)) OnPropertyChanged(nameof(HasUsage)); }
+    }
+
+    public bool HasUsage => _usageText.Length > 0;
+
+    public RelayCommand RefreshUsageCommand { get; }
+
+    /// <summary>Fetches the usage line for the saved key (no-op without a fetcher or a key).</summary>
+    public async Task LoadUsageAsync()
+    {
+        if (_usageFetcher is null) { UsageText = string.Empty; return; }
+        if (_store.GetState(ProviderId, out var key) != ApiKeyState.Saved || key is null) { UsageText = string.Empty; return; }
+        _usageCts?.Cancel();
+        _usageCts = new CancellationTokenSource();
+        var ct = _usageCts.Token;
+        try
+        {
+            var text = await _usageFetcher(key, ct).ConfigureAwait(true);
+            if (!ct.IsCancellationRequested) UsageText = text ?? string.Empty;
+        }
+        catch (OperationCanceledException) { }
     }
 
     public string ProviderId { get; }
@@ -131,6 +171,7 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
         PendingKey = string.Empty;
         IsEditing = false;
         Refresh();
+        _ = LoadUsageAsync(); // show the new key's allowance (e.g. DeepL characters used this month)
         RelayCommand.Refresh(); // an engine that needs this key may now be usable (e.g. Translate with DeepL)
         _status($"{DisplayName} key saved (encrypted with Windows DPAPI).", StatusKind.Success);
     }
@@ -148,6 +189,7 @@ public sealed class ApiKeyEntryViewModel : ObservableObject
         PendingKey = string.Empty;
         IsEditing = false;
         Refresh();
+        UsageText = string.Empty;
         RelayCommand.Refresh(); // an engine that needed this key is no longer usable
         _status($"{DisplayName} key removed.", StatusKind.Info);
     }
