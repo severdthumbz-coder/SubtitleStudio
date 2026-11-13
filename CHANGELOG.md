@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.127] - 2026-11-13
+
+### Changed
+- Guided dubbing no longer prompts for a save location at each episode. The dubbed video is saved next to its original with an automatic name (e.g. "Episode 3 (English dub).mkv"; a number is added if that name is taken, so nothing is overwritten). This applies through the whole guided run — whether an episode loads and waits for you to press "Make dubbed video", or starts automatically — so the hand-off to the Dubbing tab is never interrupted by a dialog. Dubbing a single video from the Dubbing tab outside a guided run still asks where to save, as before.
+
 ## [1.0.0.126] - 2026-11-12
 
 ### Added

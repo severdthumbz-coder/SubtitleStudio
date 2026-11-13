@@ -482,9 +482,13 @@ public sealed partial class MainViewModel
         var suggested = DubMixer.SuggestOutput(video.FullPath, small);
         var ext = Path.GetExtension(suggested);
         var filter = ext == ".mp4" ? "MP4 video (*.mp4)|*.mp4|Matroska video (*.mkv)|*.mkv" : "Matroska video (*.mkv)|*.mkv|MP4 video (*.mp4)|*.mp4";
-        var output = presetOutput ?? _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested));
+        // During a guided-dubbing run the save location is decided up front (next to each original, automatic name), so
+        // neither the save prompt nor the cloning confirmation interrupts the hand-off — in wait mode or auto mode.
+        bool unattended = presetOutput is not null || GuidedDubActive;
+        var output = presetOutput ?? (GuidedDubActive ? suggested
+            : _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested)));
         if (output is null) return;
-        if (presetOutput is null && !ConfirmCloningRun()) return;
+        if (!unattended && !ConfirmCloningRun()) return;
         DubbingReport = string.Empty;
         var duck = SelectedDubbingDuck.Level;
         bool makeDefault = DubbingDefaultTrack;
