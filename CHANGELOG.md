@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.124] - 2026-11-12
+
+### Added
+- Batch can now add the subtitles into each video. A new "Add the subtitles into each video" option on the Batch tab runs a third pass after transcribe/translate: each file's subtitles (the translation, and the transcript when it's a different language) are added into the video as tracks, writing a new video beside the original — no re-encoding, so it's quick, and the original file is kept. It's skippable and resumable like the rest of the queue, and the queue remembers the choice if a run is interrupted. This is the first of several optional post-subtitle stages planned for Batch.
+
 ## [1.0.0.123] - 2026-11-11
 
 ### Changed

@@ -53,6 +53,7 @@ public sealed class QueueRowViewModel : ObservableObject
         QueueStep.Waiting => _transcriptPath is null ? "Waiting" : "Transcribed",
         QueueStep.Transcribing => "Transcribing",
         QueueStep.Translating => "Translating",
+        QueueStep.Embedding => "Embedding",
         QueueStep.Done => "Done",
         QueueStep.Skipped => "Skipped",
         QueueStep.Failed => "Failed",
@@ -60,7 +61,7 @@ public sealed class QueueRowViewModel : ObservableObject
         _ => _step.ToString(),
     };
 
-    public bool IsActive => _step is QueueStep.Transcribing or QueueStep.Translating;
+    public bool IsActive => _step is QueueStep.Transcribing or QueueStep.Translating or QueueStep.Embedding;
 
     public string Status
     {

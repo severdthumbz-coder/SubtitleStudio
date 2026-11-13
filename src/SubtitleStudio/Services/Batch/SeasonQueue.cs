@@ -1,25 +1,28 @@
 using SubtitleStudio.Models;
 using SubtitleStudio.Services.Abstractions;
+using SubtitleStudio.Services.Muxing;
 using SubtitleStudio.Services.Subtitles;
 using SubtitleStudio.Services.Transcription;
 using SubtitleStudio.Services.Translation;
 
 namespace SubtitleStudio.Services.Batch;
 
-public enum QueueStep { Waiting, Transcribing, Translating, Done, Skipped, Failed, Cancelled }
+public enum QueueStep { Waiting, Transcribing, Translating, Embedding, Done, Skipped, Failed, Cancelled }
 
 /// <param name="SpokenLanguage">Language spoken (null: detect it in each file).</param>
 /// <param name="TranslateTo">Language to translate into (null: transcribe only).</param>
 /// <param name="OutputFormat">Format id for the files written (srt, vtt, ass, ssa, sub).</param>
 /// <param name="RedoExisting">Make the subtitles again even when the file already has them (otherwise they are used / left alone).</param>
-public sealed record QueueOptions(string? SpokenLanguage, string? TranscribeModel, string? TranslateTo, string OutputFormat = "srt", bool RedoExisting = false);
+/// <param name="EmbedSubtitles">After the subtitles are written, add them into each video as tracks (a new video beside the original, no re-encoding).</param>
+public sealed record QueueOptions(string? SpokenLanguage, string? TranscribeModel, string? TranslateTo, string OutputFormat = "srt", bool RedoExisting = false,
+    bool EmbedSubtitles = false);
 
 /// <summary>What happened to one file (sent as it changes).</summary>
 /// <param name="Fraction">Of this file's work (0..1).</param>
 public sealed record QueueUpdate(int Index, QueueStep Step, double Fraction, string Text, string? TranscriptPath = null, string? TranslationPath = null);
 
 public sealed record QueueResult(int Transcribed, int Translated, int Reused, int Skipped, int Failed, bool Cancelled,
-    IReadOnlyList<string> TranslatedFiles, IReadOnlyList<NameGroup> NameSuggestions, int NameChanges);
+    IReadOnlyList<string> TranslatedFiles, IReadOnlyList<NameGroup> NameSuggestions, int NameChanges, int Embedded = 0);
 
 /// <summary>
 /// Many files, unattended: each one transcribed to "Name.ko.srt" (or the language detected) next to it,
@@ -43,13 +46,17 @@ public sealed class SeasonQueue
     /// <param name="durations">Their lengths when known (for progress).</param>
     /// <param name="namesFor">The names list of a show (by its name).</param>
     /// <param name="beforeTranslating">Called between the two halves (frees Whisper's graphics memory).</param>
+    /// <param name="ffmpeg">ffmpeg path, only needed when <see cref="QueueOptions.EmbedSubtitles"/> is on.</param>
+    /// <param name="ffprobe">ffprobe path, only needed when embedding.</param>
     public async Task<QueueResult> RunAsync(IReadOnlyList<string> files, IReadOnlyList<TimeSpan?> durations, QueueOptions options,
         ITranscriptionService transcriber, ITranslationService? translator, Func<string, NameList> namesFor, bool nameMatching,
-        Action? beforeTranslating, IProgress<QueueUpdate>? progress, CancellationToken ct)
+        Action? beforeTranslating, IProgress<QueueUpdate>? progress, CancellationToken ct,
+        string? ffmpeg = null, string? ffprobe = null)
     {
         var transcripts = new string?[files.Count];
+        var translations = new string?[files.Count]; // the target-language subtitle produced or already present (for embedding)
         var failed = new bool[files.Count];
-        int transcribed = 0, translated = 0, reused = 0, skipped = 0, failures = 0, nameChanges = 0;
+        int transcribed = 0, translated = 0, reused = 0, skipped = 0, failures = 0, nameChanges = 0, embedded = 0;
         var translatedFiles = new List<string>();
         var ext = (_formats.ById(options.OutputFormat)?.Extensions.FirstOrDefault() ?? ".srt").TrimStart('.');
         _log?.Info("Batch", $"{files.Count} file(s): transcribe {(options.SpokenLanguage is null ? "(language detected in each file)" : "from " + WhisperLanguages.NameOf(options.SpokenLanguage))}"
@@ -127,6 +134,7 @@ public sealed class SeasonQueue
                     if (!options.RedoExisting && FindLanguage(file, target) is { } there)
                     {
                         skipped++;
+                        translations[i] = there;
                         _log?.Info("Batch", $"{name}: {WhisperLanguages.NameOf(target)} subtitles already there ({Path.GetFileName(there)}), left alone.");
                         progress?.Report(new QueueUpdate(i, QueueStep.Done, 1, $"{WhisperLanguages.NameOf(target)} subtitles already there: {Path.GetFileName(there)}", transcript, there));
                         continue;
@@ -164,6 +172,7 @@ public sealed class SeasonQueue
                     doc.Cues.AddRange(result);
                     Save(doc, outPath, options.OutputFormat);
                     translated++;
+                    translations[i] = outPath;
                     translatedFiles.Add(outPath);
                     seasonCues.AddRange(result.Select(c => c.Clone()));
                     if (!shows.Contains(show)) shows.Add(show);
@@ -184,14 +193,59 @@ public sealed class SeasonQueue
             }
         }
 
+        // 3. Embed the subtitles into each video as tracks (optional). No re-encoding — picture and sound are
+        //    copied, the subtitles added — so it's quick. A new video is written beside the original; a file that
+        //    already carries these subtitle tracks is left alone (resumable like the rest).
+        if (options.EmbedSubtitles && ffmpeg is { Length: > 0 } && ffprobe is { Length: > 0 } && !ct.IsCancellationRequested)
+        {
+            var muxer = new SubtitleMuxer(_formats, _log);
+            for (int i = 0; i < files.Count; i++)
+            {
+                if (ct.IsCancellationRequested) break;
+                if (failed[i]) continue;
+                var file = files[i];
+                var name = Path.GetFileName(file);
+                // The subtitles this run produced or found for the file: the target-language one, else the transcript.
+                var tracks = new List<SubtitleTrack>();
+                if (translations[i] is { } tr && File.Exists(tr))
+                    tracks.Add(new SubtitleTrack(tr, options.TranslateTo, null, false, false, false));
+                if (transcripts[i] is { } sc && File.Exists(sc) && !string.Equals(sc, translations[i], StringComparison.OrdinalIgnoreCase))
+                    tracks.Add(new SubtitleTrack(sc, SidecarDetector.ParseStandalone(sc).Language, null, false, false, false));
+                if (tracks.Count == 0) continue;
+                try
+                {
+                    var container = SubtitleMuxer.ContainerFor(file);
+                    var outPath = SubtitleMuxer.SuggestOutput(file, container);
+                    progress?.Report(new QueueUpdate(i, QueueStep.Embedding, 0.9, $"Adding {tracks.Count} subtitle track{(tracks.Count == 1 ? "" : "s")} to the video..."));
+                    var fileProgress = new InlineProgress<double>(p => progress?.Report(new QueueUpdate(i, QueueStep.Embedding, 0.9 + 0.1 * p, "Adding subtitles to the video...")));
+                    var request = new MuxRequest(file, tracks, container, outPath, KeepExistingSubtitles: true, ReplaceOriginal: false);
+                    var mux = await muxer.RunAsync(ffmpeg, ffprobe, request, recycle: null, fileProgress, ct).ConfigureAwait(false);
+                    embedded++;
+                    _log?.Success("Batch", $"{name}: {mux.SubtitlesAdded} subtitle track(s) added → {Path.GetFileName(mux.OutputPath)}.");
+                    progress?.Report(new QueueUpdate(i, QueueStep.Done, 1, $"Video with subtitles: {Path.GetFileName(mux.OutputPath)}"));
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    progress?.Report(new QueueUpdate(i, QueueStep.Cancelled, 0.9, "Cancelled"));
+                    break;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failures++;
+                    _log?.Error("Batch", $"{name}: adding subtitles to the video failed: {ex.Message}");
+                    progress?.Report(new QueueUpdate(i, QueueStep.Failed, 0.9, "Adding subtitles failed: " + ex.Message));
+                }
+            }
+        }
+
         // Look-alike names across the whole run (what one episode alone may not show).
         var suggestions = shows.Count == 1 && seasonCues.Count > 0
             ? NameConsistency.Apply(seasonCues, namesFor(shows[0]), nameMatching).Suggestions
             : Array.Empty<NameGroup>();
         bool cancelled = ct.IsCancellationRequested;
-        _log?.Info("Batch", (cancelled ? "Stopped: " : "Finished: ") + $"{transcribed} transcribed, {reused} transcript(s) already there, {translated} translated, {skipped} skipped, {failures} failed."
+        _log?.Info("Batch", (cancelled ? "Stopped: " : "Finished: ") + $"{transcribed} transcribed, {reused} transcript(s) already there, {translated} translated, {skipped} skipped, {embedded} embedded, {failures} failed."
             + (suggestions.Count > 0 ? $" {suggestions.Count} group(s) of look-alike names to check." : string.Empty));
-        return new QueueResult(transcribed, translated, reused, skipped, failures, cancelled, translatedFiles, suggestions, nameChanges);
+        return new QueueResult(transcribed, translated, reused, skipped, failures, cancelled, translatedFiles, suggestions, nameChanges, embedded);
     }
 
     /// <summary>The names list (and matching) on files already written; returns the cues changed per file.</summary>

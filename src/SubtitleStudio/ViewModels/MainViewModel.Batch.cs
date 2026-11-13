@@ -86,6 +86,20 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>After making the subtitles, add them into each video as tracks (a new video beside the original).</summary>
+    public bool BatchEmbedSubs
+    {
+        get => _s.Config.BatchEmbedSubs;
+        set
+        {
+            if (_s.Config.BatchEmbedSubs == value) return;
+            _s.Config.BatchEmbedSubs = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BatchPlanText));
+            SaveSettings();
+        }
+    }
+
     /// <summary>What Start will do, in a sentence.</summary>
     public string BatchPlanText
     {
@@ -100,6 +114,7 @@ public sealed partial class MainViewModel
             text += BatchRedo
                 ? " Subtitles already there are made again (and overwritten)."
                 : " A file that already has them is not done again, so a stopped queue carries on where it ended.";
+            if (BatchEmbedSubs) text += " Then the subtitles are added into each video as tracks (a new video beside the original, no re-encoding — quick).";
             return text;
         }
     }
@@ -247,6 +262,7 @@ public sealed partial class MainViewModel
         if (BatchTargetLanguages.FirstOrDefault(l => l.Code == batch.TargetLanguageCode) is { } tl)
             SelectedBatchTarget = tl;
         BatchRedo = batch.Redo;
+        BatchEmbedSubs = batch.EmbedSubs;
 
         await BatchAddAsync(existing);
         int missing = batch.Files.Count - existing.Count;
@@ -411,7 +427,8 @@ public sealed partial class MainViewModel
         NameList NamesAtStart(string show) => namesNow.TryGetValue(show, out var list) ? list : NameList.Parse(string.Empty);
         var matching = NameMatching;
 
-        var options = new QueueOptions(SelectedTranscribeLanguage.Code, whisperModel, target, _s.Config.DefaultOutputFormat, BatchRedo);
+        var options = new QueueOptions(SelectedTranscribeLanguage.Code, whisperModel, target, _s.Config.DefaultOutputFormat, BatchRedo, BatchEmbedSubs);
+        var ff = _s.Ffmpeg.Resolve(_s.Config.FfmpegPath);
         var queue = new SeasonQueue(_s.SubtitleFormats, _s.Log);
         // Remember this run so a crash mid-batch can offer it back (which episodes are done is read from disk on resume).
         _batchInFlight = new Services.BatchSession
@@ -420,6 +437,7 @@ public sealed partial class MainViewModel
             SpokenLanguageCode = SelectedTranscribeLanguage.Code,
             TargetLanguageCode = target,
             Redo = BatchRedo,
+            EmbedSubs = BatchEmbedSubs,
             StartedUtc = DateTime.UtcNow,
         };
         SaveSessionNow(); // persist the queue at once, so even an immediate crash leaves it to resume
@@ -446,12 +464,14 @@ public sealed partial class MainViewModel
                 BatchProgress = overall * 100;
                 var elapsed = DateTime.UtcNow - started;
                 var eta = overall > 0.05 && elapsed.TotalSeconds > 20 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - overall) / overall) : (TimeSpan?)null;
-                var phase = u.Step == QueueStep.Translating ? "Translating" : u.Step == QueueStep.Transcribing ? "Transcribing" : null;
+                var phase = u.Step == QueueStep.Translating ? "Translating" : u.Step == QueueStep.Transcribing ? "Transcribing"
+                    : u.Step == QueueStep.Embedding ? "Adding subtitles to" : null;
                 if (phase is not null)
                     BatchStatus = $"{phase} {u.Index + 1} of {rows.Count}: {row.Name}" + (eta is { } e ? $". About {FormatSpan(e)} left in all." : ".");
             });
             var result = await Task.Run(() => queue.RunAsync(rows.Select(r => r.FullPath).ToList(), rows.Select(r => r.Item.Duration).ToList(), options,
-                transcriber, translator, NamesAtStart, matching, () => LocalWhisper?.ReleaseModel(), progress, _batchCts.Token));
+                transcriber, translator, NamesAtStart, matching, () => LocalWhisper?.ReleaseModel(), progress, _batchCts.Token,
+                BatchEmbedSubs ? ff.FfmpegPath : null, BatchEmbedSubs ? ff.FfprobePath : null));
             _batchLive = false;
 
             foreach (var row in rows.Where(r => r.Step is QueueStep.Waiting or QueueStep.Transcribing or QueueStep.Translating))
@@ -466,6 +486,7 @@ public sealed partial class MainViewModel
             if (result.Transcribed > 0) parts.Add($"{result.Transcribed} transcribed");
             if (result.Reused > 0) parts.Add($"{result.Reused} transcript{(result.Reused == 1 ? "" : "s")} already there");
             if (result.Translated > 0) parts.Add($"{result.Translated} translated");
+            if (result.Embedded > 0) parts.Add($"{result.Embedded} with subtitles added to the video");
             if (result.Skipped > 0) parts.Add($"{result.Skipped} skipped");
             if (result.Failed > 0) parts.Add($"{result.Failed} failed (see the Log)");
             var summary = parts.Count == 0 ? "nothing done" : string.Join(", ", parts);

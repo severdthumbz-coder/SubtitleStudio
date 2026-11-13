@@ -108,6 +108,8 @@ public sealed class AppSettings
     public string BatchTranslateTo { get; set; } = "en";
     /// <summary>Make subtitles again even when a file already has them.</summary>
     public bool BatchRedo { get; set; }
+    /// <summary>After the subtitles are made, add them into each video as tracks (a new video beside the original).</summary>
+    public bool BatchEmbedSubs { get; set; }
 
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";

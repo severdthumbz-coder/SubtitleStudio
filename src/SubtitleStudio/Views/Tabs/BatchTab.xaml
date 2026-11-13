@@ -67,6 +67,8 @@
                                    Visibility="{Binding NeedsTranslationModel, Converter={StaticResource Vis}}" />
                         <CheckBox Content="Redo files that already have subtitles" IsChecked="{Binding BatchRedo}" IsEnabled="{Binding BatchCanEdit}" Margin="0,12,0,0"
                                   ToolTip="Off: a transcript already next to a file is used as it is, and a translation already there is left alone. On: both are made again and overwritten." />
+                        <CheckBox Content="Add the subtitles into each video" IsChecked="{Binding BatchEmbedSubs}" IsEnabled="{Binding BatchCanEdit}" Margin="0,10,0,0"
+                                  ToolTip="After the subtitles are made, add them into each video as tracks — a new video is written beside the original (no re-encoding, so it's quick). The original file is kept." />
                         <TextBlock Text="{Binding BatchPlanText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>

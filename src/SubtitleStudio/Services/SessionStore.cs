@@ -88,6 +88,7 @@ public sealed class BatchSession
     public string? SpokenLanguageCode { get; set; }
     public string? TargetLanguageCode { get; set; }
     public bool Redo { get; set; }
+    public bool EmbedSubs { get; set; }
     public DateTime StartedUtc { get; set; }
 }
 
