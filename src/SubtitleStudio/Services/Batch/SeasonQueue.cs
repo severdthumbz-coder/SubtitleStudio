@@ -64,6 +64,8 @@ public sealed class SeasonQueue
             + (options.RedoExisting ? "; existing subtitles made again." : "; subtitles already there are used or left alone."));
 
         // 1. Transcripts.
+        _log?.Info("Batch", $"— Transcription pass — {files.Count} file(s).");
+        var passStart = DateTime.UtcNow;
         for (int i = 0; i < files.Count; i++)
         {
             if (ct.IsCancellationRequested) break;
@@ -115,12 +117,16 @@ public sealed class SeasonQueue
                 progress?.Report(new QueueUpdate(i, QueueStep.Failed, 0, "Transcription failed: " + ex.Message));
             }
         }
+        _log?.Info("Batch", $"— Transcription pass done in {Span(DateTime.UtcNow - passStart)}: {transcribed} transcribed, {reused} already there, {skipped + failures} skipped or failed.");
 
         // 2. Translations.
         var seasonCues = new List<SubtitleCue>();
         var shows = new List<string>();
         if (options.TranslateTo is { } target && translator is not null && !ct.IsCancellationRequested)
         {
+            _log?.Info("Batch", $"— Translation pass — into {WhisperLanguages.NameOf(target)} with {translator.DisplayName}.");
+            passStart = DateTime.UtcNow;
+            int translatedAtPassStart = translated;
             bool released = false;
             for (int i = 0; i < files.Count; i++)
             {
@@ -191,6 +197,7 @@ public sealed class SeasonQueue
                     progress?.Report(new QueueUpdate(i, QueueStep.Failed, 0.5, "Translation failed: " + ex.Message, transcript));
                 }
             }
+            _log?.Info("Batch", $"— Translation pass done in {Span(DateTime.UtcNow - passStart)}: {translated - translatedAtPassStart} translated, {nameChanges} name spellings made consistent.");
         }
 
         // 3. Embed the subtitles into each video as tracks (optional). No re-encoding — picture and sound are
@@ -198,6 +205,8 @@ public sealed class SeasonQueue
         //    already carries these subtitle tracks is left alone (resumable like the rest).
         if (options.EmbedSubtitles && ffmpeg is { Length: > 0 } && ffprobe is { Length: > 0 } && !ct.IsCancellationRequested)
         {
+            _log?.Info("Batch", "— Embedding pass — adding the subtitles into each video (no re-encoding).");
+            passStart = DateTime.UtcNow;
             var muxer = new SubtitleMuxer(_formats, _log);
             for (int i = 0; i < files.Count; i++)
             {
@@ -236,6 +245,7 @@ public sealed class SeasonQueue
                     progress?.Report(new QueueUpdate(i, QueueStep.Failed, 0.9, "Adding subtitles failed: " + ex.Message));
                 }
             }
+            _log?.Info("Batch", $"— Embedding pass done in {Span(DateTime.UtcNow - passStart)}: {embedded} video(s) written with subtitle tracks.");
         }
 
         // Look-alike names across the whole run (what one episode alone may not show).
@@ -265,6 +275,10 @@ public sealed class SeasonQueue
         }
         return total;
     }
+
+    /// <summary>A short human duration for the log ("3 min 12 s", "1 h 4 min").</summary>
+    private static string Span(TimeSpan t)
+        => t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes} min" : t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes} min {t.Seconds} s" : $"{Math.Max(1, (int)t.TotalSeconds)} s";
 
     private void Save(SubtitleDocument doc, string path, string formatId)
     {

@@ -316,10 +316,15 @@ public sealed partial class MainViewModel
     private ITranslationService? ChooseTranslationEngine()
     {
         var decision = EngineChooser.Decide(_s.TranslationEngines, provider => _s.ApiKeys.GetKey(provider) is not null, _s.Config.TranslationEngine);
-        if (decision.Engine is { } engine) return engine;
+        if (decision.Engine is { } engine)
+        {
+            _s.Log.Detail("Translate", $"Engine: {engine.DisplayName}" + (string.IsNullOrEmpty(_s.Config.TranslationEngine) ? " (only one available)." : " (remembered choice)."));
+            return engine;
+        }
         if (!decision.MustAsk) return null;
         var picked = _s.Dialogs.ChooseEngine("Translate", decision.Choices.Select(e => new EngineChoice(e.Id, e.DisplayName, e.Description)).ToList(), out bool remember);
         if (picked is null) return null;
+        _s.Log.Info("Translate", $"Engine chosen: {decision.Choices.First(e => e.Id == picked.Id).DisplayName}{(remember ? " (remembered for next time)." : ".")}");
         if (remember)
         {
             _s.Config.TranslationEngine = picked.Id;

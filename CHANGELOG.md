@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.125] - 2026-11-12
+
+### Changed
+- The Log now tells the story of a batch run more clearly. A header line at the start says what the run will do — how many files and their total length, the transcription engine and device, the translation engine and target language, whether subtitles will be embedded, redo on/off, and the names list in use. Each pass (transcription, translation, embedding) is marked with a "— … pass —" line and, when it finishes, how long it took and what it produced. The translation engine actually used (on this PC, or DeepL) is recorded. Turn on "Show details" in the Log tab, or Copy the log, to see the full picture.
+
 ## [1.0.0.124] - 2026-11-12
 
 ### Added

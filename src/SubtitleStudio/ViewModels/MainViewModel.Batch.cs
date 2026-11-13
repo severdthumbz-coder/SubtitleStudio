@@ -446,6 +446,17 @@ public sealed partial class MainViewModel
         BatchProgress = 0;
         BatchStatus = "Starting...";
         var started = DateTime.UtcNow;
+
+        // A header line so the Log reads clearly: what this run will do, over which files, with which engines and options.
+        var totalLen = rows.Where(r => r.Item.Duration is { } d).Sum(r => r.Item.Duration!.Value.TotalSeconds);
+        var transcriberName = transcriber is LocalWhisperEngine ? $"Whisper ({(SelectedWhisperModel?.Name ?? "model")}) on {ResolveWhisperDevice().Label}" : transcriber.DisplayName;
+        _s.Log.Info("Batch", $"▶ Batch started: {rows.Count} file{(rows.Count == 1 ? "" : "s")}"
+            + (totalLen > 0 ? $" ({FormatSpan(TimeSpan.FromSeconds(totalLen))} of video)" : string.Empty)
+            + $". Transcribe with {transcriberName}"
+            + (target is { } tg ? $"; translate into {WhisperLanguages.NameOf(tg)} with {translator?.DisplayName ?? "the chosen engine"}" : " (no translation)")
+            + (BatchEmbedSubs ? "; then add the subtitles into each video" : string.Empty)
+            + (BatchRedo ? "; redo files that already have subtitles." : "; skip what's already done.")
+            + $" Names list for {(HasBatchShow ? BatchShowName : "the show")}: {NamesOfShow(HasBatchShow ? BatchShowName : string.Empty).Entries.Count} entr{(NamesOfShow(HasBatchShow ? BatchShowName : string.Empty).Entries.Count == 1 ? "y" : "ies")}, matching {(NameMatching ? "on" : "off")}.");
         var fractions = new double[rows.Count];
         try
         {
