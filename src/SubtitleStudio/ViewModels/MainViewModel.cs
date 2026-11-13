@@ -62,6 +62,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitEmbedded();
         InitReview();
         InitDubbing();
+        InitGuidedDub();
         InitSettings();
         InitHelp();
     }

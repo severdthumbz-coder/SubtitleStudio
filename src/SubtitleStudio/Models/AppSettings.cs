@@ -110,6 +110,8 @@ public sealed class AppSettings
     public bool BatchRedo { get; set; }
     /// <summary>After the subtitles are made, add them into each video as tracks (a new video beside the original).</summary>
     public bool BatchEmbedSubs { get; set; }
+    /// <summary>Guided dubbing: load each episode and start the dub at once (true) or load and wait for the user (false).</summary>
+    public bool BatchGuidedDubAutoStart { get; set; }
 
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";

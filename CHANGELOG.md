@@ -5,6 +5,11 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
+## [1.0.0.126] - 2026-11-12
+
+### Added
+- Guided dubbing for a batch. A new "Guided dubbing" section on the Batch tab dubs the queued episodes one at a time, keeping the full control (and quality) of the Dubbing tab. Press "Start guided dubbing" and each episode — its video and its translated (or transcribed) subtitle — is loaded into the Dubbing tab in turn, with a banner showing which episode is up and what's next, and Next / Skip / Stop. Dub each episode as you like — speakers, voices, remove-voices, intonation — then press Next; after the last one you return to the Batch tab with a summary. A Batch-tab option chooses whether each episode just loads and waits for you, or loads and starts the dub automatically (to a default output name, no save prompt). This is a guided, semi-attended workflow — not an unattended run — so casting and quality stay in your hands.
+
 ## [1.0.0.125] - 2026-11-12
 
 ### Changed

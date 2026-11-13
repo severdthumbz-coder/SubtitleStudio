@@ -107,6 +107,25 @@
                     </StackPanel>
                 </Border>
 
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Guided dubbing" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="Dub the queued episodes one at a time, with full control. Each episode (its video and translated subtitle) is loaded into the Dubbing tab in turn, with a banner showing which is up and what's next. Dub it as you like — speakers, voices, options — then press Next. After the last one you come back here. This keeps the Dubbing tab's hand-tuned quality; it isn't an unattended run." />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,8"
+                                   Text="Loads each episode into the Dubbing tab in turn so you can dub it with full control. Needs the episodes transcribed/translated first." />
+                        <CheckBox IsChecked="{Binding GuidedDubAutoStart}" IsEnabled="{Binding BatchCanEdit}"
+                                  ToolTip="Off: each episode is loaded and waits for you to dub it and press Next. On: each episode is loaded and the dub starts at once with the Dubbing tab's current settings, moving on when it finishes.">
+                            <TextBlock Text="Start the dub automatically as each episode loads" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE768;" Content="Start guided dubbing" Command="{Binding StartGuidedDubCommand}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="3. Start" Style="{StaticResource Text.H2}" />

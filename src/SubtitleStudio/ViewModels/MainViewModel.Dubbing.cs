@@ -454,8 +454,12 @@ public sealed partial class MainViewModel
         });
     }
 
-    /// <summary>The voice track, then the voice mixed over the original sound into a copy of the video as an extra English track.</summary>
-    private async Task MakeDubbedVideoAsync()
+    /// <summary>
+    /// The voice track, then the voice mixed over the original sound into a copy of the video as an extra English track.
+    /// With <paramref name="presetOutput"/> set (guided-dubbing auto mode), the save-location prompt and the cloning
+    /// confirmation are skipped — the dub is written to that path without asking, so a queue can run hands-free.
+    /// </summary>
+    private async Task MakeDubbedVideoAsync(string? presetOutput = null)
     {
         if (PairedVideo is not { } video) return;
         var ff = _s.Ffmpeg.Resolve(_s.Config.FfmpegPath);
@@ -478,9 +482,9 @@ public sealed partial class MainViewModel
         var suggested = DubMixer.SuggestOutput(video.FullPath, small);
         var ext = Path.GetExtension(suggested);
         var filter = ext == ".mp4" ? "MP4 video (*.mp4)|*.mp4|Matroska video (*.mkv)|*.mkv" : "Matroska video (*.mkv)|*.mkv|MP4 video (*.mp4)|*.mp4";
-        var output = _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested));
+        var output = presetOutput ?? _s.Dialogs.SaveFile("Save the dubbed video", filter, 1, video.Folder, Path.GetFileName(suggested));
         if (output is null) return;
-        if (!ConfirmCloningRun()) return;
+        if (presetOutput is null && !ConfirmCloningRun()) return;
         DubbingReport = string.Empty;
         var duck = SelectedDubbingDuck.Level;
         bool makeDefault = DubbingDefaultTrack;
@@ -786,7 +790,7 @@ public sealed partial class MainViewModel
         StopPreviewCommand = new RelayCommand(() => _s.AudioPreview.Stop());
         UseSelectedLineCommand = new RelayCommand(() => TakeSelectedLine(force: true), () => SelectedCue is not null);
         MakeVoiceTrackCommand = new AsyncRelayCommand(MakeVoiceTrackAsync, () => CanMakeVoiceTrack);
-        MakeDubbedVideoCommand = new AsyncRelayCommand(MakeDubbedVideoAsync, () => CanMakeDubbedVideo);
+        MakeDubbedVideoCommand = new AsyncRelayCommand(() => MakeDubbedVideoAsync(), () => CanMakeDubbedVideo);
         CancelDubbingCommand = new RelayCommand(() => _dubbingCts?.Cancel(), () => DubbingBusy);
         _previewText = "Hello. This is how I sound when I read your subtitles.";
         InitDubbingPreview();

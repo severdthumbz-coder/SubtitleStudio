@@ -10,6 +10,7 @@
     <Grid Margin="20,16,20,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -24,8 +25,28 @@
                             Text="Speaks English subtitles with an AI voice (Kokoro) running inside the app: nothing is uploaded and no other program is needed. Each line is spoken when its subtitle appears, fitted into its time, and can have a voice per speaker. The original voices are then taken out under the English lines (music and effects kept), or the original sound is turned down while the voice speaks; the result is added to a copy of the video as an extra English audio track. The original video is never changed." />
         </StackPanel>
 
+        <!-- Guided-dubbing banner: shown only while moving through a batch of episodes one at a time. -->
+        <Border Grid.Row="1" Grid.ColumnSpan="3" Margin="0,0,0,12" Padding="14,10" CornerRadius="{StaticResource Radius.Control}"
+                Background="{DynamicResource Brush.AccentSoft}" BorderBrush="{DynamicResource Brush.Accent}" BorderThickness="1"
+                Visibility="{Binding GuidedDubActive, Converter={StaticResource Vis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="Skip" Command="{Binding GuidedDubSkipCommand}" Margin="0,0,8,0"
+                            ToolTip="Don't dub this episode; move to the next." />
+                    <Button Style="{StaticResource GhostButton}" Content="Stop" Command="{Binding GuidedDubStopCommand}" Margin="0,0,8,0"
+                            ToolTip="End guided dubbing and return to the Batch tab." />
+                    <Button Style="{StaticResource AccentButton}" Tag="&#xE893;" Content="Next episode" Command="{Binding GuidedDubNextCommand}"
+                            ToolTip="Move to the next episode (dub this one first if you want it dubbed)." />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding GuidedDubBannerText}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding GuidedDubNextText}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <!-- ================= Left: steps ================= -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
@@ -279,7 +300,7 @@
         </ScrollViewer>
 
         <!-- ================= Right: progress, the preview player, what's next ================= -->
-        <Grid Grid.Row="1" Grid.Column="2">
+        <Grid Grid.Row="2" Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
