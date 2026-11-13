@@ -112,6 +112,10 @@ public sealed class AppSettings
     public bool BatchEmbedSubs { get; set; }
     /// <summary>Guided dubbing: load each episode and start the dub at once (true) or load and wait for the user (false).</summary>
     public bool BatchGuidedDubAutoStart { get; set; }
+    /// <summary>Guided burned-in removal: after Detect, start removing at once (true) or load and wait for the user to review the area and preview (false, the default — removal can paint over the picture, so a look first is safer).</summary>
+    public bool BatchGuidedBurnAutoStart { get; set; }
+    /// <summary>Guided removal + dubbing in one walk-through per episode (true), or burned-in as its own separate guided session before dubbing (false, the default).</summary>
+    public bool BatchGuidedCombined { get; set; }
 
     // Output defaults
     public string DefaultOutputFormat { get; set; } = "srt";

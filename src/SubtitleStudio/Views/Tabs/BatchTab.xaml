@@ -19,7 +19,7 @@
         <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="Batch" Style="{StaticResource Text.H1}" VerticalAlignment="Center" />
             <ctl:HintMarker Margin="8,2,0,0"
-                            Text="A whole season unattended: every file in the queue is transcribed, then translated, and the subtitles are saved next to it (Episode 01.ko.srt and Episode 01.en.srt). It uses the same Whisper model, language model, device and names lists as AI Transcribe and Translate. Nothing opens in the editor; double-click a finished file to review it." />
+                            Text="One place to run a whole season. The steps go top to bottom: 1 add the files, 2 choose what to make, 3 Start — transcribe and translate the queue, saving the subtitles next to each file (Episode 01.ko.srt and Episode 01.en.srt). Steps 4 and 5 are optional stages you run after that: guided dubbing and guided burned-in removal, each walking the episodes one at a time on their own tab with full control. It shares the same Whisper model, language model, device and names lists as AI Transcribe and Translate. Nothing opens in the editor for steps 1–3; double-click a finished file to review it." />
             <TextBlock Text="{Binding BatchSummary}" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="14,2,0,0" />
         </StackPanel>
 
@@ -109,13 +109,27 @@
 
                 <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
+                        <TextBlock Text="3. Make the subtitles" Style="{StaticResource Text.H2}" />
+                        <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
+                                   Text="Transcribes and translates the whole queue on its own (plus embedding, if ticked above); a file that fails is noted and the queue moves on. Cancel stops after the current step, and Start again carries on from there. The optional stages below run after this, once the subtitles exist." />
+                        <WrapPanel>
+                            <Button Style="{StaticResource AccentButton}" Tag="&#xE768;" Content="Start" Command="{Binding StartBatchCommand}" Margin="0,0,8,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding BatchBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Optional stages — run these after step 3, once the subtitles are made" Style="{StaticResource Text.Label}" Margin="2,2,0,8" TextWrapping="Wrap" />
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Guided dubbing" Style="{StaticResource Text.H2}" />
+                            <TextBlock Text="4. Guided dubbing" Style="{StaticResource Text.H2}" />
                             <ctl:HintMarker Margin="8,0,0,0"
                                             Text="Dub the queued episodes one at a time, with full control. Each episode (its video and translated subtitle) is loaded into the Dubbing tab in turn, with a banner showing which is up and what's next. Dub it as you like — speakers, voices, options — then press Next. After the last one you come back here. This keeps the Dubbing tab's hand-tuned quality; it isn't an unattended run." />
                         </StackPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,8"
-                                   Text="Loads each episode into the Dubbing tab in turn so you can dub it with full control. Needs the episodes transcribed/translated first. Each dubbed video is saved next to its original with an automatic name — no save prompt during the run." />
+                                   Text="Loads each episode into the Dubbing tab in turn so you can dub it with full control. Needs the episodes transcribed/translated first (step 3). Each dubbed video is saved next to its original with an automatic name — no save prompt during the run." />
                         <CheckBox IsChecked="{Binding GuidedDubAutoStart}" IsEnabled="{Binding BatchCanEdit}"
                                   ToolTip="Off: each episode is loaded and waits for you to dub it and press Next. On: each episode is loaded and the dub starts at once with the Dubbing tab's current settings, moving on when it finishes.">
                             <TextBlock Text="Start the dub automatically as each episode loads" TextWrapping="Wrap" />
@@ -128,13 +142,39 @@
 
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
-                        <TextBlock Text="3. Start" Style="{StaticResource Text.H2}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="5. Guided burned-in removal" Style="{StaticResource Text.H2}" />
+                            <ctl:HintMarker Margin="8,0,0,0"
+                                            Text="Clean burned-in subtitles out of the picture, one episode at a time, with full control. Each queued video is loaded into the Burned-in tab in turn, with a banner showing which is up and what's next. Removing text repaints the picture, so by default each episode stops after Detect for you to check the area and run a 10-second preview, then press Next. The cleaned video is saved next to the original (never over it). An episode with no burned-in subtitles is left untouched." />
+                        </StackPanel>
                         <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,10"
-                                   Text="It runs on its own; a file that fails is noted and the queue moves on. Cancel stops after the current step, and Start again carries on from there." />
-                        <WrapPanel>
-                            <Button Style="{StaticResource AccentButton}" Tag="&#xE768;" Content="Start" Command="{Binding StartBatchCommand}" Margin="0,0,8,6" />
+                                   Text="Loads each queued video into the Burned-in tab in turn. Removal can paint over the picture, so the default stops at each episode for a quick look before you commit. This cleans the source and doesn't need step 3 first; run it before dubbing if your videos have burned-in subtitles." />
+
+                        <TextBlock Text="When to run it" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                        <RadioButton GroupName="BurnMode" IsEnabled="{Binding BatchCanEdit}" Margin="0,0,0,4"
+                                     IsChecked="{Binding GuidedBurnSeparate, Mode=TwoWay}">
+                            <StackPanel>
+                                <TextBlock Text="Its own pass (recommended)" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                                           Text="Clean the whole season first and check the results, then dub the cleaned videos separately. Keeps each stage's review focused." />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton GroupName="BurnMode" IsEnabled="{Binding BatchCanEdit}" Margin="0,0,0,8"
+                                     IsChecked="{Binding GuidedBurnCombined, Mode=TwoWay}">
+                            <StackPanel>
+                                <TextBlock Text="Removal + dubbing in one walk-through" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                                           Text="Clean each episode and dub it before moving on, so you pass through the season once. Guided dubbing starts automatically after the last episode is cleaned." />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <CheckBox IsChecked="{Binding GuidedBurnAutoStart}" IsEnabled="{Binding BatchCanEdit}" Margin="0,2,0,0"
+                                  ToolTip="Off (recommended): each episode is detected and waits for you to review the area, preview, and press Next. On: each episode is detected and the removal runs at once — faster, but nothing is checked before the picture is repainted.">
+                            <TextBlock Text="Remove automatically after detecting (skips the review step)" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Style="{StaticResource GhostButton}" Tag="&#xE768;" Content="{Binding StartGuidedBurnText}" Command="{Binding StartGuidedBurnCommand}" />
                         </WrapPanel>
-                        <TextBlock Text="{Binding BatchBlockedText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </StackPanel>

@@ -63,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitReview();
         InitDubbing();
         InitGuidedDub();
+        InitGuidedBurn();
         InitSettings();
         InitHelp();
     }

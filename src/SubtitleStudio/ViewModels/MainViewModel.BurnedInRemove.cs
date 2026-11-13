@@ -314,8 +314,10 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
-    /// Renders the whole video to a new file chosen by the user (suggested: "Name (no subs).ext"), or to
-    /// <paramref name="restartOutput"/> when restarting a Create video interrupted by a crash.
+    /// Renders the whole video to a new file. The output is: <paramref name="restartOutput"/> when restarting a
+    /// Create video interrupted by a crash; the suggested "Name (no subs).ext" next to the original, with no save
+    /// prompt, during a guided run (so the hand-off from the Batch tab is never interrupted by a dialog); otherwise
+    /// a file the user chooses (suggested: "Name (no subs).ext").
     /// </summary>
     private async Task CreateCleanVideoAsync(string? restartOutput)
     {
@@ -325,8 +327,11 @@ public sealed partial class MainViewModel
 
         var suggested = SubtitleRemover.SuggestedOutputName(video.FullPath);
         var ext = Path.GetExtension(suggested);
-        var output = restartOutput ?? _s.Dialogs.SaveFile("Save the video without burned-in subtitles",
-            $"Video (*{ext})|*{ext}", 1, Path.GetDirectoryName(video.FullPath), suggested);
+        var output = restartOutput
+            ?? (GuidedBurnActive
+                ? Path.Combine(Path.GetDirectoryName(video.FullPath) ?? string.Empty, suggested)
+                : _s.Dialogs.SaveFile("Save the video without burned-in subtitles",
+                    $"Video (*{ext})|*{ext}", 1, Path.GetDirectoryName(video.FullPath), suggested));
         if (output is null) return;
         if (string.Equals(Path.GetFullPath(output), Path.GetFullPath(video.FullPath), StringComparison.OrdinalIgnoreCase))
         {
