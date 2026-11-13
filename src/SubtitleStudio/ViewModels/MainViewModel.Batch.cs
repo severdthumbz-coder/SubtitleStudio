@@ -449,7 +449,7 @@ public sealed partial class MainViewModel
 
         // A header line so the Log reads clearly: what this run will do, over which files, with which engines and options.
         var totalLen = rows.Where(r => r.Item.Duration is { } d).Sum(r => r.Item.Duration!.Value.TotalSeconds);
-        var transcriberName = transcriber is LocalWhisperEngine ? $"Whisper ({(SelectedWhisperModel?.Name ?? "model")}) on {ResolveWhisperDevice().Label}" : transcriber.DisplayName;
+        var transcriberName = transcriber is LocalWhisperEngine ? $"Whisper ({(SelectedWhisperModel?.Header.Name ?? "model")}) on {ResolveWhisperDevice().Label}" : transcriber.DisplayName;
         _s.Log.Info("Batch", $"▶ Batch started: {rows.Count} file{(rows.Count == 1 ? "" : "s")}"
             + (totalLen > 0 ? $" ({FormatSpan(TimeSpan.FromSeconds(totalLen))} of video)" : string.Empty)
             + $". Transcribe with {transcriberName}"
