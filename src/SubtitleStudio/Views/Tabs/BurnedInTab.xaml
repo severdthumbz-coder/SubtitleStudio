@@ -9,6 +9,7 @@
     <Grid Margin="20,16,20,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -23,8 +24,28 @@
                             Text="Burned-in (hard) subtitles are part of the picture, not a separate track. This tab finds them, reads them into a normal subtitle you can edit, translate and save, and can remove them from the picture into a new video." />
         </StackPanel>
 
+        <!-- Guided removal banner: shown only while moving through a batch of episodes one at a time. -->
+        <Border Grid.Row="1" Grid.ColumnSpan="3" Margin="0,0,0,12" Padding="14,10" CornerRadius="{StaticResource Radius.Control}"
+                Background="{DynamicResource Brush.AccentSoft}" BorderBrush="{DynamicResource Brush.Accent}" BorderThickness="1"
+                Visibility="{Binding GuidedBurnActive, Converter={StaticResource Vis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="Skip" Command="{Binding GuidedBurnSkipCommand}" Margin="0,0,8,0"
+                            ToolTip="Don't clean this episode; move to the next." />
+                    <Button Style="{StaticResource GhostButton}" Content="Stop" Command="{Binding GuidedBurnStopCommand}" Margin="0,0,8,0"
+                            ToolTip="End guided removal and return to the Batch tab." />
+                    <Button Style="{StaticResource AccentButton}" Tag="&#xE893;" Content="Next episode" Command="{Binding GuidedBurnNextCommand}"
+                            ToolTip="Move to the next episode (remove this one first if you want it cleaned)." />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding GuidedBurnBannerText}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding GuidedBurnNextText}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <!-- ================= Left: controls ================= -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
@@ -147,7 +168,7 @@
         </ScrollViewer>
 
         <!-- ================= Right: frame + results ================= -->
-        <Grid Grid.Row="1" Grid.Column="2">
+        <Grid Grid.Row="2" Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" MinHeight="240" />

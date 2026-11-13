@@ -5,7 +5,18 @@ The version is the `<FullVersion>` value in `src/SubtitleStudio/SubtitleStudio.c
 This file is embedded in the app and shown under Help > Revision history, and CI fails if the
 current FullVersion has no entry here.
 
-## [1.0.0.127] - 2026-11-13
+## [1.0.0.129] - 2026-11-13
+
+### Changed
+- Guided burned-in removal now never prompts for a save location during a run. Like guided dubbing, the cleaned video is saved next to its original with the automatic "(no subs)" name — whether an episode loads and waits for you to press "Create video", or removes automatically — so the hand-off from the Batch tab is never interrupted by a dialog. (Removing a single video from the Burned-in tab outside a guided run still asks where to save, as before.) This also fixes a path bug in the auto-remove mode added in build 128, where the cleaned file could be written to the wrong folder.
+- The Batch tab now reads as a numbered pipeline. The Start card moved above the optional stages and the steps are numbered top to bottom: 1 Files, 2 What to make, 3 Make the subtitles (the Start run), then the optional stages 4 Guided dubbing and 5 Guided burned-in removal. The header hint and each card explain the order — the optional stages run after the subtitles are made (burned-in removal cleans the source, so run it before dubbing if your videos have hard subtitles).
+
+## [1.0.0.128] - 2026-11-13
+
+### Added
+- Guided burned-in removal for a batch. A new "Guided burned-in removal" section on the Batch tab cleans burned-in subtitles out of the picture one episode at a time, the same guided way as dubbing: each queued video is loaded into the Burned-in tab in turn, with a banner showing which episode is up and what's next, and Next / Skip / Stop. Because removing text repaints the picture, the default stops at each episode after Detect so you can check the subtitle area and run a 10-second preview before you commit — then press Next. Each cleaned video is saved next to its original (never over it), and an episode with no burned-in subtitles found is left untouched. An option lets each episode remove automatically right after detecting (faster, but nothing is checked first). Two modes: run removal as its own pass over the whole season (recommended — clean and verify first, then dub the cleaned videos), or removal + dubbing in one walk-through per episode, which starts guided dubbing automatically once the last episode is cleaned.
+
+
 
 ### Changed
 - Guided dubbing no longer prompts for a save location at each episode. The dubbed video is saved next to its original with an automatic name (e.g. "Episode 3 (English dub).mkv"; a number is added if that name is taken, so nothing is overwritten). This applies through the whole guided run — whether an episode loads and waits for you to press "Make dubbed video", or starts automatically — so the hand-off to the Dubbing tab is never interrupted by a dialog. Dubbing a single video from the Dubbing tab outside a guided run still asks where to save, as before.
